@@ -1,0 +1,148 @@
+---
+title: "Decommission Plan"
+date: 2026-08-03
+---
+
+This is a first pass, based on one read-only recon (2026-08-03) of both boxes. It's a
+starting point for discussion with the Bioconductor team, not a committed roadmap — several
+items below need confirmation before anyone touches production.
+
+::: {.callout-tip}
+## Progress update — 2026-08-13
+Substantial pieces of this plan now exist and run, and they change the shape of the two
+hardest items below:
+
+- **Serving is ready to move.** The R2/Worker replacement is functionally complete —
+  scheduled sync verified drift-free, logging live with gap alerting, the release-roll
+  guard deployed. See [R2 Migration](r2-migration.qmd). Item (4) and the `.htaccess` port
+  in the table below are done in substance; what remains is the cutover decision.
+- **The circular checkResults dependency has a second answer.** Beyond repointing at the
+  build machines (the option described below), a working pilot now takes the r-universe
+  path: an observer archives every build state, a **propagation gate** admits packages
+  per-architecture (a package propagates when it builds and checks clean on at least one of
+  linux/windows/mac, and only the passing architectures' binaries publish — see the update
+  on [the propagation gate](propagation-gate.qmd)), and the propagated artifacts are
+  exposed in CRAN repository layout. Check results and landing-page data can be *derived*
+  from this pipeline rather than pulled from master or the build machines at all.
+- **The pages that consume that data exist in prototype.** Next-generation check-results
+  and package landing pages render directly from the gate's artifacts (see
+  [Astro Site Build](astro-site-build.qmd)) — the first pages in the stack that nanoc never
+  produced and that have no dependency on staging, master, or `BUILD_STATUS_DB.txt`.
+- **The migration is now a phased, tracked plan** — repository layout, site build in CI,
+  data plane, route-by-route redesign, and sync-host retirement are recorded as ADR 0008
+  in the repo with per-phase issues, replacing the loose sequencing sketch below.
+
+The per-component assessment and open questions below are retained as written — they
+describe the legacy system accurately and the team-facing questions are still open.
+:::
+
+## What's actually on the critical path
+
+Three separable jobs currently live on staging+master:
+
+1. **The site build** (Nanoc/Rake, hourly, staging) — turns the `bioconductor.org` git repo
+   plus package-build results into HTML/RSS/JSON, pushes to master.
+2. **SPB results tracking** (`spb_history`, staging) — Django app + three background daemons
+   recording and reporting package build outcomes, fed by a STOMP/RabbitMQ live-progress feed
+   from the build machines.
+3. **The actual builds** (`nebbiolo1`, `nebbiolo2`, `lconway`, `kjohnson3`, and possibly a few
+   older/other-repo hosts) — dedicated per-platform machines running `R CMD build`/`check`
+   across every package, pushing reports straight into master's `checkResults/`. Not yet
+   investigated directly (no SSH into these boxes so far) — everything here is inferred from
+   staging-side config and master-side file ownership.
+4. **Serving** (Apache + Solr, master) — static files plus site search.
+
+The R2 migration (see [R2 Migration](r2-migration.qmd)) already replaces most of (3)'s job
+for the docroot itself. What's left here is (1), (2), and the residual pieces of (3) — Solr
+search and the `.htaccess` routing logic — that R2 + Worker don't cover yet.
+
+::: {.callout-important}
+## The site build has a circular dependency on the site it produces
+(1)'s `get_build_result_dcfs` pulls package-check DCF data via plain HTTP from
+`bioconductor.org/checkResults/...` — which resolves to **master**, the thing this whole
+effort is trying to retire. Master doesn't originate that data; it's just where (3)'s build
+machines push their reports. Pulling from master is a fine *bootstrap* for a spike while
+master still exists, but it is not independence: a container build sourced this way breaks
+the moment master goes away. Real independence means pulling checkResults data from the
+build machines directly (or from wherever their push gets redirected), which makes item (3)
+a **blocker** for containerizing (1) independently, not a parallel track.
+See [issue #46](https://github.com/seandavi/bioc-cloudflare/issues/46).
+:::
+
+::: {.callout-tip}
+## The direct-pull path already exists, commented out in the Rakefile
+`Rakefile:383` still carries the original implementation, disabled but intact:
+
+```ruby
+rsync --delete --include="*/" --include="**/*.dcf" --exclude="*" \
+  -ave "ssh -i $HOME/.ssh/bioconductor.org.rsa" \
+  biocbuild@#{machine}:~/public_html/BBS/#{biocversion}/#{buildtype}/nodes \
+  #{dcfdir}/#{version}
+```
+
+with `machine` resolved from `config.yaml`'s `active_release_builders` /
+`active_devel_builders` (`nebbiolo1` release Linux, `nebbiolo2` devel Linux, `lconway` and
+`kjohnson3` macOS). So the authoritative data lives at
+`~biocbuild/public_html/BBS/<version>/<buildtype>/nodes` on each build machine, and the site
+build used to pull it from there directly — the HTTP-from-master fetch that replaced it is
+what introduced the circularity. Restoring a direct pull is a **repoint, not a redesign**.
+
+Two caveats: the referenced deploy key is **no longer present
+on staging**, so a fresh credential authorized on the build machines is needed; and the
+commented code pulls per-node `.dcf` files whereas the live code pulls the aggregated
+`BUILD_STATUS_DB.txt`, so the consumer side needs checking before the swap.
+:::
+
+## Per-component assessment
+
+| Component | Containerize? | Notes |
+|---|---|---|
+| Site build (Nanoc/Rake) | **Easy to run, not yet independent** | Ruby 2.6.5 image already in the repo, unused in prod — a good fit for a scheduled container job (cron container, GitHub Actions, or a Cloudflare cron trigger). But its `checkResults` input currently comes from master via HTTP, a circular dependency until the build machines (row below) are sourced directly instead. |
+| SPB results tracking (Django + daemons) | **Medium** | Django app itself containerizes trivially once DEBUG is turned off and it's put behind a real WSGI server. The daemons' trigger source is now known — a STOMP subscription to RabbitMQ — which makes them a much cleaner containerize target than "polling something unknown" would have been: one consumer process per queue, no polling loop to reverse-engineer. |
+| Build machines (nebbiolo1/2, lconway, kjohnson3) | **Unassessed** | Haven't looked at these directly yet. Each is a long-lived, platform-specific (Linux/macOS) build host — containerizing the Linux ones is plausible (ephemeral build runners are a well-worn pattern); the macOS builders can't containerize the same way and would need Apple Silicon CI runners or similar if kept at all. |
+| Apache static serving + `.htaccess` | **Superseded, not containerized** | This is what the Worker replaces, not what gets dockerized. The 19KB `.htaccess` is the porting work: redirect/rewrite rules, cache headers. Should be diffed rule-by-rule against the Worker before master's Apache is retired. |
+| Solr search | **Hard, deprioritized** | Decade-old version, no obvious migration path documented yet. Out of scope for the first cut — flag as its own security/maintenance item regardless of the decommission timeline. |
+| Staging→master push (SSH, personal keys) | **N/A — eliminated by design** | Once the build runs as a scheduled job that writes to R2 directly (or to a build-artifact store the Worker reads from), there's no "staging" pushing to "master" — the push mechanism itself goes away rather than needing a replacement. The build machines' *direct* push into `checkResults/` needs the same treatment separately. |
+
+## Sequencing
+
+1. **Directly inspect the build machines** (`nebbiolo1`, `nebbiolo2`, `lconway`, `kjohnson3`)
+   — everything about them so far is inferred from staging-side config and master-side file
+   ownership, not a direct look. The *path* is now known from the Rakefile's disabled
+   direct-pull (`~biocbuild/public_html/BBS/…/nodes`, see above); what still needs a direct
+   look is whether that path is still populated and current, and what credential the pull
+   would need. SSH access to these hosts is not yet available — they refuse connections
+   through the existing jump host — so this is currently gated on an access request.
+2. **Turn the site build into a scheduled container job**, sourcing `checkResults` data from
+   the build machines (step 1) rather than from `bioconductor.org` — writing output to a
+   location R2 sync can pick up. Reuses the existing Dockerfile and removes the hourly
+   `real_clean` full-rebuild dependency on staging's specific filesystem layout.
+3. **Port `.htaccess` rules into the Worker incrementally**, verified with `cutover-diff.sh`
+   (already in this repo) against master, before any traffic moves.
+4. **Only then** consider whether master's Apache can be retired — Solr and webstats are
+   currently proxied through it and need their own homes first.
+5. Staging retires once (2) no longer needs it as a build host and SPB results-tracking has
+   moved to wherever (1) lands.
+
+## Open questions for the team
+
+- Is staging's public DNS entry meant to serve any traffic today, or is it
+  purely internal? (Confirmed: no web server listens there — this reads as intentional, but
+  worth a sentence from the core team for the record.)
+- Who owns the `webstats` host (a VPC-private address, port 8000), and is it in scope for
+  this effort? (Partly answered — the application it runs, its data source and its two
+  live data-quality defects are documented in [Download Stats](download-stats.qmd).
+  Ownership of the *host* is still open, as is who watches the pipeline.)
+- Are `moscato1/2`, `zin1/2`, `morelia`, `oaxaca` (named in older SPB config) still active
+  builders, or retired? Affects how many machines this touches.
+- Acceptable path for Solr — replace, retire the search feature, or explicitly keep a small
+  VM just for it?
+
+## Risks flagged along the way (independent of this plan)
+
+See the callouts on [Current State](current-state.qmd). Several hardening items were found
+on staging and master along the way — credential handling, framework configuration, log
+rotation, an unmaintained search service, an out-of-support OS, and the scope of the
+staging→master push. Specifics are deliberately not published here; they are recorded
+privately and shared with the Bioconductor core team. None of them block the decommission
+work, but they are worth addressing regardless of how this plan proceeds.

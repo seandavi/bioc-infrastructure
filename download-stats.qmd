@@ -1,0 +1,543 @@
+---
+title: "Download Stats"
+---
+
+Measured 2026-08-04. Numbers on this page are point-in-time.
+
+Bioconductor's package download statistics — the per-package tables at
+`/packages/stats/`, and the `Rank` field on every package landing page — are produced by a
+pipeline that is separate from everything else in this repository. It has its own host, its
+own data source, its own database, and its own release history. It is also one of only two
+things master's Apache *proxies* rather than serves from disk — the other being Solr. Retiring
+master without a plan for this takes the download stats offline.
+
+This page documents what that pipeline is, how a "download" is actually defined, where the
+published numbers actually come from — which is not one source but three eras — and the
+data-quality problems the measurements turned up.
+
+## Two systems, both running
+
+There are two complete implementations, and **both are live today**:
+
+| | Legacy | Current |
+|---|---|---|
+| Repository | [`Bioconductor/download_stats`](https://github.com/Bioconductor/download_stats) | [`Bioconductor/bio-web-stats`](https://github.com/Bioconductor/bio-web-stats) |
+| Serves | `/packages/oldstats/` | `/packages/stats/` |
+| Server header | `Apache/2.4.52` (pre-generated static files) | `waitress` (a live Python WSGI app) |
+| Stack | Python + DuckDB, one database file per year | Flask + SQLAlchemy, Athena → Postgres |
+| Cadence | weekly cron, one repository per weekday | daily, 01:12 UTC |
+| Freshness observed | data through 2026-08-01 | data through 2026-08-03 |
+| First commit | 2017 (migrated from SVN; code is older) | 2023-10-05 |
+
+The handover happened on **2024-05-14**: a commit in the legacy repository retargeted its
+publishing `rsync` from `/packages/stats/` to `/packages/oldstats/`, and the new application
+took over the original URL. The legacy pipeline was never switched off — it still runs weekly
+on a Jetstream2 VM and still publishes, just to a URL nothing links to.
+
+That accident of history is useful. Two independent implementations reading the same source
+logs give a free cross-check, and this page leans on it heavily.
+
+```{mermaid}
+flowchart LR
+  CF["CloudFront access logs"] --> S3["s3://bioc-cloudfront-logs"]
+  S3 --> L["legacy: DuckDB per year<br/>weekly cron"]
+  S3 --> A["Athena view<br/>v_bioc_web_downloads"]
+  A --> PG["Postgres<br/>bioc_web_downloads"]
+  PG --> F["Flask + Waitress"]
+  L -->|rsync| OS["/packages/oldstats/"]
+  F -->|proxied by master| NS["/packages/stats/"]
+```
+
+Both read the same bucket of CloudFront logs. The legacy pipeline's other historical
+inputs — Squid logs from the old FHCRC proxies, Apache logs from master — are commented out of
+its crontab, so CloudFront is the only live source for either system.
+
+### Two abandoned attempts, still on disk
+
+Storage recon turned up two further buckets that look relevant and are not:
+
+- One holds a **Hive-partitioned Parquet extract** (`year=/month=/day=`) that the current
+  system's ingestion code once read directly — the line is still there, commented out. It
+  contains four months of 2024 and nine days of September 2025, nothing since, and the objects
+  are encrypted with a key the investigating credentials cannot use. The write timestamps fall
+  into exactly two clusters, January 2024 and September 2025, both bearing Athena query-run
+  identifiers — so this is not a pipeline that stalled, it is a query somebody ran twice,
+  nineteen months apart.
+- The other holds a **rendered snapshot of the legacy stats site** — the same `_stats.tab`
+  files and category pages, 131,077 objects and 1.1 GiB. Every sampled object across all four
+  package categories carries a timestamp inside one 90-minute window on 2024-01-19. Almost
+  certainly the reference copy taken to validate the replacement before the 2024-05 handover.
+
+Neither is wired into anything today. Worth knowing so nobody mistakes them for live inputs.
+
+## What counts as a download
+
+Both systems define it the same way, and it is narrower than "a request to bioconductor.org":
+
+- The URL must be a **package tarball or binary** — matching
+  `<pkg>_<version>.tar.gz|zip|tgz` under `src/contrib` or `bin/…/contrib/…`, below
+  `/packages/`. Landing pages, vignettes, manuals, and the `PACKAGES` index files are not
+  downloads.
+- The HTTP status must be one of **200, 301, 302, 307, 308**. Redirects count. Partial content
+  (`206`) does not, so a resumed or ranged fetch is invisible.
+- **One matching log line is one download.** There is no per-IP-per-day collapsing, no session
+  logic, no dedup of any kind. The same machine pulling the same tarball ten times counts ten
+  times.
+- `Nb_of_distinct_IPs` is a `COUNT(DISTINCT …)` over the client address, computed
+  independently for each month and again for the whole year. The yearly figure is therefore
+  *not* the sum of the monthly ones — it is genuinely deduplicated across the year.
+
+Two consequences worth stating plainly, because they are easy to get wrong when quoting these
+numbers:
+
+**Neither system filters bots.** The legacy code contains an 18-entry list of known crawlers
+and a list of build-node addresses, with the code to exclude them — and both checks are
+commented out. The current system's Athena view does not select the user-agent column at all,
+so it could not filter on it even in principle. No crawler, mirror, or build-farm traffic is
+excluded from any published number.
+
+**Distinct-IP counts are inflated for proxied traffic.** The legacy pipeline counts distinct
+values of the raw address *field*, which for a forwarded request can be a comma-separated
+`X-Forwarded-For` chain. `"1.2.3.4, 5.6.7.8"` is counted as a different client from
+`"1.2.3.4"`. There is no normalization and no subnet aggregation.
+
+## Do the two systems agree?
+
+Mostly, and that is the reassuring part. Comparing the repository-wide `bioc_stats.tab` from
+each, total downloads per year:
+
+| Year | Legacy | Current | Difference |
+|---|---:|---:|---:|
+| 2014 | 9,032,041 | 8,997,377 | −0.38% |
+| 2015–2018 | | | ≤0.05% |
+| 2019 | 23,191,951 | 23,067,474 | −0.54% |
+| 2020–2021 | | | ≤0.01% |
+| 2022 | 42,930,744 | 42,015,520 | −2.13% |
+| 2023 | 46,195,370 | 45,546,881 | −1.40% |
+| 2024 | 59,127,030 | 58,659,127 | −0.79% |
+| 2025 | 98,582,586 | 98,759,953 | +0.18% |
+
+Month by month from January 2025 through May 2026 they agree within 1.3% on downloads and 0.8%
+on distinct IPs.
+
+::: {.callout-warning}
+## The early years are not independent corroboration
+It is tempting to read the table above as two independently written pipelines validating each
+other across twelve years. For the early years that is **not** what it shows — the current
+system's pre-2020 history was *copied from the legacy system's own databases*, so agreement
+there is close to tautological. See [Where the pre-2020 numbers come
+from](#where-the-pre-2020-numbers-come-from). The genuinely independent comparison starts around
+2023, and the near-zero differences before that are an artifact of shared ancestry.
+:::
+
+### Where the pre-2020 numbers come from
+
+Both systems publish per-package statistics back to **2009**. The CloudFront logs that feed them
+only start on **2020-01-01**. So eleven years of published history cannot have been computed
+from the live data source, and were not.
+
+They came from a **one-time database conversion**, run on 2023-12-09/10 and preserved in the
+current system's repository under `conversion/`. The script opens the legacy pipeline's
+per-year **SQLite** databases directly on the legacy host — `download_db_<year>.sqlite`, one
+file per year — and `COPY`s the row-level records straight into the new system's Postgres
+downloads table. The commit sequence is explicit: *"convert logs 2009-2020"*, then
+*"conversion of sqlite3 through 2022 complete"*.
+
+Three things follow, and they matter more than the mechanism:
+
+**The historical numbers were never recomputed.** They are the legacy system's own output,
+re-hosted. Every methodology quirk on this page — no bot filtering, no build-node exclusion,
+raw-string IP distinctness — is baked into the pre-2020 figures, and re-deriving them from
+clean rules is not possible, because the inputs are gone.
+
+**Two known distortions were introduced by the conversion itself.** Client addresses were
+truncated to 30 characters on import (commit: *"db conversion truncate malformed ips"*), so
+pre-2020 distinct-IP counts in the current system are computed over clipped addresses and are
+not strictly comparable to the legacy system's. Separately, the legacy schema renamed its status
+column in 2019, which the conversion had to special-case — and 2019 shows the largest
+early-year discrepancy between the two systems (−0.54%) outside the genuinely independent era.
+
+**For 2009–2019 there is no raw source at all.** Those log files predate the S3 archive and do
+not exist anywhere in it. That history survives only as the legacy SQLite/DuckDB files on the
+legacy VM, the imported rows in Postgres, and the published `.tab` files. It cannot be
+regenerated from anything.
+
+::: {.callout-important}
+## Eleven years of history live on a VM nobody has claimed
+The recoverability note further down applies only from 2020 onward. **Statistics for 2009–2019
+are irreplaceable** — no raw logs exist. The only copies are two databases and a set of
+published text files, none of them documented as backed up, on a host whose ownership is
+[still an open question](decommission-plan.qmd). Copying those SQLite/DuckDB files somewhere
+durable is cheap, and is worth doing before anything else on this page is acted on.
+:::
+
+The exact upper boundary of the import is ambiguous: the script as committed covers 2009–2020,
+while the final commit message claims completion "through 2022". The measured agreement is
+consistent with the import reaching at least 2021 — every year from 2015 to 2021 matches to
+within 0.05%, and the first substantial divergence appears in **2022** (−2.13%), which is the
+signature of independent computation beginning.
+
+### Package coverage differs, and the current system is right
+
+The current system reports 3,106 packages with 2026 downloads; the legacy one reports 6,356.
+The gap is not a bug in the new system — it is the `INNER JOIN` against a known-packages table
+that the legacy pipeline lacks. The packages the legacy system counts and the current one
+drops are overwhelmingly **CRAN** packages fetched through Bioconductor URLs (`curl`,
+`openssl`, `jsonlite`, `rlang`, `Rcpp`, `cpp11`, `ggplot2`, `BiocManager`), plus case-variant
+artifacts — legacy lists a phantom `BioBase` alongside the real `Biobase`, with 20,715 downloads
+attributed to the misspelling.
+
+Those extra 3,256 "packages" account for **0.84%** of legacy's 2026 download volume, so this
+does not move the headline numbers. It does mean legacy's per-package tables contain entries
+that are not Bioconductor packages at all.
+
+The join has a real cost in the other direction, though: a newly accessioned devel package is
+absent from the packages table and its downloads silently vanish until the table is refreshed.
+That is a known open issue in the current repository, and the table-refresh command does not
+appear in any scheduled job.
+
+## Two data-quality problems
+
+### The August–September 2025 spike is real traffic
+
+Site-wide, downloads per distinct IP is a very stable ratio — between 1.7 and 2.5 every month
+for years. In two months it was not:
+
+| Month | Downloads | Distinct IPs | Ratio |
+|---|---:|---:|---:|
+| 2025 Jul | 5,326,712 | 233,881 | 1.70 |
+| **2025 Aug** | **18,065,065** | 169,669 | **6.57** |
+| **2025 Sep** | **19,547,487** | 190,208 | **6.39** |
+| 2025 Oct | 8,092,969 | 186,827 | 2.62 |
+
+Downloads roughly quadrupled while the number of distinct clients did not move. Both systems
+report the spike, and they agree on it to within 0.2% — so it is genuinely in the logs, not an
+artifact of either implementation.
+
+The traffic is concentrated in exactly the packages every Bioconductor install pulls in:
+`BiocVersion`, `BiocGenerics`, `S4Vectors`, `GenomeInfoDb`, `IRanges`, `XVector`, `Biobase`,
+`zlibbioc`. `BiocVersion` alone went from a downloads-per-IP ratio of 1.8 in July to **13.3** in
+August, then back to 2.2 by October. That is the signature of automated installation — CI
+matrices or container builds repeatedly installing the base dependency closure — not of user
+growth.
+
+Because no bot filtering is active, those two months are inflated in every published table,
+every per-package page, and the download-score ranking that feeds `Rank`. Nothing has been
+corrected retroactively.
+
+::: {.callout-warning}
+## Distinct IPs is the metric that survives
+In both excursions on this page, `Nb_of_distinct_IPs` stayed stable while `Nb_of_downloads`
+moved by factors of 3–4. Anyone using these tables to compare packages or track adoption should
+prefer the distinct-IP column, and should treat August–September 2025 as contaminated.
+:::
+
+### June/July 2026: both systems are wrong
+
+Through May 2026 the two pipelines track each other within about 1%. Then:
+
+| Month | Legacy | Current | Difference |
+|---|---:|---:|---:|
+| 2026 May | 7,644,668 | 7,741,634 | +1.3% |
+| **2026 Jun** | **8,617,209** | **6,769,369** | **−21.4%** |
+| **2026 Jul** | **7,317,007** | **8,933,461** | **+22.1%** |
+| Jun + Jul combined | 15,934,216 | 15,702,830 | −1.45% |
+| Jan–Jul combined | 50,193,667 | 50,278,734 | +0.17% |
+
+The combined totals agree, which invites the conclusion that roughly 1.8 million downloads were
+merely attributed to June by one system and to July by the other. Hold that thought — it is the
+natural reading from the published tables alone, and it is wrong.
+
+The disagreement is systematic rather than a traffic event. Comparing the two systems package by
+package, for packages with at least 2,000 downloads:
+
+| Month | Packages agreeing within ±5% | Median difference |
+|---|---:|---:|
+| 2026 May | 97% | +0.6% |
+| 2026 Jun | 2% | −23.4% |
+| 2026 Jul | 0% | +21.3% |
+
+Essentially *every* package moves by the same proportion, with a tight spread. A real traffic
+event is concentrated in a few packages, the way the 2025 spike was concentrated in the
+dependency closure. A uniform movement across the whole catalogue means a pipeline defect — as
+it turned out, one at each end.
+
+That reading was wrong. It has now been checked against the raw CloudFront logs, and the
+answer is worse than a reattribution.
+
+### Resolved: both published series undercount, for two unrelated reasons
+
+Recomputing June and July 2026 directly from the raw logs, `bioc` category:
+
+| 2026 | Raw logs (truth) | Legacy | Current |
+|---|---:|---:|---:|
+| June | **8,977,013** | 8,617,209 (−4.0%) | 6,769,369 (**−24.6%**) |
+| July | **9,040,668** | 7,317,007 (**−19.1%**) | 8,933,461 (−1.2%) |
+| Jun + Jul | **18,017,681** | 15,934,216 (−11.6%) | 15,702,830 (−12.8%) |
+
+The combined agreement that looked reassuring was a coincidence: **both series are missing
+roughly 2.1–2.3 million downloads**, and it is not the same downloads. Nothing was
+reattributed. Two separate defects happened to lean in opposite directions.
+
+**The legacy series is stale, not miscomputed.** Its July figure matches the raw total for
+1–24 July to within **0.4%** (7,284,637 against a published 7,317,007). It publishes weekly, so
+the last log fetch before the final run of the month landed around 24 July and the published
+"July" is simply a partial month. It is arithmetically fine and will fill in on a later run —
+the number is just younger than it looks.
+
+**The current series lost data, and will not recover it.** Its June is short by 2,207,644
+downloads, about a quarter of the month, while its July is accurate (−1.2% on downloads, and
+distinct IPs of 823,271 against a measured 823,202 — a 0.008% match). The raw daily profile for
+June is smooth, with no gap at either boundary, so the loss is distributed through the month
+rather than a clean missing range — invisible from the published tables. This coincides exactly
+with the ingestion rewrite: the change to insert in chunks, to stop the ingest being killed by
+the OOM killer, landed 2026-06-26 and merged 2026-07-10, and it wrapped the load-and-insert
+step in a `try`/`except` that can swallow a partial failure silently.
+
+The distinction matters operationally. Staleness self-corrects. **Silent partial loss does
+not** — the ingest window advances past the affected days and never revisits them, so June 2026
+stays wrong in the live series until someone backfills it deliberately.
+
+There is one more trace of that window. Sitting in the CloudFront log bucket — alongside the
+logs, not in any query-output location — are several Athena result files written in **June
+2026**, the largest 311 MB. Their header is
+`"date","c-ip","sc-status","category","package","year","month","day"`: precisely the column set
+of the download-extraction view. Someone was re-running the extraction by hand while this was
+happening.
+
+::: {.callout-important}
+## Neither published series should be trusted for June or July 2026
+The live series at `/packages/stats/` understates June 2026 by about a quarter. The archived
+series at `/packages/oldstats/` understates July because it had not finished the month. Correct
+figures are recoverable from the raw logs — that is how the numbers above were obtained — but
+the published tables have not been corrected.
+:::
+
+### Two routing bugs, easy to trip over
+
+Mistyping a path under `/packages/stats/` does not produce a 404. Two responses worth knowing
+about, both from the current application:
+
+- A **plausible-but-wrong filename** returns a server error rather than a not-found. This is
+  adjacent to two already-open issues in the repository, one about error statuses being
+  swallowed instead of passed to the reverse proxy, and one about a missing package directory
+  returning the category page instead of a 404.
+- A **path directly under `/packages/stats/`** redirects to an internal origin rather than to
+  the public site, so the link is broken for an external client. Anything that reimplements
+  this routing in a Worker should not carry that behaviour forward.
+
+Specifics are deliberately not published here; they are recorded privately and shared with the
+Bioconductor core team.
+
+## Can this be rebuilt from source?
+
+Yes, from 2020 onward, and it is cheaper than it looks. This was measured rather than
+estimated, because it decides whether the June/July discrepancy has to be adjudicated between
+two pipelines or can simply be recomputed.
+
+**We can read the raw logs directly.** Listing and fetching objects from the CloudFront log
+bucket both work with read-only credentials. What does *not* work is the query layer around it:
+`glue:GetDatabases`, `glue:GetTable` and `athena:ListWorkGroups` are all denied, so the existing
+table and view definitions are out of reach — and the production ETL config points at a
+different AWS account from the one that owns the bucket. That turns out not to matter, because
+nothing needs Athena.
+
+**The archive is smaller than its object count suggests.** Sampling one day per year:
+
+| Year | Compressed per day | Annualized |
+|---|---:|---:|
+| 2020 | 143 MB | 52 GB |
+| 2021 | 141 MB | 52 GB |
+| 2022 | 105 MB | 38 GB |
+| 2023 | 95 MB | 35 GB |
+| 2024 | 334 MB | 122 GB |
+| 2025 | 464 MB | 169 GB |
+| 2026 | 390 MB | ~143 GB |
+
+Roughly **550–600 GB compressed across ~800,000 objects**, all flat at the bucket root.
+
+**Parquet lands at roughly parity with the gzipped source.** Measured on two full months,
+mirroring every row and every column: June 2026 gave 157,956,840 rows in 437 seconds, July
+2026 gave 175,314,722 rows in 553 seconds and 12 GB. Columnar zstd on highly repetitive log
+fields compresses about as well as gzip does row-wise, so keeping everything costs far less
+than a row count suggests — the whole archive projects to **550–600 GB and 8–10 hours**, and it
+parallelizes by month.
+
+### Mirror the logs; interpret them locally
+
+DuckDB reads the gzipped logs straight out of S3 with a glob, so there is no need to stage a
+copy as a processing step. More importantly, **nothing should be filtered on the way in** —
+neither columns nor rows.
+
+That is the specific mistake to avoid, because both existing pipelines made it, and made it
+twice. Each projects down to a handful of columns at ingest, discarding `cs(User-Agent)` and
+`x-forwarded-for`, which is precisely why neither can filter bots or handle proxied clients
+today. Each also filters to package-tarball requests at ingest, which discards about 97% of the
+log — every content page, every vignette, every crawler hitting documentation. The columns and
+rows were never missing from the source; they were thrown away upstream, and recovering them
+means re-reading six years from S3.
+
+Filtering at ingest also bakes in the very policies under dispute — whether redirects count,
+whether `206` counts, whether `HEAD` counts. Those become unaskable. So the mirror stays raw and
+the download definition lives in a **view** over it. The egress is paid once; what is kept
+afterwards is free.
+
+This matters beyond download statistics. A complete mirror supports questions the published
+series cannot touch at all: user journeys through the site, which of the hundreds of thousands
+of content pages carry value, and bot pressure against documentation rather than against
+tarballs.
+
+A full `rclone copy` of the original gzip is still worth doing, but as a **backup** rather than
+a pipeline stage: the bucket is currently the only copy of the 2020-onward raw logs, with no
+versioning or lifecycle protection in evidence. A Parquet mirror is a derived artifact and
+depends on the column mapping being right; a byte-identical copy does not.
+
+### The script
+
+`cloudfront-logs-to-parquet.py` in the working repository behind this site does the mirroring:
+one Parquet file per month, Hive-partitioned as `year=YYYY/month=M/`, so the result queries as
+a single table with pruning on either level.
+
+A month at a time rather than a day gives ~80 files of tens of megabytes instead of ~2,400 of
+around one — fewer, larger row groups compress better and query faster. Two partition levels
+rather than a single `month=YYYY-MM` allows pruning by year alone, and matches the
+`year=/month=/day=` layout Bioconductor already used for its own abandoned Parquet extract.
+`date` and `time` are kept *in* the data rather than merely implied by the partition, because
+the question this exists to settle is a month-boundary dispute — day- and hour-level detail
+across that boundary is the one thing that must not be aggregated away.
+
+The mirror copies and does not interpret: every row, all 33 fields, VARCHAR exactly as logged
+apart from `date`. The download definition — package tarball or binary under `/packages/`,
+status in 200/301/302/307/308, `HEAD` excluded — lives in a `DOWNLOADS_SQL` view, so its output
+stays directly comparable to what the two series publish while remaining a policy that can be
+changed without re-reading anything. It deliberately does *not* filter bots; the point is to
+preserve that decision for the team rather than pre-empt it.
+
+The view is the part that can drift, so the script carries a `--self-check` that exercises it
+against known-good and known-bad URLs (tarball, Windows binary, annotation package, redirect,
+404, partial content, `HEAD`, an HTML page, a `PACKAGES` index). It also asserts that the mirror
+*stays* a mirror — the check fails if the copy grows a `WHERE` clause or a derived column.
+
+Two guards matter more than they look. The column mapping is **positional**, and the reader
+skips the `#Fields:` header, so an upstream format change would silently shift every column;
+the script verifies the field count per month and refuses to continue on a mismatch. The header
+was checked byte-for-byte at 2020, 2023 and 2026 and is identical, but the assertion is what
+keeps that true.
+
+Against the mirrored months, `cs_user_agent` alone separates `libcurl`, `RStudio`, `R`, `Wget`,
+`renv` and browser traffic — the distinction neither published series can currently draw.
+
+**The rebuild answered the open question**, and the answer was not the expected one. Recomputing
+June and July 2026 showed both published series undercounting for unrelated reasons; the
+numbers are in [Resolved: both published series
+undercount](#resolved-both-published-series-undercount-for-two-unrelated-reasons). Validation
+came out clean along the way: the mirror reproduces published 2020 figures to within 0.15%, and
+July 2026 distinct IPs to within 0.008%.
+
+## What this means for the migration
+
+::: {.callout-important}
+## The R2 migration removes this pipeline's only input
+Both systems are fed exclusively by **CloudFront access logs**. Serving package downloads from
+Cloudflare instead of CloudFront stops those logs being produced — and with the Squid and
+Apache ingests already commented out, there is no second source to fall back on. Download
+statistics stop accruing on the day traffic moves, for both systems at once, whatever else has
+been migrated.
+
+Cloudflare can emit equivalent logs, but nothing reads them today and the field layout differs
+from the CloudFront W3C format the Athena table and the legacy parsers both assume. **This is a
+prerequisite for the traffic cutover, not a follow-up.**
+:::
+
+### What replaces the logs
+
+::: {.callout-tip}
+## This is no longer a proposal — the replacement is live (2026-08-13)
+The design below is **implemented and running**. The Worker has been emitting one full
+record per request since early August; the record uses the CloudFront field vocabulary, so
+the two eras line up column-for-column. Logpush delivers continuously to durable object
+storage (the destination moved from R2 to Google Cloud Storage on 2026-08-10, for isolation
+of logging output from operational data), external tables make both eras queryable in one
+place, and a **single normalizing view presents the Cloudflare records with the identical
+columns, names and types as the CloudFront archive** — cross-era statistics are a plain
+`UNION ALL`, verified. Delivery is **gap-alerted daily** through the same failure channel as
+the sync jobs, because Logpush cannot backfill and a silent gap is permanent loss. The
+CloudFront side still accrues in parallel, so the deliberate cutover overlap this page
+calls for is already underway. The prerequisite in the callout above is met.
+:::
+
+Cloudflare's Logpush **HTTP requests** dataset is Enterprise-only, and Bioconductor is not on
+Enterprise. That rules out the direct analogue of CloudFront-to-S3 and settles the design:
+
+- **Worker emits one structured JSON record per request via `console.log`, shipped by Workers
+  Trace Events Logpush** to object storage. Trace Events Logpush is available on the Workers
+  Paid plan, and the 16,384-character limit on the combined logs field is
+  ample for a single record. The Worker is already in the request path, so this needs no
+  additional infrastructure.
+- **Tail Workers** consume the same event stream with code in the middle. Reach for one only if
+  the record needs shaping Logpush cannot express — not as the system of record. The
+  documentation does not state delivery guarantees, sampling under load, or overload behaviour,
+  and they bill on CPU time, which at this request volume is a real per-request cost Logpush
+  does not carry.
+- **Workers Analytics Engine** retains data for **three months**. That makes it a live
+  dashboard, never the record behind a series reaching back to 2009.
+
+Three constraints carry over from everything above. **Take all fields and no sampling** —
+Logpush offers both knobs, and using them is the same mistake that left both current pipelines
+unable to filter bots. **Monitor the push**: Logpush cannot backfill, so a failed or disabled
+job is permanent loss, and the failure is silent. **Overlap the cutover deliberately** — run
+CloudFront and Cloudflare logging together for at least a month, because the only reason
+anything on this page could be validated is that two pipelines happened to overlap by accident.
+
+Field names differ between the two (`ClientIP` against `c-ip`, `EdgeResponseStatus` against
+`sc-status`). Normalising at ingest would repeat the mistake; keep the eras in separate
+partitions and put a normalising view on top.
+
+- **`/packages/stats/` is a dynamic application, not files.** Everything else this repository
+  proposes to move to R2 is static content. This is a Flask app over a Postgres database,
+  reached through a proxy rule in master's Apache. A Worker serving objects from R2 cannot
+  replace it — it needs somewhere to keep running, and a route pointing at it.
+- **It is the last thing keeping that proxy rule alive**, alongside Solr. Both need a
+  destination before master's Apache can be retired.
+- **The raw logs are recoverable, contrary to the design notes.** Those notes say objects in
+  the CloudFront log bucket are destroyed after six months. Measured, that is not what happens:
+  the oldest object present is dated 2020-01-01 and every year since is represented, so roughly
+  6.6 years are retained with no lifecycle expiry in evidence. Statistics from 2020 onward could
+  therefore be **recomputed from source** if either database were lost — which makes a rebuild
+  a viable answer to the June/July discrepancy, rather than something to be patched forward.
+  This applies **only from 2020**; everything earlier has no surviving raw source and is
+  [irreplaceable](#where-the-pre-2020-numbers-come-from).
+  Two caveats: continuous delivery only starts in **January 2024** (2020–2023 objects were
+  bulk-loaded in November 2023, so their completeness is unverified), and the bucket has no
+  prefix structure at all — every object sits flat at the root, which is why a full listing
+  takes minutes and why the Athena table scans everything.
+- **Neither system has working CI.** The current repository's only workflow is bound to
+  branch names that do not exist in it, and has never run. There are no tests over the
+  ingestion path in either system.
+- The current repository has an open issue reporting a hardcoded Flask secret key committed to
+  version control. It is unresolved on the default branch and should be handled before this
+  application is redeployed anywhere.
+- **Raw client IP addresses are retained indefinitely**, both in the source logs going back to
+  2020 and as a column in the downloads table. The system's own design notes proposed encrypting
+  them; that was not implemented. Anything that moves or copies this database is moving personal
+  data, and is worth a deliberate decision rather than an inherited default.
+
+## What could not be determined
+
+- Which specific days the current system lost in June 2026. The shortfall is 2,207,644
+  downloads distributed through the month, but the published tables are monthly only, so the
+  affected days cannot be identified from outside — it needs a query against the downloads
+  table.
+- Whether the packages-table refresh runs anywhere. It is not in the repository's cron script,
+  but a manual or externally scheduled invocation would not be visible from the repository.
+- Whether the legacy VM's actual crontab matches its README, which is the only description of
+  it. Nothing was logged into to check.
+- Whether either system's database is backed up. Given that the 2009–2019 statistics exist
+  nowhere else, this is the most consequential unknown on the page.
+- The exact last year covered by the 2023 database import. The script covers 2009–2020, a commit
+  message claims "through 2022", and the measured agreement suggests at least 2021. Settling it
+  needs a query against the downloads table.
+- Whether the 2020–2023 portion of the log archive is complete. Those objects were bulk-loaded
+  in one pass in November 2023; only continuous delivery from January 2024 onward is
+  self-evidently complete.
+- Whether anyone is monitoring the divergence. Both systems publish; only one is linked.

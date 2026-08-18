@@ -1,0 +1,61 @@
+project:
+  type: website
+  output-dir: _site
+  # This repo is public, so there is no render-list boundary to maintain:
+  # everything here is published, including the ADRs. See adr/0001.
+  render:
+    - "*.qmd"
+    - "adr/*.md"
+
+website:
+  title: "Bioconductor Infrastructure"
+  description: "How bioconductor.org is built, served, and being replaced — and the decisions behind it"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Overview
+      - href: install.qmd
+        text: Install from the New Site
+  sidebar:
+    style: docked
+    contents:
+      - href: index.qmd
+        text: Overview
+      - href: install.qmd
+        text: Install from the New Site
+      - section: Serving migration
+        contents:
+          - href: r2-migration.qmd
+            text: R2 Migration
+          - href: astro-site-build.qmd
+            text: Astro Site Build
+          - href: reproducing-package-pages.qmd
+            text: Package Pages
+          - href: download-stats.qmd
+            text: Download Stats
+      - section: Build system
+        contents:
+          - href: builder-transition.qmd
+            text: Builder Transition
+          - href: propagation-gate.qmd
+            text: Propagation Gate
+          - href: views-and-r-universe.qmd
+            text: VIEWS &amp; r-universe
+      - section: Legacy pipeline
+        contents:
+          - href: current-state.qmd
+            text: Current State
+          - href: decommission-plan.qmd
+            text: Decommission Plan
+      - section: Decisions (ADRs)
+        contents:
+          - auto: "adr/*.md"
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    number-sections: false
+    mermaid:
+      theme: neutral
+    include-after-body: zoom.html

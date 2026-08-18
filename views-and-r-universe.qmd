@@ -1,0 +1,216 @@
+---
+title: "VIEWS: what r-universe can and cannot replace"
+date: 2026-08-03
+---
+
+The package landing pages are the largest section of bioconductor.org, and every one of them
+is built from a file called `VIEWS`. That file is currently fetched over HTTP from
+bioconductor.org itself — the build reading its own published output. Meanwhile a separate,
+genuinely active effort is moving Bioconductor's builds to
+[r-universe](builder-transition.qmd).
+
+Those two facts have sat next to each other without anyone measuring the relationship between
+them, which is a good way for a project to stall: the historical system can't be retired
+because nothing has shown what would replace it, and the new system can't obviously take over
+because nobody has checked what it's missing. This page checks. Measurements are from
+**2026-08-03** against BioC 3.23 (release) and 3.24 (devel).
+
+::: {.callout-tip}
+## The short answer
+For **software packages**, r-universe can serve as a real origin for VIEWS — coverage is 100%
+of release and 99.8% of devel, and the metadata fields reproduce well.
+
+For **annotation, experiment and workflow packages**, r-universe carries **nothing at all** —
+0% of 2,785 package records across both versions. Those repos have no r-universe universe, and
+their packages are absent from the software universes.
+
+So r-universe cannot retire VIEWS on its own. It solves roughly two thirds of the problem.
+:::
+
+## What VIEWS is, and why it is load-bearing
+
+`VIEWS` is a DCF file, one stanza per package, 46 distinct fields, published per repository
+per Bioconductor version — for example `bioconductor.org/packages/3.23/bioc/VIEWS`, 5.3 MB
+covering 2,418 packages.
+
+`scripts/get_json.rb` fetches it and builds `assets/packages/json/<version>/<repo>/packages.json`,
+and from that JSON the site renders every package landing page, plus the platform-availability,
+last-commit-date and dependency-count badges.
+
+```{mermaid}
+flowchart LR
+  BBS["build system<br/>(origin unidentified)"] -->|"publishes"| M["bioconductor.org<br/>/packages/&lt;ver&gt;/&lt;repo&gt;/VIEWS"]
+  M -->|"HTTP fetch<br/>get_json.rb"| J["packages.json"]
+  J --> P["~3,800 package<br/>landing pages"]
+  J --> B["availability · last-commit<br/>dependency-count badges"]
+  M -.->|"the build reads<br/>its own output"| M
+
+  classDef bad fill:#fff1f0,stroke:#c0392b,color:#12263f
+  classDef ok fill:#f3fbf4,stroke:#3d8b47,color:#12263f
+  class M bad
+  class BBS,J,P,B ok
+```
+
+Two things make this the sharpest instance of the circular-dependency problem. The site build
+only ever *fetches* VIEWS — there is no task anywhere in the repository that generates it. And
+it is not in the OSN archive either (a request for an archived copy returns 404), so there is
+no fallback. Its true upstream origin remains unidentified; it is produced somewhere in the
+build system and pushed to the web host.
+
+The practical consequence is visible in the containerization work: a container that builds the
+site with no access to Bioconductor infrastructure produces 721 files and a `packages/`
+directory containing exactly four of them. The entire package corpus is missing, because
+`packages.json` is missing, because VIEWS is.
+
+## Method
+
+`views-from-runiverse.py` in this repository fetches the real VIEWS and the corresponding
+r-universe API payload, reconstructs VIEWS stanzas from the r-universe JSON, and compares them
+field by field. The reconstruction maps `_dependencies` onto Depends/Imports/Suggests/LinkingTo/Enhances,
+`_commit` onto the git provenance fields, `_vignettes` onto vignettes and titles, derives
+`git_url` and `source.ver` by naming convention, and computes reverse dependencies across the
+whole universe.
+
+Release maps to `bioc-release.r-universe.dev`, devel to `bioc.r-universe.dev`. Each payload is
+around 69 MB and carries 196 distinct fields per package — considerably more than VIEWS has.
+
+## Coverage: which packages exist on both sides
+
+| Version | Repository | In VIEWS | Present in r-universe | Coverage |
+|---|---|---:|---:|---:|
+| 3.23 release | `bioc` | 2,418 | 2,417 | **100.0%** |
+| 3.23 release | `data/annotation` | 928 | 0 | **0%** |
+| 3.23 release | `data/experiment` | 436 | 0 | **0%** |
+| 3.23 release | `workflows` | 28 | 0 | **0%** |
+| 3.24 devel | `bioc` | 2,416 | 2,412 | **99.8%** |
+| 3.24 devel | `data/annotation` | 924 | 0 | **0%** |
+| 3.24 devel | `data/experiment` | 436 | 0 | **0%** |
+| 3.24 devel | `workflows` | 28 | 0 | **0%** |
+| | **Total** | **7,614** | **4,829** | **63.4%** |
+
+The single package missing from release software is `LRDE`; devel is missing four.
+
+The zeros are not a lookup failure. There is no `bioc-annotation`, `bioc-data-annotation`,
+`bioc-experiment`, `bioc-data-experiment` or `bioc-workflows` universe — all return 404 — and
+spot checks confirm that representative packages from those repos (`org.Hs.eg.db`, `GO.db`,
+`TxDb.Hsapiens.UCSC.hg38.knownGene`, `airway`, `pasilla`, `ALL`, `rnaseqGene`) are absent from
+the software universes. The only other Bioconductor-named universe,
+`bioconductor.r-universe.dev`, is a small personal universe containing `BiocManager`, not a
+mirror of the repositories.
+
+This is coherent rather than an oversight: r-universe builds packages from git repositories,
+and annotation packages in particular are large generated data artifacts that do not fit that
+model well. But it means **2,785 of 7,614 package records have no r-universe origin available
+today**, and those pages would still need the historical system.
+
+## Field coverage for the repos r-universe does carry
+
+Restricting to software packages, where coverage is essentially complete, the reconstruction
+was compared field by field. Release figures shown; devel is materially identical.
+
+**Reproduces cleanly** — `Package` and `git_url` exact; `VignetteBuilder` and `BugReports`
+99.5%; `NeedsCompilation` 99.4%; `License` 99.3%; `hasNEWS` 98.3%; `git_branch` 97.7%;
+`Enhances` 97.5%; `git_last_commit` 97.3%; `Version` 97.2%; `Suggests` 96.8%;
+`git_last_commit_date` 96.5%; `LinkingTo` 96.0%; `Maintainer` 95.9%; `source.ver` 94.4%;
+`Imports` 93.6%; `Depends` 91.0%; `URL` 90.2%.
+
+**Data present, formatting differs** — `Description` (2.2% exact), `Author` (32.6%), `Title`
+(66.3%) and `biocViews` (46.4%) differ only in how multi-line DCF values are folded.
+`Date/Publication` (0.2%) is a timestamp-versus-date mismatch. `dependencyCount` (4.4%) means
+VIEWS counts something other than direct non-R dependencies. The reverse-dependency fields
+(`importsMe` 53%, `dependsOnMe` 46%, `suggestsMe` 41%) score low because the reconstruction
+computed them over the software universe alone, while VIEWS counts reverse dependencies across
+all four repositories — which, note, is only fixable once the other three repositories have an
+origin at all.
+
+**Structurally unavailable** — `MD5sum`, `win.binary.ver`, `mac.binary.big-sur-x86_64.ver`,
+`mac.binary.sonoma-arm64.ver`, `Archs`, `Rfiles`, `hasINSTALL`, `hasLICENSE`.
+
+That last group is the more interesting result, because the fields have something in common:
+every one of them describes **a file in Bioconductor's package repository** rather than
+anything about the package source. Which binary sits at which path, what a tarball's checksum
+is, whether an INSTALL file is present. r-universe builds packages; it does not own
+Bioconductor's repository layout, so it cannot know these and arguably should not.
+
+One free simplification: `MD5sum` is referenced **nowhere** in the site — not in a template, a
+helper, or a script. It can simply be dropped.
+
+## What this means
+
+VIEWS is not one dataset. It is two fused into a single file:
+
+1. **Package metadata** — DESCRIPTION fields, dependencies, vignettes, git provenance,
+   biocViews terms. Roughly 85% of the fields, and for software packages r-universe can serve
+   all of it today, with no access negotiation and no dependency on the build machines.
+2. **A repository listing** — which files exist in `src/contrib` and `bin/`, their checksums
+   and paths. Small, and derivable from the package repository itself via `PACKAGES` plus a
+   directory walk. Also does not need the build machines.
+
+Neither half requires access to `nebbiolo1`, `nebbiolo2`, `lconway` or `kjohnson3`. That is
+the genuinely encouraging finding, and it means the package-page half of the decommissioning
+problem is not gated on the access request that the build-report half is waiting on.
+
+The discouraging finding is the 0% rows. Any plan that assumes "r-universe replaces VIEWS"
+silently assumes software packages only, and would leave roughly a third of package pages
+without a data source. Annotation and experiment packages need their own answer, and it is not
+currently visible anywhere in the r-universe work.
+
+## The obligation is smaller than the file suggests
+
+VIEWS is the wire format, but it is not the interface. Nothing downstream parses DCF: the
+build converts VIEWS into `packages.json` and the nanoc data source reads that JSON. So the
+real question is what `packages.json` must contain — and an audit of every consumer (the data
+source, `Rules`, the five package-page layout components, and the helpers they call) shows a
+large part of VIEWS is never read at all.
+
+**Never read anywhere in the site**: `MD5sum`, `NeedsCompilation`, `git_url`,
+`git_last_commit`, `git_last_commit_date`, `Date/Publication`, `VignetteBuilder`, `OS_type`,
+`License_is_FOSS`, `License_restricts_use`, `organism`. A generator does not have to produce
+any of them.
+
+That is a striking result for the fields we were most worried about. `git_url`,
+`git_last_commit` and `git_last_commit_date` reproduce from r-universe at 100%, 97% and 96%
+respectively — and none of them is rendered on any page. The effort spent matching them was
+wasted, and the same is true of `MD5sum`, which is both unavailable from r-universe and unused.
+
+**Structural facts a generator must honour:**
+
+- The top level is a **JSON object keyed by package name**, not an array. The package name is
+  both the key and the sole determinant of the page URL — the data source builds the item
+  identifier from the key and the repository directory, never from a field inside the record.
+  Get the key wrong and every URL changes.
+- Twelve fields are **arrays**, not strings: `Depends`, `Suggests`, `Imports`, `Enhances`,
+  `biocViews`, `LinkingTo`, `vignettes`, `vignetteTitles`, `Rfiles`, `dependsOnMe`,
+  `importsMe`, `suggestsMe`, `linksToMe`. The four `has*` fields are real JSON booleans.
+  `Rank` is an integer; `dependencyCount` is a string of digits.
+- The category browser does **not** read `packages.json` directly. A Rake step flattens five
+  fields per package **positionally** into `packages.js` as `[Package, Maintainer, Title,
+  Rank, dependencyCount]`, and the client JavaScript reads indices 0–3 by position. Changing
+  that order silently corrupts the browser. Index 4 is written and never read.
+- `biocViews.json` is written to disk and read by nothing — the source marks it
+  `todo - remove this`. The category hierarchy comes from `tree.json` instead.
+- `URL` is used unguarded: the helper calls `.gsub` on it without a nil check, so emitting
+  `null` rather than omitting the key will raise.
+
+**`Rank` cannot come from r-universe at all.** It is not VIEWS data — it is injected from the
+download statistics, and the current implementation seeds it by reading the *previous*
+`packages.json` back off disk. Any generator needs a real download-stats source for it, and it
+is required by the category browser's search and autocomplete.
+
+## Reproducing this
+
+```bash
+./views-from-runiverse.py --bioc 3.23 --universe bioc-release --repo bioc
+./views-from-runiverse.py --bioc 3.24 --universe bioc        --repo bioc
+./views-from-runiverse.py --bioc 3.23 --repo data/annotation   # expect 0% coverage
+./views-from-runiverse.py --bioc 3.23 --emit reconstructed.VIEWS
+```
+
+Caveats worth carrying forward. The exact-match percentages understate what is achievable,
+because the comparison folds multi-line DCF values with a single space and so penalises
+formatting differences as mismatches — the corrected figures would be higher, not lower.
+Sourcing from r-universe also trades a dependency on one Bioconductor host for dependencies on
+r-universe's API and on the package repository; both are genuine origins rather than the site
+reading its own output, but both are external, and one of them is infrastructure Bioconductor
+does not operate. That is a deliberate architectural choice, not a detail to absorb inside a
+build refactor.

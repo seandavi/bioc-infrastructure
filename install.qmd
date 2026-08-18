@@ -1,0 +1,81 @@
+---
+title: "Installing packages from bioc-dev.cancerdatasci.org"
+---
+
+`bioc-dev.cancerdatasci.org` is the **proposed replacement for bioconductor.org** — a new
+serving stack built on Cloudflare R2 and Workers (see the [overview](index.qmd) for the
+design). It is not a mirror site in the usual sense: mirroring is just how it is populated
+today, so that its content can be verified byte-for-byte against production while the new
+stack is evaluated. It carries the complete package repositories for every Bioconductor
+release — software, annotation, experiment data, workflows, and books, for both the current
+release (3.23) and devel (3.24) — synced hourly from the same source that publishes to
+bioconductor.org and checksum-verified against it weekly.
+
+**You can install packages from it today, with two lines of R.** Trying it — and telling us
+what breaks, if anything — is exactly the help we need.
+
+## Quick start
+
+```r
+options(BioC_mirror = "https://bioc-dev.cancerdatasci.org")
+BiocManager::install("GEOquery")
+```
+
+That's it. `BiocManager` builds every repository URL from the `BioC_mirror` option, so all
+five repository types come from the mirror; CRAN dependencies still come from CRAN as usual.
+
+## Make it stick across sessions
+
+Add the option to your `~/.Rprofile`:
+
+```r
+options(BioC_mirror = "https://bioc-dev.cancerdatasci.org")
+```
+
+## Verify what you're pointed at
+
+```r
+BiocManager::repositories()
+```
+
+Every Bioconductor URL in the output should start with
+`https://bioc-dev.cancerdatasci.org`. To confirm an install came from the mirror, run it
+verbosely — the download URLs are printed as they're fetched.
+
+## Optional: full independence from bioconductor.org
+
+`BiocManager` fetches one small config file (version map) from `bioconductor.org` even when
+a mirror is set. The mirror carries that file too, so to exercise the mirror with
+bioconductor.org completely out of the loop:
+
+```r
+Sys.setenv(BIOCONDUCTOR_CONFIG_FILE = "https://bioc-dev.cancerdatasci.org/config.yaml")
+options(BioC_mirror = "https://bioc-dev.cancerdatasci.org")
+```
+
+This is only needed for testing that independence; for normal use the two-line quick start
+is enough.
+
+## What to expect
+
+- **Identical content.** The mirror is byte-for-byte: same package versions, same tarballs,
+  same checksums as bioconductor.org, at most an hour behind. If
+  `BiocManager::install()` behaves differently against the mirror in any way, that is a bug
+  we want to hear about.
+- **Same URLs, different host.** Landing pages, vignettes, and archives all work with
+  `bioconductor.org` replaced by `bioc-dev.cancerdatasci.org` in any URL.
+- **It may be faster**, especially outside the US: content is served from Cloudflare's edge
+  rather than a single AWS region.
+
+## Reverting
+
+Remove the `options()` line (and the `Sys.setenv` line if you added it), restart R, and you
+are back on bioconductor.org. Nothing about your installed packages needs to change —
+the packages themselves are identical.
+
+## Reporting problems
+
+Anything surprising — an install that fails, a checksum mismatch, a slow or missing file, a
+page that renders wrong — is worth reporting, however small. Send it to Sean Davis
+([seandavi@gmail.com](mailto:seandavi@gmail.com)) with the R output and, if possible, the
+failing URL.

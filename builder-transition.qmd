@@ -1,0 +1,199 @@
+---
+title: "The Builder Transition: three tracks, not one"
+date: 2026-08-03
+---
+
+Bioconductor's package build and check infrastructure is in the middle of a transition away
+from the long-standing BBS build machines. It is commonly described in one sentence — "we're
+moving to r-universe" — and that sentence is true of a smaller slice of the system than it
+sounds, while two *other* replacement efforts are simultaneously live.
+
+This page is an attempt to map what is actually running as of **2026-08-03**, with sources,
+so the picture is legible to people who are not already inside it. It is drawn from a
+read-only survey of the `Bioconductor` GitHub organisation (392 repos), the two legacy hosts,
+and live HTTP probes. It is a snapshot, not a live view. Where something could not be
+determined, this page says so rather than guessing.
+
+::: {.callout-note}
+## Why this page exists
+Nothing here is secret or surprising to the people doing the work — each track is developed
+in the open. What appears to be missing is a single place where the three are described
+*together*, which makes it easy to assume there is one migration with one timeline. There
+isn't. If any of this is wrong or out of date, it should be corrected: getting it right
+matters more than this page's tidiness.
+:::
+
+## The three tracks
+
+```{mermaid}
+flowchart TB
+  subgraph T1["Track 1 · r-universe (rOpenSci / R Consortium)"]
+    RU["bioc.r-universe.dev (devel)<br/>bioc-release.r-universe.dev (release)"]
+    RUB["Windows + macOS binaries<br/>LIVE in production"]
+    SUB["BiocContributions + BiocStaging<br/>new package submission · LIVE"]
+    RU --> RUB
+    RU --> SUB
+    RUR2["binaries stored on<br/>Cloudflare R2 (r2.ropensci.org)"]
+    RU --> RUR2
+  end
+
+  subgraph T2["Track 2 · k8s container binaries"]
+    K8S["r-container-binaries-k8s-builder<br/>Kubernetes, 5-min dispatcher · LIVE"]
+    GCS["gs://bioconductor-packages/<br/>Linux/amd64 only"]
+    K8S --> GCS
+  end
+
+  subgraph T3["Track 3 · BBS (incumbent, NOT winding down)"]
+    BBS["nebbiolo1 / nebbiolo2 · Linux<br/>lconway / kjohnson3 · macOS<br/>+ new hardware being onboarded"]
+    BSD["BUILD_STATUS_DB.txt<br/>sole producer"]
+    BBS --> BSD
+  end
+
+  BSD --> WEB["bioconductor.org website build<br/>consumes the aggregate report"]
+  GCS -.->|"302 via master .htaccess"| BMI["BiocManager::install()<br/>inside bioconductor_docker<br/>ON BY DEFAULT"]
+
+  classDef a fill:#f3fbf4,stroke:#3d8b47,color:#12263f
+  classDef b fill:#eef4ff,stroke:#4a6fa5,color:#12263f
+  classDef c fill:#fff8e8,stroke:#b8860b,color:#12263f
+  class T1,RU,RUB,SUB,RUR2 a
+  class T2,K8S,GCS b
+  class T3,BBS,BSD c
+```
+
+### Track 1 — r-universe
+
+Live, official, and jointly run with rOpenSci as an [R Consortium ISC top-level
+project](https://github.com/Bioconductor/biocblog/blob/main/posts/2026-04-08-r-universe-collaboration/index.qmd).
+Two production instances exist: `bioc.r-universe.dev` (devel) and `bioc-release.r-universe.dev`
+(release). The roadmap in that post is explicitly phased and carries **no cutover date**.
+
+What has genuinely moved:
+
+- **Windows and macOS binaries.** The clearest dated evidence is in Bioconductor's own release
+  notes. The 3.22 notes (2025-10-30) state there are no active daily *Windows* builders; the
+  3.23 notes (2026-04-29) extend the same statement to *macOS*, saying binaries generated
+  through r-universe are being tested. The blog post puts it plainly: r-universe building
+  these binaries "significantly reduces costs and the maintenance load on the Bioconductor
+  team."
+- **New package submission.** `Bioconductor/Contributions` is frozen to new issues, replaced by
+  `Bioconductor/BiocContributions` — GitHub Actions plus r-universe, with a `BiocStaging` org
+  and `biocstaging.r-universe.dev` holding in-review candidates. Live and carrying real volume.
+
+Package source reaches r-universe through a `bioconductor-source` GitHub org (~3,700 repos on
+a rolling sync), because canonical source lives in gitolite on `git.bioconductor.org` and
+r-universe requires a GitHub remote.
+
+Worth noting for this project specifically: **r-universe already stores its build binaries on
+Cloudflare R2** (`r2.ropensci.org`). That is a working reference implementation of the storage
+migration described in [R2 Migration](r2-migration.qmd), run by people who can be asked about it.
+
+### Track 2 — the Kubernetes container-binary builder
+
+`Bioconductor/r-container-binaries-k8s-builder` has been live since 2025-10-30. A dispatcher
+runs every five minutes; each build cycle creates a Kubernetes namespace and an NFS-backed
+volume, runs one Job per package in dependency order, then `rclone`-syncs the results to
+`gs://bioconductor-packages/<version>/container-binaries/<image>/`. Linux/amd64 only.
+
+This output is **not** a side artifact. `BiocManager` hardcodes the base URL and enables the
+repository by default inside Bioconductor Docker images, so ordinary `BiocManager::install()`
+calls in containers consume it — see [the redirect that makes this work](#the-redirect-nobody-would-think-to-preserve).
+
+The notable structural fact: this track **does not reference r-universe anywhere**, and its
+active maintainers do not overlap with the r-universe-side maintainers. On GitHub the two
+tracks appear unaware of each other. That may simply mean coordination happens in meetings
+rather than in commits — but it cannot be confirmed from the public record.
+
+### Track 3 — BBS, which is not going away
+
+It would be easy to read tracks 1 and 2 as evidence that the legacy build system is being
+retired. The commit history says otherwise. Over the last fifteen months BBS gained GPU
+builder support, a new "bioc-rapid" pipeline, BiocCheck integration into that pipeline, and
+onboarding for new hardware; there is an open proposal to add package signing. `nebbiolo1`
+and `nebbiolo2` — the Linux builders — have never been removed from the configuration and were
+performance-tuned as recently as October 2025.
+
+The macOS picture is churn rather than retirement: `merida1` was trialled and then removed in
+July 2026, and `kjohnson3` and `lconway` remain in the current 3.24 configuration even though
+the release notes say Mac binaries now come from r-universe. The most likely reading is that
+those machines still run source builds and checks while no longer producing daily binaries.
+
+Critically, **BBS remains the sole producer of `BUILD_STATUS_DB.txt`**, the aggregate build
+report that the bioconductor.org website build consumes.
+
+## What this means in practice
+
+| Question | Answer as of 2026-08-03 |
+|---|---|
+| Are the old builders being retired? | Not the Linux ones. `nebbiolo1`/`nebbiolo2` are actively maintained. |
+| Has anything actually moved to r-universe? | Yes — Windows and macOS binaries, and new package submission. |
+| Does r-universe produce the build report the website needs? | **No.** It exposes per-package JSON via API; there is no whole-repository aggregate equivalent to `BUILD_STATUS_DB.txt`. |
+| Can r-universe supply the package metadata the site needs? | **For software packages, yes.** For annotation, experiment and workflow packages, it carries nothing — see [VIEWS & r-universe](views-and-r-universe.qmd). |
+| Are the k8s and r-universe tracks coordinated? | Not visibly. No cross-references, disjoint maintainers. Undetermined off-GitHub. |
+| Is there a dated cutover plan? | No. The published roadmap is explicitly phased and open-ended. |
+| Does everything r-universe builds reach bioconductor.org? | **No.** Propagation is gated on the sha and version matching `nebbiolo1` plus a clean check — see [the propagation gate](propagation-gate.qmd). |
+
+The consequence for [the decommission plan](decommission-plan.qmd) is mildly reassuring and
+one part cautionary. Reassuring: sourcing check results directly from `nebbiolo1`/`nebbiolo2`
+is not building on sand, because those hosts and BBS are under active investment. Cautionary:
+any *eventual* move to r-universe as the website's data source is a redesign of that input,
+not a URL swap, because the aggregate artifact does not exist on the other side.
+
+## The redirect nobody would think to preserve
+
+Master's `.htaccess` contains 144 active rules. Most are unremarkable — 41 are one-to-one 301s
+moving old `/developers/*` pages to `contributions.bioconductor.org`, and 15 send archived
+package files to OSN object storage. Two lines are different in kind:
+
+```apache
+RedirectMatch 302 /packages/(3.[0-9][0-9])/container-binaries/src/(.*) https://storage.googleapis.com/bioconductor-packages/$1/container-binaries/bioconductor_docker/src/$2
+RedirectMatch 302 /packages/(3.[0-9][0-9])/container-binaries/(.*) https://storage.googleapis.com/bioconductor-packages/$1/container-binaries/$2
+```
+
+`BiocManager` hardcodes `https://bioconductor.org/packages/%s/container-binaries/%s` and adds
+it to the repository list **by default** in Bioconductor containers (opt-out only via
+`BIOCONDUCTOR_USE_CONTAINER_REPOSITORY=FALSE`). So every containerised `BiocManager::install()`
+depends on `bioconductor.org` issuing this redirect to Google Cloud Storage.
+
+If that rule is lost in a migration, nothing errors. Binary installs simply fall back to
+building from source, and everything gets slower for everyone, silently. This is the only rule
+in the file whose failure mode is invisible, and it is the one most likely to be overlooked,
+because it looks like static file serving and isn't.
+
+## Storage: what is offloaded and what isn't
+
+A related and easily-inverted fact. Archived packages **are** already on object storage:
+everything at version 3.22 and below redirects to OSN at `mghp.osn.xsede.org`, with a
+commented-out AWS S3 fallback kept in the file for outages.
+
+The current release and devel are **not**. Version 3.23 and 3.24 `PACKAGES` files serve with
+zero redirects, directly from local disk on master — 7.6 GB for 3.23's `src/contrib` alone. So
+the archive tail already lives in somebody else's object storage; the live repository is still
+master's own payload, and is the actual thing a storage migration has to move.
+
+## What could not be determined
+
+Stated plainly, because these are the questions a reader is most likely to want answered and
+guessing at them would defeat the purpose of this page.
+
+- **Where the Kubernetes cluster physically runs.** The
+  repo carries only a static `KUBECONFIG` secret and an `nfs-client` storage class — no cloud
+  CLI, project ID, or region anywhere. The NFS pattern suggests self-hosted rather than a
+  managed cloud cluster, but that is inference, not evidence.
+- **Whether tracks 1 and 2 are a deliberate two-pronged strategy or duplicated effort.** No
+  coordination is visible on GitHub. This is not evidence of absence.
+- **Which host serves `/home/biocpush/`**, the destination that `biocUniTools`' harvest script
+  writes r-universe binaries into. It exists on neither staging nor master, so at least one
+  more machine is part of this pipeline than the decommission scope currently accounts for.
+  The same applies to the BBS central host, whose real hostname lives in private ops config.
+- **Whether governance bodies formally ratified the transition.** No TAB/CAB minutes discussing
+  it were found, but the minutes were not read exhaustively.
+
+## Sources
+
+- `Bioconductor/biocblog` — [`posts/2026-04-08-r-universe-collaboration/`](https://github.com/Bioconductor/biocblog/blob/main/posts/2026-04-08-r-universe-collaboration/index.qmd) (the plan of record) and `posts/2026-06-15-new-submission-process-with-Runiverse/`
+- `Bioconductor/bioconductor.org` — `content/news/bioc_3_22_release.md`, `content/news/bioc_3_23_release.md` (the dated builder statements)
+- `Bioconductor/BBS` — `BBS-make-BUILD_STATUS_DB.py`, `bbs/rdir.py`, `nodes/`, `<version>/config.sh`
+- `Bioconductor/r-container-binaries-k8s-builder`, `Bioconductor/bioconductor_docker`, `Bioconductor/bioc2u`, `Bioconductor/bioconductor_salt`
+- `Bioconductor/BiocManager` — `R/repositories.R`
+- `Bioconductor/biocUniTools` — `inst/scripts/harvest.R`; `Bioconductor/BiocContributions`
+- Live probes of `bioconductor.org` and `bioc.r-universe.dev`, and read-only inspection of master's `.htaccess`

@@ -1,0 +1,162 @@
+---
+title: "Current State: staging + master"
+date: 2026-08-03
+---
+
+Read-only recon of both boxes, 2026-08-03. See the repo memory notes
+(`bioc-staging-master-architecture`) for the raw findings this page is drawn from —
+re-verify specifics before relying on exact numbers in the future, this is a snapshot,
+not a live view.
+
+## The pipeline, end to end
+
+```{mermaid}
+flowchart LR
+  G["git.bioconductor.org<br/>bioconductor.org repo"] -->|hourly cron| S
+  subgraph S["staging.bioconductor.org<br/>out-of-support OS"]
+    B["Nanoc/Rake build<br/>real_clean + rebuild<br/>no incremental step"]
+    SPB["spb_history<br/>Django + archiver + pinger<br/>build-results tracking"]
+  end
+  subgraph BM["build machines"]
+    NB1["nebbiolo1 · release linux<br/>+ on-demand SPB"]
+    NB2["nebbiolo2 · devel linux"]
+    MAC["lconway, kjohnson3<br/>macOS builders"]
+  end
+  RMQ["message broker<br/>STOMP live progress"]
+  BM -->|"live progress"| RMQ --> SPB
+  S -->|"rsync over SSH<br/>as webadmin"| M
+  BM -->|"check/build reports<br/>direct push"| M
+  subgraph M["master.bioconductor.org<br/>AWS EC2"]
+    A["Apache<br/>static files only<br/>no CGI/PHP/app server"]
+    SOLR["Solr<br/>site search"]
+    CR["checkResults/<br/>build reports"]
+  end
+  M --> Browsers
+  M --> Mirrors["rsync mirrors<br/>bioc-rsync, read-only"]
+
+  classDef s fill:#fff8e8,stroke:#b8860b,color:#12263f
+  classDef m fill:#eef4ff,stroke:#4a6fa5,color:#12263f
+  classDef bm fill:#f3fbf4,stroke:#3d8b47,color:#12263f
+  class S,B,SPB s
+  class M,A,SOLR,CR m
+  class BM,NB1,NB2,MAC,RMQ bm
+```
+
+Staging is a build/orchestration box, not a front end — **nothing listens on 80/443 there**.
+Master is a plain Apache static-file server; everything a visitor sees is a file already
+sitting in master's docroot, written there by staging's push or by a build machine's direct
+push into `checkResults/`. The actual multi-platform package builds happen on separate named
+machines (below), not on staging or master at all.
+
+## staging.bioconductor.org
+
+Running an Ubuntu LTS release that is past end of standard support, with a long uptime at
+recon time. Specifics (versions, ports, account and key details) are deliberately not published here. They are recorded privately and shared with the Bioconductor core team — see `docs/adr/0001-public-docs-site-with-a-publication-boundary.md`.
+
+**The hourly site build** (the site-build account's crontab, `0 * * * *`):
+
+```
+cd bioc-test-web && ./update_site
+  → git pull
+  → rake real_clean default deploy_staging deploy_production
+```
+
+Every run does a full clean rebuild — no incremental build — of a
+[Nanoc](https://nanoc.app/)-based Ruby static site (`bioconductor.org` repo, Rakefile/Rules/
+content/layouts convention). `deploy_staging` rsyncs the built `output/` to a local staging
+directory; `deploy_production` rsyncs that to master's docroot over SSH — this is the entire
+staging→master push mechanism.
+
+A `Dockerfile` already exists in that repo (`ruby:2.6.5`, installs bundler+rsync,
+`CMD rake && cd output && adsf`) but isn't used in production. It's a ready-made starting
+point for containerizing this build.
+
+**~20 more cron jobs** round out the hour-by-hour and day-by-day schedule: search indexing
+(`rake index_production`), landing-page/JSON generation (`get_json.sh` →
+`prepare_json && json2js`), per-repo-type build-result pulls (`rake get_build_result_dcfs`)
+that feed both the site rebuild and RSS feeds, ~8 jobs generating shields.io-style badge
+data (build status, downloads, support-site activity, years-in-bioc, dependency count),
+orphaned-landing-page pruning, and mirror CSV generation.
+
+**Package landing pages are pre-rendered, not dynamic.** The orphaned-page pruning job only
+makes sense if landing pages are real files needing cleanup — confirmed by master's config
+(below). Per-page "live" elements (build-status badges, download counts) are separate
+small JSON/image endpoints fetched client-side, refreshed on their own cron schedule, not
+part of the page HTML itself.
+
+**The Single Package Builder's results layer** (`spb_history/`, 5.6GB, symlinked as
+`packagebuilder`) — staging does **not** run the actual multi-platform package builds; it
+hosts the results-tracking/reporting app for them:
+
+| Component | What it is | How it runs |
+|---|---|---|
+| Django app | Build-history reports, sqlite3 backend | A development-server configuration rather than a production WSGI stack |
+| archiver.py | Background daemon | `@reboot` cron + `nohup &` |
+| track_build_completion.py | Background daemon | `@reboot` cron + `nohup &` |
+| pinger.py | Background daemon | `@reboot` cron + `nohup &` |
+
+None of these are systemd-managed — a crash mid-uptime silently kills the daemon with no
+restart. Log rotation looks broken: several logs (archiver, django, pinger) sit at
+1-2GB+, growing unbounded since roughly 2024.
+
+**Where the actual builds run.** `R CMD build`/`R CMD check` execute on dedicated named
+build machines, not on staging or master — confirmed via the site repo's `config.yaml` and
+`spb_history`'s active properties file:
+
+| Repo | Linux | macOS | Windows |
+|---|---|---|---|
+| Release | `nebbiolo1` | `lconway` (Monterey), `kjohnson3` (Ventura) | `palomino8` (configured, inactive) |
+| Devel | `nebbiolo2` | `merida1` (configured, inactive) | `palomino7` (configured, inactive) |
+
+`nebbiolo1` doubles as the on-demand single-package-builder host. A handful of other named
+hosts (`moscato1/2`, `zin1/2`, `morelia`, `oaxaca`) show up in older config and may be
+historical or cover other repo types — not confirmed active.
+
+Two independent channels connect the builders to staging/master — there's no single
+"upload the results" step:
+
+1. **Bulk artifacts** — build nodes write their check/build reports directly into master's
+   master's `checkResults/` tree tree, bypassing staging entirely.
+2. **Live progress** — staging's `archiver.py` subscribes over STOMP to a RabbitMQ broker
+   (an internal message broker) and writes job status into `spb_history`'s database as
+   builds progress, which is what the results-tracking UI actually shows in real time.
+
+::: {.callout-warning}
+## Flagged for the team, independent of the decommission project
+Three hardening items were found on this host — a credential-handling issue, a framework
+configuration issue, and an out-of-support OS. Specifics (versions, ports, account and key details) are deliberately not published here. They are recorded privately and shared with the Bioconductor core team — see `docs/adr/0001-public-docs-site-with-a-publication-boundary.md`.
+:::
+
+## master.bioconductor.org
+
+A current Ubuntu LTS release on AWS EC2, with the standard AWS management agents present.
+
+**Apache** serves master's docroot as the DocumentRoot for both the plaintext-80
+(redirect only) and TLS-443 vhosts. Enabled modules: proxy, proxy_http, rewrite, deflate,
+expires — **no mod_cgi, no mod_php**. Two proxies only:
+
+- `/solr/*` → a local Solr instance (site search — an old, unmaintained release reachable
+  via this proxy, worth flagging on its own)
+- `/packages/stats/` → a separate `webstats` host, for download-stats pages
+
+Everything else is static files plus one 19KB root `.htaccess` carrying all the URL logic:
+HTTPS canonicalization, hundreds of redirect/rewrite rules (old-version package archives to
+OSN, docs pages to `contributions.bioconductor.org`), and per-file-type cache headers. This
+`.htaccess` is the thing a Worker would need to reimplement before master could retire.
+
+**No cron or timer on master drives anything bioc-specific** — `webadmin`'s only job is a
+21-day retention prune on `spb_reports/`. Everything else arrives via staging's push.
+
+**The push mechanism is unscoped.** Staging's push rides ordinary interactive SSH access
+rather than a dedicated, restricted automation account. This is separate from `bioc-rsync`'s
+keys, which are `rrsync -ro` only, for the public read-only mirror distribution this repo's
+own sync already uses. Specifics (versions, ports, account and key details) are deliberately not published here. They are recorded privately and shared with the Bioconductor core team — see `docs/adr/0001-public-docs-site-with-a-publication-boundary.md`.
+
+No containers exist on this box either — any modularization effort starts from zero here.
+
+::: {.callout-warning}
+## Flagged for the team
+- Site search runs an unmaintained release, reachable via proxy.
+- The staging→master push has no audit boundary beyond ordinary SSH, rather than a scoped
+  service account.
+:::

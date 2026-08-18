@@ -1,0 +1,91 @@
+---
+title: "R2 Migration"
+date: 2026-08-03
+---
+
+Full detail lives in the repo's own `README.md` and `MIGRATION.md` — this page is the
+condensed version for orientation. Don't duplicate updates here; treat those files as the
+source of truth and this as a pointer.
+
+## Why
+
+Bioconductor's origin runs off an EBS volume, and crawlers exhaust its IOPS. The traffic
+that hurts is not page views — it's bots pulling hundred-megabyte lecture videos out of
+`/help/course-materials/`, where a single directory holds 711 MB of `.mp4` against 2 MB of
+HTML, roughly 400:1 from two years of materials alone.
+
+Large immutable files behind a CDN with free egress is what object storage is for. Raising
+EBS IOPS is the stopgap; this is the replacement.
+
+## Architecture
+
+```{mermaid}
+flowchart LR
+  W["bioc-web docroot<br/>rrsync over SSH<br/>1.35M files, 447 GB"] -->|"rsync delta, hourly"| Mi["local mirror"]
+  O["OSN archive<br/>anonymous S3, 4.66 TB"] -->|"one-time copy, verified"| R
+  Mi -->|"rclone --files-from<br/>+ purge changed URLs"| R[("R2 · bioc-site<br/>1.65M objects, 5.1 TB<br/>private")]
+  R --> K["Worker<br/>symlink resolution, redirects<br/>ranges, conditional GETs, cache"]
+  K --> B["browsers"]
+  K --> RR["R: BiocManager::install()"]
+  K --> MI["mirror operators<br/>/api/v1/manifest"]
+```
+
+Two filters make the sync affordable: rsync (size+mtime, cheap but coarse) narrows 1.35M
+files to thousands of candidates, then `rclone --checksum` (MD5 vs R2 ETag, precise but only
+affordable over a short list) finds what actually changed. Purging off the second stage —
+not the first — is what stops a nightly rebuild from purging the whole zone.
+
+Object storage has no symlinks. The docroot has 145, and the Worker resolves them per
+request against a published `_symlinks.json` rather than uploading them — so a release roll
+is data, not a deploy.
+
+## Status (measured, not projected)
+
+| | |
+|---|---|
+| R2 | 1,652,759 objects · 5.1 TB · 0 upload errors |
+| Docroot | 1,351,530 files · 447 GB |
+| OSN archive | 301,217 objects · 4.66 TB · verified, 0 differences |
+| `BiocManager::install()` | 8/8 against the mirror |
+| Cost | ~$80/month, of which the OSN archive is ~$70 |
+
+## Progress since 2026-08-03 (updated 2026-08-13)
+
+The table above is the initial load; the operational picture has moved past it:
+
+- **The sync is scheduled and self-checking.** An hourly delta sync and a weekly full
+  checksum reconcile run as systemd timers with failure alerting. The most recent weekly
+  pass verified **zero drift** across 3.7M checked files.
+- **Request logging is live and monitored** — one structured record per request, all
+  fields, no sampling, delivered continuously to durable object storage, queryable side by
+  side with the historical CloudFront logs through a normalizing view, and gap-alerted
+  daily (the delivery pipeline cannot backfill, so gaps are the failure mode that matters).
+  Details in [Download Stats](download-stats.qmd).
+- **The release-roll guard is deployed**: scheduled detection of an upstream version roll,
+  with destructive sync actions held for explicit human approval — the class of unattended
+  mass-deletion accident a roll could otherwise cause is fenced off.
+- **checkResults is mirrored in full** for every release; archival releases (≤ 3.22) carry
+  no ongoing sync cost by design.
+- **The historical `.htaccess` behavior is ported**, including the package short-URL
+  rewrites and the container-binaries redirect whose failure mode is silent.
+- **Public installs are invited**: [Installing packages from the new site](install.qmd) is
+  the two-line `BiocManager` setup, verified end-to-end against every repository type.
+
+**Verdict: the serving replacement is functionally complete; what remains is the cutover
+decision.** The longer-term layout — which repositories hold what, and the route-by-route
+redesign behind the Worker — is decided and tracked as a phased migration plan (ADR 0008 in
+the repo, with per-phase issues).
+
+## Not in scope
+
+- AnnotationHub (10.1 TiB) and ExperimentHub (593 GiB) — different service, fetched by their
+  own R packages through a metadata database.
+- Anything dynamic — search, BiocViews queries, live build reports. (Note: package landing
+  pages turned out *not* to be dynamic — see [Current State](current-state.qmd) — which
+  simplifies this boundary somewhat.)
+
+## Relationship to the decommission plan
+
+This track solves the *served docroot's* IOPS/cost problem. It does not by itself remove
+staging or master — those boxes still build the docroot and (today) serve it. Retiring them
+is the separate, harder problem covered in the [decommission plan](decommission-plan.qmd).

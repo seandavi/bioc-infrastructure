@@ -1,0 +1,109 @@
+---
+title: "Bioconductor Infrastructure"
+---
+
+This site documents Bioconductor.org's serving infrastructure: how it works today, the
+design of its replacement, and the plans in flight to get there. It exists because none of
+this was written down anywhere a newcomer — or a future maintainer — could find it in one
+place.
+
+::: {.callout-tip}
+## Try it now
+
+The replacement site is live at **`bioc-dev.cancerdatasci.org`** and you can install
+packages from it today with two lines of R — see
+**[Installing packages from the new site](install.qmd)**. Real usage, and reports of
+anything that behaves differently, are the most useful validation we can get.
+:::
+
+## The design, in brief
+
+The core problem: **the origin serves everything off a single EBS volume**, and it keeps
+running out of IOPS. The replacement takes the disk — and the single machine — out of the
+serving path entirely.
+
+To be clear about what `bioc-dev.cancerdatasci.org` is: **not a mirror site, but the
+proposed replacement for bioconductor.org**, running on the new stack. Mirroring the
+production docroot is its current *population mechanism* — chosen so the replacement can be
+verified byte-for-byte against the site it is meant to succeed — not its purpose. The
+pieces:
+
+- **A byte-for-byte mirror of the docroot lives in Cloudflare R2** (object storage with
+  free egress), populated by an hourly delta sync from the same source that publishes to
+  bioconductor.org, and verified against it weekly by a full checksum pass. Current drift:
+  zero objects.
+- **A Cloudflare Worker serves every request** from that bucket at the edge: directory
+  index resolution, the site's historical redirect and short-URL behavior (reconstructed
+  from the live site's behavior, captured configuration, and archived rules), and
+  cache purges scoped to what the sync actually changed.
+- **Freshness is purge-based, not expiry-based**: when the hourly sync uploads a changed
+  file, it purges exactly those URLs from the edge cache. Unchanged content is served from
+  cache indefinitely.
+- **A release-roll guard** watches the Bioconductor version files upstream and refuses to
+  let a release roll trigger mass deletions unattended — the scenario where automation
+  operating on a changed version pair could otherwise do real damage.
+
+## Expected outcome
+
+- **No IOPS ceiling and no origin disk in the request path.** The failure mode the whole
+  effort exists to eliminate.
+- **Free egress.** Bioconductor's download traffic is substantial; R2 charges nothing for
+  it, and edge caching means most requests never reach storage at all.
+- **A reversible cutover.** Moving production traffic is a DNS change with the current
+  CloudFront setup kept warm behind it; rolling back is the same change in reverse.
+- **Faster delivery globally**, since content is served from Cloudflare's edge rather than
+  a single AWS region.
+
+## Logging and statistics continuity
+
+Every published download statistic — and the rank on every package landing page — derives
+from the current CDN's access logs, so serving from Cloudflare must not break that series.
+The design (recorded in the repo's ADRs):
+
+- The Worker emits **one structured record per request**, using the same field vocabulary
+  as the CloudFront logs it replaces, with every field and no sampling.
+- Records are shipped continuously to durable object storage, and both eras — CloudFront
+  history and Cloudflare present — are queryable side by side through a common normalizing
+  view, so cross-era statistics are a single query rather than a data-migration project.
+- Delivery is monitored daily with alerting: the pipeline cannot backfill, so a silent gap
+  would be permanent loss, and the design treats that as the dominant failure mode.
+- The two logging systems will run in parallel across the cutover, deliberately, to
+  calibrate any discontinuity in the statistics.
+
+## Two tracks, one goal
+
+Serving is only half the picture. Two efforts are underway in parallel:
+
+- **[R2 migration](r2-migration.qmd)** — the serving replacement described above, in
+  detail.
+- **[Decommission plan](decommission-plan.qmd)** — the build/publish pipeline that
+  produces the docroot (staging's hourly site build, the Single Package Builder's results
+  tracking, master's Apache front end) is its own tangle of cron jobs, unmanaged daemons,
+  and a four-year-EOL operating system. [Current State](current-state.qmd) documents what
+  that pipeline actually does today; the decommission plan is what to do about it.
+
+## Context: the build system is moving too
+
+Neither track happens in isolation. Bioconductor's package build and check infrastructure
+is itself mid-transition, and it is usually summarized as "moving to r-universe" — which
+turns out to describe one of **three** replacement efforts running in parallel, only some
+of which affect the pipeline documented here. [Builder
+Transition](builder-transition.qmd) maps what is actually live as of August 2026, with
+sources, and is worth reading before assuming any particular build machine is or isn't on
+its way out.
+
+## Status
+
+The serving replacement is functionally complete and running at
+`bioc-dev.cancerdatasci.org`: the mirror is verified drift-free, logging and its gap
+alerting are live, and the remaining step is the production cutover decision. The
+build-pipeline track is earlier — investigation and prototypes. Numbers throughout this
+site are point-in-time measurements, not live dashboards — check the date on each page
+before relying on specifics.
+
+::: {.callout-note}
+This site is deliberately public, so that the people affected by this work can read it
+without needing an account or an invitation. The findings are still being shared with the
+Bioconductor core team as they land, so read these pages as work in progress rather than
+settled conclusions — and check the date on each one.
+:::

@@ -1,0 +1,215 @@
+---
+title: "Reproducing the package pages"
+date: 2026-08-03
+---
+
+The package landing pages are the largest part of bioconductor.org — roughly 92,000 of them
+across every release still published. This page records what it takes to reproduce them
+without the legacy build hosts, what has actually been demonstrated, and what has not.
+
+Measurements are from **2026-08-03**. Companion pages: [VIEWS & r-universe](views-and-r-universe.qmd)
+for the data-source analysis, [Builder Transition](builder-transition.qmd) for the wider
+build-system picture.
+
+::: {.callout-note}
+## Two gaps below have since narrowed (2026-08-13)
+The "not demonstrated" items at the bottom of this page were the state on 2026-08-03; two
+have moved. **Annotation/experiment/workflow metadata** now regenerates from the
+`DESCRIPTION` inside each package tarball via ranged reads — 98.9% field agreement against
+the published data — see [Astro Site Build](astro-site-build.qmd). **`Rank`/statistics**
+still has no independent path for the *published* series, but the replacement logging that
+would feed an independent one is now live: the new serving stack records every request with
+CloudFront-compatible fields, both eras are queryable through one normalizing view, and
+delivery is gap-alerted — see [Download Stats](download-stats.qmd). Forward-looking, the
+propagation pipeline also supplies software-package metadata and artifacts directly (see
+[the propagation gate](propagation-gate.qmd)), which is how the prototype next-generation
+landing pages are fed.
+:::
+
+## The short version
+
+Every package page for releases **2.5 through 3.24** can be regenerated today with no access
+to master, staging, or any build machine. The inputs are two published JSON artifacts plus a
+public git clone.
+
+What is *not* solved is where those JSON artifacts come from. Rendering is independent;
+provenance is only partly so.
+
+## The pipeline
+
+```{mermaid}
+flowchart LR
+  O["origins<br/>r-universe · VIEWS · bio-web-stats · CRAN"] --> J["packages.json<br/>(one per version per repo)"]
+  J --> N["Nanoc build"]
+  J --> A["Astro build"]
+  N --> P["package landing pages"]
+  A --> P
+  M["manifest git repo<br/>git.bioconductor.org/admin/manifest"] --> N
+
+  classDef ok fill:#f3fbf4,stroke:#3d8b47,color:#12263f
+  classDef q fill:#fff8e8,stroke:#b8860b,color:#12263f
+  class J,N,A,P,M ok
+  class O q
+```
+
+`packages.json` — not VIEWS — is the real interface. Nothing downstream parses DCF. VIEWS is
+merely the wire format the legacy pipeline happened to use, and the JSON it produces is
+already published at stable public URLs.
+
+## What data exists, per release
+
+`packages.json` is published far further back than the build itself reaches: the site build
+only ever regenerates the current release and devel, but the JSON persists for every release
+from 2.5 onward. The repository set genuinely varies, so any generator must discover it
+rather than assume it.
+
+| Releases | `bioc` | `data/annotation` | `data/experiment` | `workflows` |
+|---|:--:|:--:|:--:|:--:|
+| 1.8 – 2.4 | — | — | — | — |
+| 2.5 – 3.6 | yes | yes | yes | — |
+| 3.7 – 3.24 | yes | yes | yes | yes |
+
+`books` is never published as `packages.json`. Releases 1.8–2.4 predate the JSON entirely and
+survive only as frozen HTML, so they are content to copy, not to rebuild.
+
+## Where the data actually comes from
+
+This is the table that matters, and the honest state of it. "Independent origin" means the
+data is produced somewhere other than the site being rebuilt. "Independent path" means it can
+be *fetched* without the hosts being retired.
+
+| Data | Origin | Independent origin? | Independent path? |
+|---|---|:--:|:--:|
+| `bioc` metadata (2,417 pkgs, 63%) | r-universe | **yes** | **yes** |
+| annotation / experiment / workflows (1,392 pkgs) | VIEWS on the site | no | no |
+| Reverse dependencies | four repos + CRAN `PACKAGES` | partly | partly |
+| `Rank` | bio-web-stats | yes | **no** — master proxies it |
+| `tree.json` (category hierarchy) | biocViews vocabulary + packages.json | **yes** | **yes** |
+| Repository artifacts (`MD5sum`, binary paths, `Archs`, `Rfiles`, `hasINSTALL`, `hasLICENSE`) | the package repository | yes | yes |
+
+Three things this table is meant to stop anyone assuming:
+
+**r-universe does not cover Bioconductor.** It covers *software* packages. There is no
+universe for annotation, experiment or workflows — every candidate hostname 404s — so a third
+of the corpus has no origin outside the site. The remaining source for those is the
+`DESCRIPTION` file inside ~1,392 package tarballs.
+
+**`Rank` has an independent origin but no independent path.** bio-web-stats runs on a
+VPC-private host, reachable only because master reverse-proxies
+`/packages/stats/` to it. Retiring master takes the stats offline while the application
+carries on running. Its own upstream is CloudFront logs in an S3 bucket — and moving traffic
+to Cloudflare stops those logs being produced at all. See
+[Download Stats](download-stats.qmd) for how that pipeline works and where it is
+currently producing wrong numbers.
+
+**Repository artifacts have an origin, just not one we have wired up.** `MD5sum` and the
+binary paths come from the package repository's own `PACKAGES` index and directory listing,
+not from any build machine. `MD5sum` in particular is read by nothing and can be dropped.
+
+## What renders it
+
+Both renderers consume the same `packages.json`, which is the property that matters: the seam
+is renderer-agnostic.
+
+| | Nanoc (modernised) | Astro (parity spike) |
+|---|---|---|
+| Base image | Ubuntu 24.04 / Ruby 3.2 | Node 22 |
+| Pages built | 8,343 files (whole site, 2 releases) | 92,162 pages (35 releases) |
+| Build time | 600 s | 33 s |
+| URL parity (3.23) | reference | **exact — 7,614 identical paths, 0 spurious** |
+| Extra inputs | manifest git clone | none |
+
+The Nanoc figure covers the entire site including news, courses and events; the Astro figure
+covers package pages only and omits site chrome and badges, so the times are not
+like-for-like. Nanoc is single-threaded, which is the bulk of the difference.
+
+Integrity of the all-versions Astro build was checked directly: for all 123 version/repo
+combinations, the built page count equals the `packages.json` record count exactly — zero
+mismatches across 92,162 pages — and sampled URLs all resolve on the live site.
+
+## tree.json: the category hierarchy
+
+`tree.json` drives the package category browser, and it regenerates exactly — 500 of 500 nodes
+identical to the published file for both 3.23 and 3.24, labels and package lists alike; 496 of
+496 for 3.18. It needs two inputs, neither of which touches a build machine: the term hierarchy
+from `Bioconductor/biocViews` (`inst/dot/biocViewsVocab.dot`, the editable DOT source) and the
+`biocViews` field on each package.
+
+Its sibling `biocViews.json` — the same taxonomy as a flat map of 501 nodes — is read by
+nothing. Its own source in `get_json.rb` is marked `todo - remove this`, and it does not need
+generating.
+
+Three details are worth recording, because each of them silently produced wrong output first.
+
+**A node's two package figures are different sets.** `packageList` holds packages filed
+*directly* under a term; the count shown in `data` is *cumulative* over the whole subtree. So
+`AssayDomain` renders as `"AssayDomain (960)"` while carrying only 13 packages. Treating both
+as cumulative put 26 nodes out.
+
+**Some terms have no direct assignments at all.** `ChipManufacturer` and `ChipName` are never
+declared by any package — annotation packages name the child term (`CodelinkChip`,
+`adme16cod`) and skip the parent — yet the published output fills them cumulatively. Terms
+with no direct assignments but populated descendants therefore fall back to the cumulative
+set.
+
+**The vocabulary must be pinned per release.** Terms are added over time, so devel's list
+applied to an older release invents categories that did not exist then. Using devel against
+3.18 produced four spurious terms; pinning to `RELEASE_3_18` made it exact. This shows up as a
+gradient rather than an error — 3.10 matched 473 of 475 nodes, 2.9 only 202 of 243 — which is
+exactly the kind of drift that looks like success if you only check the current release.
+`biocViews` release branches reach back only to `RELEASE_3_7`; older releases fall back to
+devel with a warning and carry extra terms.
+
+The node format itself is not uniform:
+
+```json
+{"data": "GeneExpression (639)",
+ "attr": {"packageList": "a4Classif,acde,ADAM,…", "id": "GeneExpression"},
+ "children": []}
+
+{"data": "MetagenomeAssembly", "childnum": 0, "children": []}
+```
+
+Terms with packages carry `attr` and a count in `data`; empty terms carry `childnum: 0` and a
+bare name.
+
+## Much of the data is never read
+
+An audit of every consumer — the Nanoc data source, `Rules`, the five package-page layout
+components, and the helpers they call — found a large part of the record has no consumer at
+all: `MD5sum`, `NeedsCompilation`, `git_url`, `git_last_commit`, `git_last_commit_date`,
+`Date/Publication`, `VignetteBuilder`, `OS_type`, `License_is_FOSS`, `License_restricts_use`
+and `organism`. A generator does not need to produce any of them.
+
+Constraints a generator *must* honour:
+
+- The top level is a **JSON object keyed by package name**. That key alone determines the page
+  URL; get it wrong and every URL changes.
+- Twelve fields are arrays, the four `has*` fields are JSON booleans, `Rank` is an integer and
+  `dependencyCount` is a string of digits.
+- The category browser reads a Rake-derived `packages.js` whose rows are **positional** —
+  `[Package, Maintainer, Title, Rank, dependencyCount]`, indices 0–3 read by position.
+  Reordering silently breaks search and autocomplete.
+- `URL` is dereferenced without a nil guard, so omit the key rather than emitting `null`.
+
+## Status
+
+Demonstrated:
+
+- Package pages for 35 releases build from published JSON with no Bioconductor host access.
+- Two independent renderers produce identical URLs from the same contract.
+- Software-package metadata regenerates from r-universe.
+- Reverse dependencies regenerate from the four repositories plus CRAN — folding CRAN in
+  matters, without it `limma` alone was missing 42 `importsMe` entries.
+- `tree.json` regenerates exactly for current releases, from the biocViews vocabulary and the
+  package metadata.
+
+Not demonstrated:
+
+- Regenerating `packages.json` for annotation, experiment or workflow packages from anything
+  but the site. This is the largest remaining gap: 1,392 packages, roughly a third of the
+  current corpus.
+- Any independent path to `Rank`.
+- Regenerating historical releases' JSON — r-universe holds only current release and devel, so
+  for 2.5–3.22 the published JSON may simply *be* the archival record, in which case
+  snapshotting it is the right answer rather than regeneration.

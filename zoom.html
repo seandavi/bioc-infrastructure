@@ -1,0 +1,14 @@
+<style>
+.mermaid { cursor: zoom-in; }
+.mermaid.zoomed {
+  position: fixed; inset: 0; z-index: 9999; cursor: zoom-out;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--quarto-body-bg, #fff);
+}
+.mermaid.zoomed svg { max-width: 95vw !important; max-height: 95vh !important; height: auto !important; }
+</style>
+<script>
+document.querySelectorAll("pre.mermaid").forEach(function (el) {
+  el.addEventListener("click", function () { el.classList.toggle("zoomed"); });
+});
+</script>
