@@ -2,10 +2,9 @@
 title: "Bioconductor Infrastructure"
 ---
 
-This site documents Bioconductor.org's serving infrastructure: how it works today, the
-design of its replacement, and the plans in flight to get there. It exists because none of
-this was written down anywhere a newcomer — or a future maintainer — could find it in one
-place.
+This site documents the infrastructure behind bioconductor.org: what runs today, what is
+replacing it, and the contracts between the pieces. It exists because none of it was
+written down anywhere a newcomer — or a future maintainer — could find in one place.
 
 ::: {.callout-tip}
 ## Try it now
@@ -16,94 +15,117 @@ packages from it today with two lines of R — see
 anything that behaves differently, are the most useful validation we can get.
 :::
 
-## The design, in brief
+## The estate
 
-The core problem: **the origin serves everything off a single EBS volume**, and it keeps
-running out of IOPS. The replacement takes the disk — and the single machine — out of the
-serving path entirely.
+The migration is not one project. It is three, each answering a different question and
+retiring a different part of the estate. They meet at **data contracts rather than at
+shared machines**, which is why they can proceed independently and why any one of them can
+be replaced without stopping the others.
 
-To be clear about what `bioc-dev.cancerdatasci.org` is: **not a mirror site, but the
-proposed replacement for bioconductor.org**, running on the new stack. Mirroring the
-production docroot is its current *population mechanism* — chosen so the replacement can be
-verified byte-for-byte against the site it is meant to succeed — not its purpose. The
-pieces:
+| Repo | Answers | Retires |
+|---|---|---|
+| [bioc-registry](https://github.com/seandavi/bioc-registry) | *Which build is fit to publish, and what is true about a package?* | The three builders and the legacy build system |
+| [bioconductor-website](https://github.com/seandavi/bioconductor-website) | *How is that data rendered?* | The master and staging webservers |
+| the serving repo | *What is served at which route?* | CloudFront, the S3 bucket, the Open Storage Network buckets |
+| this one | *Why does it look like this?* | Nothing. It is the map. |
 
-- **A byte-for-byte mirror of the docroot lives in Cloudflare R2** (object storage with
-  free egress), populated by an hourly delta sync from the same source that publishes to
-  bioconductor.org, and verified against it weekly by a full checksum pass. Current drift:
-  zero objects.
-- **A Cloudflare Worker serves every request** from that bucket at the edge: directory
-  index resolution, the site's historical redirect and short-URL behavior (reconstructed
-  from the live site's behavior, captured configuration, and archived rules), and
-  cache purges scoped to what the sync actually changed.
-- **Freshness is purge-based, not expiry-based**: when the hourly sync uploads a changed
-  file, it purges exactly those URLs from the edge cache. Unchanged content is served from
-  cache indefinitely.
-- **A release-roll guard** watches the Bioconductor version files upstream and refuses to
-  let a release roll trigger mass deletions unattended — the scenario where automation
-  operating on a changed version pair could otherwise do real damage.
+```{mermaid}
+flowchart TB
+  m(["maintainers"]) --> ru["r-universe<br/>builds packages"]
+  ru -- "polled every 15 min" --> reg["bioc-registry<br/>the propagation gate"]
+  reg -. "install.packages()" .-> cran["installable R repository"]
+  reg -. "DuckDB" .-> pq["Parquet archive"]
+  reg -- "build-time fetch" --> site["bioconductor-website<br/>static build, CI, ~60 s"]
+  site --> r2[("R2<br/>immutable builds")]
+  r2 --> wk["Worker<br/>owns the route table"]
+  wk --> v(["visitor"])
+```
 
-## Expected outcome
+The organising principle is one idea applied at two scales: **define where the data comes
+from once, and let every consumer render it.** Inside `bioconductor-website` that shows up
+as the `astro/data/` seam between its pipeline and its renderer. Across the estate it shows
+up as the table above. The website is one consumer of package truth. It is deliberately not
+the place where "what is true about a package" gets decided.
 
-- **No IOPS ceiling and no origin disk in the request path.** The failure mode the whole
-  effort exists to eliminate.
-- **Free egress.** Bioconductor's download traffic is substantial; R2 charges nothing for
-  it, and edge caching means most requests never reach storage at all.
-- **A reversible cutover.** Moving production traffic is a DNS change with the current
-  CloudFront setup kept warm behind it; rolling back is the same change in reverse.
-- **Faster delivery globally**, since content is served from Cloudflare's edge rather than
-  a single AWS region.
+## The contracts
 
-## Logging and statistics continuity
+Everything above holds together at five seams. They are worth stating in one place, because
+each is a place where a change in one repo can quietly break another.
 
-Every published download statistic — and the rank on every package landing page — derives
-from the current CDN's access logs, so serving from Cloudflare must not break that series.
-The design (recorded in the repo's ADRs):
+**1. `astro/data/` — pipeline to renderer**, inside `bioconductor-website`. JSON written to
+disk by a Python pipeline, read by an Astro build. Nothing downstream knows where the data
+came from; nothing upstream knows how it is rendered. That seam is what let the same
+component render both the legacy-parity pages and the new data-plane-fed pages unchanged.
 
-- The Worker emits **one structured record per request**, using the same field vocabulary
-  as the CloudFront logs it replaces, with every field and no sampling.
-- Records are shipped continuously to durable object storage, and both eras — CloudFront
-  history and Cloudflare present — are queryable side by side through a common normalizing
-  view, so cross-era statistics are a single query rather than a data-migration project.
-- Delivery is monitored daily with alerting: the pipeline cannot backfill, so a silent gap
-  would be permanent loss, and the design treats that as the dominant failure mode.
-- The two logging systems will run in parallel across the cutover, deliberately, to
-  calibrate any discontinuity in the statistics.
+**2. The registry's HTTP API — data plane to website**, fetched at build time from
+`/data/prop/{universe}/index.json`, `/data/state/{universe}/latest`, and
+`/prop/{universe}/cas/{sha256}`. This is what the `/next/` pages render: what *propagated*,
+not whatever r-universe last built.
 
-## Two tracks, one goal
+**3. The R2 object layout — build to serving.** The website's CI writes immutable
+`site/<sha>/` builds, a `site/latest` pointer, and `preview/pr-<n>/` for every pull request.
+The Worker reads them. **The build side publishes; the serving side decides what is served** —
+write access to the website repo never implies the power to change production.
 
-Serving is only half the picture. Two efforts are underway in parallel:
+**4. The route table — `_routes.json`, an object in R2, not code.** Flipping a route from
+mirrored legacy content to a static build is a data write; rolling it back is the same write
+in reverse. No deploy, no rebuild. An empty table means the mirror serves everything, which
+is the safe default.
 
-- **[R2 migration](r2-migration.qmd)** — the serving replacement described above, in
-  detail.
-- **[Decommission plan](decommission-plan.qmd)** — the build/publish pipeline that
-  produces the docroot (staging's hourly site build, the Single Package Builder's results
-  tracking, master's Apache front end) is its own tangle of cron jobs, unmanaged daemons,
-  and a four-year-EOL operating system. [Current State](current-state.qmd) documents what
-  that pipeline actually does today; the decommission plan is what to do about it.
+**5. Request logs — serving to statistics.** The Worker emits one structured record per
+request in the same field vocabulary as the CloudFront logs it replaces, shipped to object
+storage and queried from BigQuery, so both eras are one query rather than a migration
+project. Client addresses are hashed at the edge and never leave it
+([ADR 0009](adr/0009-client-addresses-are-hashed-at-the-edge.html)).
 
-## Context: the build system is moving too
-
-Neither track happens in isolation. Bioconductor's package build and check infrastructure
-is itself mid-transition, and it is usually summarized as "moving to r-universe" — which
-turns out to describe one of **three** replacement efforts running in parallel, only some
-of which affect the pipeline documented here. [Builder
-Transition](builder-transition.qmd) maps what is actually live as of August 2026, with
-sources, and is worth reading before assuming any particular build machine is or isn't on
-its way out.
-
-## Status
+## Where this stands
 
 The serving replacement is functionally complete and running at
-`bioc-dev.cancerdatasci.org`: the mirror is verified drift-free, logging and its gap
-alerting are live, and the remaining step is the production cutover decision. The
-build-pipeline track is earlier — investigation and prototypes. Numbers throughout this
-site are point-in-time measurements, not live dashboards — check the date on each page
-before relying on specifics.
+`bioc-dev.cancerdatasci.org`: the mirror is verified drift-free, logging and its gap alerting
+are live, and the remaining step is the production cutover decision. Package landing pages
+rebuild from primary sources for 35 releases, measured against the legacy build rather than
+assumed to match. The build-system track is earlier — r-universe covers software packages;
+where annotation, experiment, and workflow packages get built is the open workstream, and the
+last thing standing between the estate and three fewer machines.
+
+Numbers throughout this site are point-in-time measurements, not live dashboards — **check
+the date on each page** before relying on specifics.
+
+### Two costs, not one
+
+Two figures appear across these pages and they are not competing estimates of the same thing:
+
+- **~$5,000/month** is the AWS estate being *retired* — CloudFront, the S3 bucket, and the
+  master and staging webservers — before counting the builder hardware or the staff time to
+  keep three operating systems patched.
+- **~$80/month** is the Cloudflare stack *replacing* it, dominated by R2 storage. R2 charges
+  no egress fees, which matters disproportionately for a package repository, where serving
+  tarballs to the world is precisely what a CDN bills most aggressively for.
+
+### Known weak points
+
+Stated here rather than discovered later:
+
+- **The website reads the registry's stored JSON shape directly**, not a versioned API. An
+  unreachable endpoint fails the build loudly, which is right; a *renamed field* renders a
+  blank section on a page and fails nothing. The convention is "never change a shape in
+  place, add fields and tolerate absences" — it is a convention, with no mechanism behind it.
+- **`astro/data/` has no written schema.** Its shape is implied by the code that writes it
+  and the code that reads it, and by nothing else.
+- **The 15-minute poll has no alerting.** A silent stop is currently detected by someone
+  remembering to look.
+- **Some facts are written in several places** — release numbers, repository lists, display
+  labels — and at least one set of display labels already disagrees with itself.
+
+## Reading order
+
+If you are new to this, read [Current State](current-state.qmd) for what exists today, then
+[Decommission Plan](decommission-plan.qmd) for what happens to it. If you want the reasoning
+rather than the description, the [ADRs](adr/0008-three-repos-and-a-strangler-migration.html)
+are the honest record — including the decisions that were later reversed.
 
 ::: {.callout-note}
 This site is deliberately public, so that the people affected by this work can read it
-without needing an account or an invitation. The findings are still being shared with the
-Bioconductor core team as they land, so read these pages as work in progress rather than
-settled conclusions — and check the date on each one.
+without needing an account or an invitation. Findings are shared with the Bioconductor core
+team as they land, so read these pages as work in progress rather than settled conclusions.
 :::

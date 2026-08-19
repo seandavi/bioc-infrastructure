@@ -33,3 +33,7 @@ to `main`. There is no draft state: **writing here is writing in public.**
 That was true before this repo existed — the site was public while its source
 repo was private — and it stays true now for a simpler reason. See
 [`adr/0001`](adr/0001-public-docs-site-with-a-publication-boundary.md).
+
+## License
+
+[CC BY 4.0](LICENSE). Use it, quote it, build on it — with attribution.
