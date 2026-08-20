@@ -31,6 +31,8 @@ website:
             text: Astro Site Build
           - href: reproducing-package-pages.qmd
             text: Package Pages
+          - href: cache.qmd
+            text: Edge Cache
           - href: download-stats.qmd
             text: Download Stats
       - section: Build system

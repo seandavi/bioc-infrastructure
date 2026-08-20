@@ -1,0 +1,144 @@
+---
+title: "Cache behavior at the edge"
+---
+
+Every page on `bioc-dev.cancerdatasci.org` is served from Cloudflare's edge cache, and
+**freshness is purge-based rather than expiry-based**: objects are cached at the edge
+effectively forever, and the hourly sync purges exactly the URLs it changed. Nothing falls
+out of cache on its own.
+
+That is the right trade for a site whose content only changes when something publishes it —
+unchanged pages are served from the edge indefinitely, and no request pays for revalidating
+content that did not change. It also means that when a page *is* stale, waiting will not fix
+it. Somebody has to purge.
+
+This page is how to tell which case you are in, and what to do about it.
+
+## Is this page cached?
+
+```sh
+curl -sI https://bioc-dev.cancerdatasci.org/ \
+  | grep -iE 'cf-cache-status|^age|cache-control|x-bioc-build'
+```
+
+A representative response (measured 2026-08-20):
+
+```
+cf-cache-status: HIT
+age: 21390
+cache-control: public, max-age=300, s-maxage=31536000
+x-bioc-build: da4ead8f9c7e22c332edfc009faba354d2bd94c6
+```
+
+| Header | What it tells you |
+|---|---|
+| `cf-cache-status` | Where the response came from. `HIT` = the edge, never reached storage. `MISS` = fetched from R2 and cached on the way past. Also `EXPIRED`, `REVALIDATED`, and `DYNAMIC` (not cacheable). |
+| `age` | Seconds this object has been in the edge cache. `21390` is about six hours. |
+| `cache-control` | `max-age=300` is the browser's five minutes; `s-maxage=31536000` is the edge's one year. The asymmetry is the purge-based model in one line. |
+| `x-bioc-build` | The commit that produced this page. **This is the header that actually answers "am I looking at something stale?"** |
+
+## Query strings do not bust the cache
+
+The reflex — append `?x=1` and re-request — does not work here. The Worker normalises the
+cache key, so a query string returns the same cached object:
+
+```
+$ curl -sI 'https://bioc-dev.cancerdatasci.org/?cachebust=12345' | grep -iE 'cf-cache-status|^age'
+cf-cache-status: HIT
+age: 21390
+```
+
+Identical `age` to the request without the query string — the same cache entry, not a new
+one. Anyone debugging a stale page this way will conclude the cache is fine when it is not.
+
+**Use `x-bioc-build` instead.** Compare the sha it reports against the build you expect:
+
+```sh
+curl -sI https://bioc-dev.cancerdatasci.org/<path> | grep x-bioc-build
+```
+
+If it names an older commit than the one you just published, the edge is stale and needs a
+purge. If it names the commit you expect, the edge is current and the problem is somewhere
+else — a build that did not contain your change, or a route prefix that is not flipped.
+
+Because that header is on every response, anyone can check the provenance of a page they are
+looking at without access to anything. That is a deliberate property, not a debugging
+convenience.
+
+::: {.callout-note}
+## Scheduled builds carry a suffix
+
+A build published by the daily refresh reports `<sha>-<date>` rather than a bare sha —
+a scheduled rebuild of an unchanged commit needs its own key so it cannot overwrite the
+immutable build published when that commit merged. Same commit, different build id.
+:::
+
+## URLs that are never cached
+
+Preview and staging paths are served `no-cache` and carry no `cf-cache-status` at all:
+
+- `/_pr/<n>/` — one prefix per pull request
+- `/_latest/` — whatever `site/latest` currently points at
+
+This is why a preview always shows your most recent push. It is also why a preview URL is
+the right thing to hand someone when the question is "does this change look right", and the
+wrong thing for judging performance.
+
+## Purging
+
+Normally you do not: the sync purges what it uploads, on every run. Purge by hand when that
+did not happen, or when testing.
+
+The helpers live in the serving repo (`cf-purge.sh`), and are shared by the sync and manifest
+scripts rather than copied, because both spend the same account-wide rate budget.
+
+```sh
+. ./cf-purge.sh                    # needs CLOUDFLARE_API_TOKEN in the environment
+
+zone_id=$(cf_zone_id cancerdatasci.org)
+cf_purge_urls "$zone_id" \
+  https://bioc-dev.cancerdatasci.org/ \
+  https://bioc-dev.cancerdatasci.org/packages/release/bioc/html/limma.html
+```
+
+Confirm it worked by re-requesting: expect `cf-cache-status: MISS` and `age: 0`.
+
+To discard the entire edge cache:
+
+```sh
+cf_purge_everything "$zone_id"
+```
+
+Everything is re-fetched from R2 on next request. That is affordable here — static objects,
+no egress fees — but it throws away every warm object for the whole zone, so it belongs to
+real incidents rather than routine debugging.
+
+::: {.callout-warning}
+## Do not hand-roll a purge loop
+
+Purge-by-URL is the only targeted option below Enterprise: 100 URLs per request, and **800
+URLs/second account-wide**. That budget reads as generous and is not — a naive serial loop of
+100-URL requests moves roughly 1,000 URLs/s and trips within seconds.
+
+Two sync runs on 2026-08-04 died exactly there, at 2,863 URLs after 4 seconds and 5,320 after
+15. The failure aborted the batch loop, so most of each run's changed URLs stayed stale at the
+edge *while the upload itself had succeeded*. That is the worse half: a failed run is visible,
+a silently unpurged edge is not.
+
+`cf_purge_urls` paces to about 500 URLs/s and retries rate limits rather than dropping the
+remaining batches. Use it.
+
+The budget is per **account**, not per zone, so a manual purge while a sync is running spends
+from the same bucket and can starve it.
+:::
+
+## After cutover
+
+The scripts default to the `cancerdatasci.org` zone. Serving the same content from a
+`bioconductor.org` zone means passing `ZONE=` explicitly — the purge helpers take the zone
+name and resolve it to an id at call time, so nothing else changes.
+
+---
+
+*Header values on this page are point-in-time measurements from 2026-08-20 against
+`bioc-dev.cancerdatasci.org`. The mechanism is stable; the numbers are illustrative.*
