@@ -6,28 +6,48 @@ This site documents the infrastructure behind bioconductor.org: what runs today,
 replacing it, and the contracts between the pieces. It exists because none of it was
 written down anywhere a newcomer — or a future maintainer — could find in one place.
 
+## TL;DR
+
+The replacement estate is four repos that meet at **data contracts rather than shared
+machines**, which is why each can proceed — or be replaced — without stopping the others.
+
+| Repo | What it is | Retires |
+|---|---|---|
+| [bioc-registry](https://github.com/seandavi/bioc-registry) | The data plane: an r-universe observer plus the propagation gate that decides *which build is fit to publish and what is true about a package*, exposed as an installable repository and a Parquet archive | The three builders and the legacy build system |
+| [bioc-website](https://github.com/seandavi/bioc-website) | The builder: a Python pipeline and an Astro static build that render package truth into ~93,000 pages, published immutably by CI | The master and staging webservers |
+| bioc-edge *(private during the [disclosure window](#where-to-file-issues))* | The serving side: a Cloudflare Worker and the R2 mirror behind `bioc-dev.cancerdatasci.org`, owner of the route table that decides *what is served where* | CloudFront, the S3 bucket, the Open Storage Network buckets |
+| [bioc-infrastructure](https://github.com/seandavi/bioc-infrastructure) | This documentation site | Nothing. It is the map. |
+
 ::: {.callout-tip}
 ## Try it now
 
-The replacement site is live at **`bioc-dev.cancerdatasci.org`** and you can install
-packages from it today with two lines of R — see
-**[Installing packages from the new site](install.qmd)**. Real usage, and reports of
-anything that behaves differently, are the most useful validation we can get.
+The replacement site is live at **`bioc-dev.cancerdatasci.org`** — identical content,
+verified against production — and two lines of R point your installs at it:
+
+```r
+options(BioC_mirror = "https://bioc-dev.cancerdatasci.org")
+BiocManager::install("GEOquery")
+```
+
+See **[Installing packages from the new site](install.qmd)** for verification, persistence,
+and what to expect. Real usage, and reports of anything that behaves differently, are the
+most useful validation we can get.
 :::
 
-## The estate
+### Where to file issues {#where-to-file-issues}
 
-The migration is not one project. It is three, each answering a different question and
-retiring a different part of the estate. They meet at **data contracts rather than at
-shared machines**, which is why they can proceed independently and why any one of them can
-be replaced without stopping the others.
+- **A page on the new site renders wrong, or content is missing** →
+  [bioc-website issues](https://github.com/seandavi/bioc-website/issues)
+- **A package is missing, stale, or its build/check data looks wrong** →
+  [bioc-registry issues](https://github.com/seandavi/bioc-registry/issues)
+- **Serving problems** (failed installs against `bioc-dev`, slow or missing files, stale
+  cache — see [Edge cache](cache.qmd) first), **doc corrections, or anything you can't
+  place** → [bioc-website issues](https://github.com/seandavi/bioc-website/issues) as the
+  catch-all, or email [seandavi@gmail.com](mailto:seandavi@gmail.com). The serving repo is
+  private until findings about the legacy site have been resolved with the Bioconductor
+  team; its tracker joins this list when it opens.
 
-| Repo | Answers | Retires |
-|---|---|---|
-| [bioc-registry](https://github.com/seandavi/bioc-registry) | *Which build is fit to publish, and what is true about a package?* | The three builders and the legacy build system |
-| [bioconductor-website](https://github.com/seandavi/bioconductor-website) | *How is that data rendered?* | The master and staging webservers |
-| the serving repo | *What is served at which route?* | CloudFront, the S3 bucket, the Open Storage Network buckets |
-| this one | *Why does it look like this?* | Nothing. It is the map. |
+## How the pieces meet
 
 ```{mermaid}
 flowchart TB
@@ -35,24 +55,24 @@ flowchart TB
   ru -- "polled every 15 min" --> reg["bioc-registry<br/>the propagation gate"]
   reg -. "install.packages()" .-> cran["installable R repository"]
   reg -. "DuckDB" .-> pq["Parquet archive"]
-  reg -- "build-time fetch" --> site["bioconductor-website<br/>static build, CI, ~60 s"]
+  reg -- "build-time fetch" --> site["bioc-website<br/>static build, CI, ~60 s"]
   site --> r2[("R2<br/>immutable builds")]
-  r2 --> wk["Worker<br/>owns the route table"]
+  r2 --> wk["bioc-edge Worker<br/>owns the route table"]
   wk --> v(["visitor"])
 ```
 
 The organising principle is one idea applied at two scales: **define where the data comes
-from once, and let every consumer render it.** Inside `bioconductor-website` that shows up
-as the `astro/data/` seam between its pipeline and its renderer. Across the estate it shows
-up as the table above. The website is one consumer of package truth. It is deliberately not
-the place where "what is true about a package" gets decided.
+from once, and let every consumer render it.** Inside `bioc-website` that shows up as the
+`astro/data/` seam between its pipeline and its renderer. Across the estate it shows up as
+the table above. The website is one consumer of package truth. It is deliberately not the
+place where "what is true about a package" gets decided.
 
 ## The contracts
 
 Everything above holds together at five seams. They are worth stating in one place, because
 each is a place where a change in one repo can quietly break another.
 
-**1. `astro/data/` — pipeline to renderer**, inside `bioconductor-website`. JSON written to
+**1. `astro/data/` — pipeline to renderer**, inside `bioc-website`. JSON written to
 disk by a Python pipeline, read by an Astro build. Nothing downstream knows where the data
 came from; nothing upstream knows how it is rendered. That seam is what let the same
 component render both the legacy-parity pages and the new data-plane-fed pages unchanged.
@@ -117,12 +137,25 @@ Stated here rather than discovered later:
 - **Some facts are written in several places** — release numbers, repository lists, display
   labels — and at least one set of display labels already disagrees with itself.
 
-## Reading order
+## How this site is organised
 
-If you are new to this, read [Current State](current-state.qmd) for what exists today, then
-[Decommission Plan](decommission-plan.qmd) for what happens to it. If you want the reasoning
-rather than the description, the [ADRs](adr/0008-three-repos-and-a-strangler-migration.html)
-are the honest record — including the decisions that were later reversed.
+The pages fall into two kinds, and the sidebar separates them:
+
+- **Reference** — pages that describe the replacement system itself and should still be
+  true, with only numbers to refresh, once the transition completes:
+  [Installing packages](install.qmd), the [edge cache](cache.qmd), the
+  [site build](astro-site-build.qmd), and the [propagation gate](propagation-gate.qmd).
+- **Migration record** — dated snapshots of the legacy estate and the analysis that drove
+  the transition: [what runs today](current-state.qmd), the
+  [decommission plan](decommission-plan.qmd), the [R2 migration](r2-migration.qmd), the
+  [builder transition](builder-transition.qmd), and the measurement pages on
+  [VIEWS](views-and-r-universe.qmd), [package pages](reproducing-package-pages.qmd), and
+  [download stats](download-stats.qmd). These are kept as history — corrected if wrong,
+  but not updated to track the system.
+
+If you want the reasoning rather than the description, the
+[ADRs](adr/0008-three-repos-and-a-strangler-migration.html) are the honest record —
+including the decisions that were later reversed.
 
 ::: {.callout-note}
 This site is deliberately public, so that the people affected by this work can read it

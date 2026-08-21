@@ -3,6 +3,13 @@ title: "VIEWS: what r-universe can and cannot replace"
 date: 2026-08-03
 ---
 
+::: {.callout-note}
+## Part of the migration record
+A dated snapshot kept as history, not a live view of the current system: corrected if
+wrong, but not updated to track the estate. The [overview](index.qmd) links the reference
+pages that describe the replacement itself.
+:::
+
 The package landing pages are the largest section of bioconductor.org, and every one of them
 is built from a file called `VIEWS`. That file is currently fetched over HTTP from
 bioconductor.org itself — the build reading its own published output. Meanwhile a separate,

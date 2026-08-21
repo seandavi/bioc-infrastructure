@@ -3,3 +3,5 @@
 **/*.quarto_ipynb
 .env
 *.env
+_site/
+.quarto/

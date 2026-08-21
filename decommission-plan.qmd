@@ -3,6 +3,13 @@ title: "Decommission Plan"
 date: 2026-08-03
 ---
 
+::: {.callout-note}
+## Part of the migration record
+A dated snapshot kept as history, not a live view of the current system: corrected if
+wrong, but not updated to track the estate. The [overview](index.qmd) links the reference
+pages that describe the replacement itself.
+:::
+
 This is a first pass, based on one read-only recon (2026-08-03) of both boxes. It's a
 starting point for discussion with the Bioconductor team, not a committed roadmap — several
 items below need confirmation before anyone touches production.

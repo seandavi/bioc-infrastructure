@@ -3,6 +3,13 @@ title: "R2 Migration"
 date: 2026-08-03
 ---
 
+::: {.callout-note}
+## Part of the migration record
+A dated snapshot kept as history, not a live view of the current system: corrected if
+wrong, but not updated to track the estate. The [overview](index.qmd) links the reference
+pages that describe the replacement itself.
+:::
+
 Full detail lives in the repo's own `README.md` and `MIGRATION.md` — this page is the
 condensed version for orientation. Don't duplicate updates here; treat those files as the
 source of truth and this as a pointer.

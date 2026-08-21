@@ -3,6 +3,13 @@ title: "Reproducing the package pages"
 date: 2026-08-03
 ---
 
+::: {.callout-note}
+## Part of the migration record
+A dated snapshot kept as history, not a live view of the current system: corrected if
+wrong, but not updated to track the estate. The [overview](index.qmd) links the reference
+pages that describe the replacement itself.
+:::
+
 The package landing pages are the largest part of bioconductor.org — roughly 92,000 of them
 across every release still published. This page records what it takes to reproduce them
 without the legacy build hosts, what has actually been demonstrated, and what has not.

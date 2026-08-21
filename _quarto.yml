@@ -23,32 +23,30 @@ website:
         text: Overview
       - href: install.qmd
         text: Install from the New Site
-      - section: Serving migration
+      - section: Reference
         contents:
-          - href: r2-migration.qmd
-            text: R2 Migration
-          - href: astro-site-build.qmd
-            text: Astro Site Build
-          - href: reproducing-package-pages.qmd
-            text: Package Pages
           - href: cache.qmd
             text: Edge Cache
-          - href: download-stats.qmd
-            text: Download Stats
-      - section: Build system
-        contents:
-          - href: builder-transition.qmd
-            text: Builder Transition
+          - href: astro-site-build.qmd
+            text: Astro Site Build
           - href: propagation-gate.qmd
             text: Propagation Gate
-          - href: views-and-r-universe.qmd
-            text: VIEWS &amp; r-universe
-      - section: Legacy pipeline
+      - section: Migration record
         contents:
           - href: current-state.qmd
-            text: Current State
+            text: Current State (legacy)
           - href: decommission-plan.qmd
             text: Decommission Plan
+          - href: r2-migration.qmd
+            text: R2 Migration
+          - href: builder-transition.qmd
+            text: Builder Transition
+          - href: views-and-r-universe.qmd
+            text: VIEWS &amp; r-universe
+          - href: reproducing-package-pages.qmd
+            text: Package Pages
+          - href: download-stats.qmd
+            text: Download Stats
       - section: Decisions (ADRs)
         contents:
           - auto: "adr/*.md"

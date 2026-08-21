@@ -3,6 +3,13 @@ title: "Current State: staging + master"
 date: 2026-08-03
 ---
 
+::: {.callout-note}
+## Part of the migration record
+A dated snapshot kept as history, not a live view of the current system: corrected if
+wrong, but not updated to track the estate. The [overview](index.qmd) links the reference
+pages that describe the replacement itself.
+:::
+
 Read-only recon of both boxes, 2026-08-03. See the repo memory notes
 (`bioc-staging-master-architecture`) for the raw findings this page is drawn from —
 re-verify specifics before relying on exact numbers in the future, this is a snapshot,

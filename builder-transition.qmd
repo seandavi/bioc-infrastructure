@@ -3,6 +3,13 @@ title: "The Builder Transition: three tracks, not one"
 date: 2026-08-03
 ---
 
+::: {.callout-note}
+## Part of the migration record
+A dated snapshot kept as history, not a live view of the current system: corrected if
+wrong, but not updated to track the estate. The [overview](index.qmd) links the reference
+pages that describe the replacement itself.
+:::
+
 Bioconductor's package build and check infrastructure is in the middle of a transition away
 from the long-standing BBS build machines. It is commonly described in one sentence — "we're
 moving to r-universe" — and that sentence is true of a smaller slice of the system than it

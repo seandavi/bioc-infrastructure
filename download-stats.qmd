@@ -2,6 +2,13 @@
 title: "Download Stats"
 ---
 
+::: {.callout-note}
+## Part of the migration record
+A dated snapshot kept as history, not a live view of the current system: corrected if
+wrong, but not updated to track the estate. The [overview](index.qmd) links the reference
+pages that describe the replacement itself.
+:::
+
 Measured 2026-08-04. Numbers on this page are point-in-time.
 
 Bioconductor's package download statistics — the per-package tables at
