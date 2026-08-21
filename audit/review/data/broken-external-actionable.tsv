@@ -1,0 +1,61 @@
+verify_result	url	first_status	source_files	live_referrers
+CONFIRMED_404	http://www.eurac.edu/en/research/health/biomed/staff/Pages/staffdetails.aspx?persId=34084	404	content/about/community-advisory-board.md	https://bioconductor.org/about/community-advisory-board/
+CONFIRMED_404	https://www.thekids.org.au/contact-us/our-people/p/stephen-stevie-pederson/	404	content/about/community-advisory-board.md	https://bioconductor.org/about/community-advisory-board/
+CONFIRMED_404	https://www.deduveinstitute.be/fr/research/computational-biology/laurent-gatto	404	content/about/technical-advisory-board.md	https://bioconductor.org/about/technical-advisory-board/
+CONFIRMED_UNREACHABLE	http://comments.gmane.org/gmane.comp.programming.swig.devel/22966	DNS_FAIL	content/developers/how-to/mavericks-howto.md	
+CONFIRMED_404	http://lldb.llvm.org/status.html	404	content/developers/how-to/mavericks-howto.md	
+CONFIRMED_404	http://journal.r-project.org/archive/2011-1/RJournal_2011-1_Wickham.pdf	404	content/developers/how-to/unitTesting-guidelines.md	
+CONFIRMED_UNREACHABLE	https://github.com/richierocks/runittotestthat]	404	content/developers/how-to/unitTesting-guidelines.md	
+CONFIRMED_UNREACHABLE	http://weka.wikispaces.com/Where+is+my+home+directory+located%3F	DNS_FAIL	content/help/bioconductor-cloud-ami.md	http://bioconductor.org/help/bioconductor-cloud-ami/; https://bioconductor.org/help/bioconductor-cloud-ami/
+CONFIRMED_UNREACHABLE	http://cagrid-portal.nci.nih.gov	DNS_FAIL	content/help/cabig.md	
+CONFIRMED_UNREACHABLE	https://cabig.nci.nih.gov/	DNS_FAIL	content/help/cabig.md	
+CONFIRMED_UNREACHABLE	https://gforge.nci.nih.gov/docman/?group_id=175	DNS_FAIL	content/help/cabig.md	
+CONFIRMED_UNREACHABLE	https://gforge.nci.nih.gov/scm/?group_id=175	DNS_FAIL	content/help/cabig.md	
+CONFIRMED_404	https://vincebuffalo.com/blog/2012/03/12/using-bioconductor-to-analyze-your-23andme-data.html	404	content/help/community.md	https://bioconductor.org/help/community/
+CONFIRMED_UNREACHABLE	http://gentleman.fhcrc.org	DNS_FAIL	content/help/course-materials/2003/MGED6.html; content/help/course-materials/2003/Tokyo.html; content/help/course-materials/2004/Bressanone.html; content/help/publications/books/bioinformatics-and-computational-biology-solutions.html	https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+CONFIRMED_UNREACHABLE	http://marray.economia.unimi.it/2010/	DNS_FAIL	content/help/course-materials/2010/CSAMA10.yaml; content/help/events/CSAMA10.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://marray.economia.unimi.it/	DNS_FAIL	content/help/course-materials/2013/CSAMA2013.yaml; content/help/events/Brixen2012.yaml; content/help/events/Brixen2013.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://bioinformatics.fmrp.usp.br/laba2014/	DNS_FAIL	content/help/course-materials/2014/Epigenomics.yaml; content/help/events/BrazilAug2014.yaml	https://bioconductor.org/help/events/
+CONFIRMED_404	http://www.iscb.org/cms_addon/conferences/ismb2014/workshops.php	404	content/help/course-materials/2014/ISMB2014.yaml; content/help/events/Workshop5_2014.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://127.0.0.1:8787	CONN_ERROR	content/help/docker.md	
+CONFIRMED_UNREACHABLE	http://localhost:8787	CONN_ERROR	content/help/docker.md	
+CONFIRMED_404	http://bioconductor-emr-bootstrap-scripts.s3.amazonaws.com/bootstrap.sh	404	content/help/elasticmapreduce.md	
+CONFIRMED_404	http://bioconductor-mapreduce-example-inputdir.s3.amazonaws.com/file1	404	content/help/elasticmapreduce.md	
+CONFIRMED_404	http://bioconductor-mapreduce-example-inputdir.s3.amazonaws.com/file2	404	content/help/elasticmapreduce.md	
+CONFIRMED_404	http://s3.amazonaws.com/bioconductor-mapreduce-example/mapper-emr.R	404	content/help/elasticmapreduce.md	
+CONFIRMED_404	http://s3.amazonaws.com/bioconductor-mapreduce-example/reducer-emr.R	404	content/help/elasticmapreduce.md	
+CONFIRMED_UNREACHABLE	http://rbioc.net.technion.ac.il/	CONN_ERROR	content/help/events/BKUWorkshop.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://bioinformatics.picr.man.ac.uk/bioc2010/index.html	TIMEOUT	content/help/events/BioC10EuropeDevMeeting.yaml	https://bioconductor.org/help/events/
+CONFIRMED_404	https://bioconductor.github.io/BiocAsia/	404	content/help/events/BioCAsia2018.yaml; content/help/events/BioCAsia2019.yaml	https://bioconductor.org/help/events/
+CONFIRMED_404	https://bioconductor.github.io/EuroBioc2016	404	content/help/events/BioCEurope2016.yaml	https://bioconductor.org/help/events/
+CONFIRMED_404	https://bioconductor.github.io/EuroBioc2017/	404	content/help/events/BioCEurope2017.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://www3.uclm.es/congresos/useR-2013/Tutorials/Morgan.html	DNS_FAIL	content/help/events/BioC_at_UseR_2013.yaml	https://bioconductor.org/help/events/
+CONFIRMED_404	https://abacbs.org/conference-workshops	404	content/help/events/BiocAsia2017.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://bioinformatics.fmrp.usp.br/ESPCAoncogenesis/	DNS_FAIL	content/help/events/BrazilFeb2014.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://marray.economia.unimi.it/2011/	DNS_FAIL	content/help/events/Brixen2011.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://genomics.jhu.edu/workshop.html	DNS_FAIL	content/help/events/CCG2013.yaml; content/help/events/PracticalGenomics2014.yaml	https://bioconductor.org/help/events/
+CONFIRMED_404	http://www.ebi.ac.uk/industry/Workshops/CheminformaticsR170510.html	404	content/help/events/Cheminformatics10.yaml	https://bioconductor.org/help/events/
+CONFIRMED_404	http://www.crick.ac.uk/news/events/2013/09/03/intel-crick-ngs-workshop/	403	content/help/events/ComputationalChallenges2013.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://events.embo.org/13-large-scale-data	TLS_ERROR	content/help/events/EMBOChina2013.yaml	https://bioconductor.org/help/events/
+CONFIRMED_404	https://bioconductor.github.io/EuroBioc2018	404	content/help/events/EuroBioc2018.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://www.bioinformatica.unito.it/exon.array.course.html	DNS_FAIL	content/help/events/GeneChipExonFeb2011.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://www.dataprogrammers.net/embl_jan2015/	TIMEOUT	content/help/events/HeidelbergJan2015.yaml; content/help/newsletters/2015_January.md	https://bioconductor.org/help/events/
+CONFIRMED_404	https://www.iscb.org/ismbeccb2023-programme/tutorials	404	content/help/events/ISMB2023.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://genomics.jhu.edu/hopkinsworkshop/index.html	DNS_FAIL	content/help/events/JHU2012.yaml	https://bioconductor.org/help/events/
+CONFIRMED_5xx	http://www.dixa-fp7.eu/dixa-training/dixa-training-agenda/microarray-analysis-icl/	503	content/help/events/LondonJune2014.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://bioinformatics.picr.man.ac.uk/bioc2011/index.html	TIMEOUT	content/help/events/ManchesterDec2011.yaml	https://bioconductor.org/help/events/
+CONFIRMED_5xx	https://ctsi.mcw.edu/ai1ec_event/center-for-patient-care-and-outcomes-research-r-workshop/	500	content/help/events/Milwaukee2013.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://manuals.bioinformatics.ucr.edu/workshops	TLS_ERROR	content/help/events/NextGenDataAnalysis2013.yaml; content/help/events/RiversideDec2011.yaml; content/help/events/RiversideDec2012.yaml; content/help/events/RiversideDec2014.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://hopkinsworkshop.org/index.html	DNS_FAIL	content/help/events/PracticalGenomics2011.yaml	https://bioconductor.org/help/events/
+CONFIRMED_404	http://www.bio-complexity.com/QUBsscb14/Home.html	404	content/help/events/QUBsscb14.yaml	https://bioconductor.org/help/events/
+CONFIRMED_404	http://x-meeting.com/rna-seq	404	content/help/events/Recife2013.yaml	https://bioconductor.org/help/events/
+CONFIRMED_404	http://facility.bioinformatics.ucr.edu/home/workshops	404	content/help/events/Riverside20101120.yaml; content/help/events/Riverside2011.yaml; content/help/events/RiversideBioCMarch10.yaml; content/help/events/RiversideClusteringMarch10.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://bioinformatics.fmrp.usp.br/curso2014/agenda/	DNS_FAIL	content/help/events/SaoPaulo2014.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://www.soph.uab.edu/ssg/courses/nhgri_r13/ngsstat	DNS_FAIL	content/help/events/StatAnaNextGenSeq2011.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://www.bioinformatica.unito.it/RNAseq.course.html	DNS_FAIL	content/help/events/TorinoMarch2013.yaml; content/help/events/TorinoMarch2014.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://www.genomeeting.com/	DNS_FAIL	content/help/events/WinterGenomics16.yaml	https://bioconductor.org/help/events/
+CONFIRMED_404	https://microbiome.github.io/course_2023_oulu/	404	content/help/events/course_2023_oulu.yaml	https://bioconductor.org/help/events/
+CONFIRMED_5xx	http://www.dixa-fp7.eu/news/dixa-microarray-training	503	content/help/events/diXaMay2013.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://www.warwick.ac.uk/statsdept/useR-2011/	ERROR	content/help/events/useR-2011.yaml	https://bioconductor.org/help/events/
+CONFIRMED_UNREACHABLE	http://www.biostat.jhsph.edu/%7Eririzarr	403	content/help/publications/books/bioinformatics-and-computational-biology-solutions.html	https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+CONFIRMED_UNREACHABLE	http://www.catb.org/%7Eesr/faqs/smart-questions.html	TIMEOUT	content/help/support/posting-guide.md	https://bioconductor.org/help/support/posting-guide/

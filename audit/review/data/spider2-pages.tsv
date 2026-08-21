@@ -1,0 +1,123 @@
+url	status	final_url	content_type	referrer
+https://bioconductor.org/	200		text/html	SEED
+https://bioconductor.org/about/annual-reports/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/dashboard/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/about/mirrors/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/developers/index.html	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/support/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/seminar-series/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/package-vignettes/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/about/funding/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/install/index.html	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/bioconductor-books/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/developers/help_wanted	200	https://bioconductor.org/developers/help_wanted/	text/html	https://bioconductor.org/
+https://bioconductor.org/about/get-involved/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/install/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/faq	200	https://bioconductor.org/help/faq/	text/html	https://bioconductor.org/
+https://bioconductor.org/help/course-materials/	403		text/html	https://bioconductor.org/
+https://bioconductor.org/about/index.html	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/publications/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/developers/bioccommits/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/about/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/about/collaborations/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/developers/release-schedule/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/events/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/about/code-of-conduct/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/developers/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/about/core-team/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/news/bioc_3_23_release/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/news/	403		text/html	https://bioconductor.org/
+https://bioconductor.org/help/seminar-series	200	https://bioconductor.org/help/seminar-series/	text/html	https://bioconductor.org/
+https://bioconductor.org/about/release-announcements/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/index.html	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/community/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/docker/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/about/removed-packages/	200		text/html	https://bioconductor.org/about/annual-reports/
+https://bioconductor.org/about/package-reviewers/	200		text/html	https://bioconductor.org/about/annual-reports/
+https://bioconductor.org/about/european-bioconductor-society/	200		text/html	https://bioconductor.org/about/annual-reports/
+https://bioconductor.org/about/privacy/	200		text/html	https://bioconductor.org/about/annual-reports/
+https://bioconductor.org/about/logo/	200		text/html	https://bioconductor.org/about/annual-reports/
+https://bioconductor.org/about/technical-advisory-board/	200		text/html	https://bioconductor.org/about/annual-reports/
+https://bioconductor.org/about/awards/	200		text/html	https://bioconductor.org/about/annual-reports/
+https://bioconductor.org/about/community-advisory-board/	200		text/html	https://bioconductor.org/about/annual-reports/
+https://bioconductor.org/about/scientific-advisory-board/	200		text/html	https://bioconductor.org/about/annual-reports/
+https://bioconductor.org/help/support/posting-guide/	200		text/html	https://bioconductor.org/dashboard/
+https://bioconductor.org/about/mirrors/mirrors.tuna.tsinghua.edu.cn	404		text/html	https://bioconductor.org/about/mirrors/
+https://bioconductor.org/about/mirrors/mirror-how-to/	200		text/html	https://bioconductor.org/about/mirrors/
+https://bioconductor.org/developers/bioccommits	200	https://bioconductor.org/developers/bioccommits/	text/html	https://bioconductor.org/developers/index.html
+https://bioconductor.org/developers/new-developer-program	200	https://bioconductor.org/developers/new-developer-program/	text/html	https://bioconductor.org/developers/index.html
+https://bioconductor.org/developers/rss-feeds/	200		text/html	https://bioconductor.org/developers/index.html
+https://bioconductor.org/developers/developers-forum	200	https://bioconductor.org/developers/developers-forum/	text/html	https://bioconductor.org/developers/index.html
+https://bioconductor.org/developers/new-developer-program/	200		text/html	https://bioconductor.org/help/support/
+https://bioconductor.org/developers/developers-forum/	200		text/html	https://bioconductor.org/help/support/
+https://bioconductor.org/help/publications	200	https://bioconductor.org/help/publications/	text/html	https://bioconductor.org/help/
+https://bioconductor.org/developers/help_wanted/	200		text/html	https://bioconductor.org/help/
+https://bioconductor.org/help/faq/	200		text/html	https://bioconductor.org/help/
+https://bioconductor.org/news/bioc_3_23_release	200	https://bioconductor.org/news/bioc_3_23_release/	text/html	https://bioconductor.org/help/
+https://bioconductor.org/help/publications/books/r-programming-for-bioinformatics/	200		text/html	https://bioconductor.org/help/publications/
+https://bioconductor.org/help/faq/4	404		text/html	https://bioconductor.org/help/faq
+https://bioconductor.org/about/release-announcements	200	https://bioconductor.org/about/release-announcements/	text/html	https://bioconductor.org/about/index.html
+https://bioconductor.org/help/publications/books/bioconductor-case-studies/	200		text/html	https://bioconductor.org/help/publications/
+https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/	200		text/html	https://bioconductor.org/help/publications/
+https://bioconductor.org/help/publications/book-chapters/MiMB	200	https://bioconductor.org/help/publications/book-chapters/MiMB/	text/html	https://bioconductor.org/help/publications/
+https://bioconductor.org/help/education-training/	200		text/html	https://bioconductor.org/help/events/
+https://bioconductor.org/help/course-materials/2015/BiocAsia2015/	403		text/html	https://bioconductor.org/help/events/
+https://bioconductor.org/help/course-materials/2017/BioC2017/	403		text/html	https://bioconductor.org/help/events/
+https://bioconductor.org/help/course-materials/2016/BioC2016/	403		text/html	https://bioconductor.org/help/events/
+https://bioconductor.org/help/course-materials/2015/BioC2015/	403		text/html	https://bioconductor.org/help/events/
+https://bioconductor.org/news/bioc_3_12_release	200	https://bioconductor.org/news/bioc_3_12_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_18_release	200	https://bioconductor.org/news/bioc_3_18_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_13_release	200	https://bioconductor.org/news/bioc_3_13_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_11_release	200	https://bioconductor.org/news/bioc_3_11_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_17_release	200	https://bioconductor.org/news/bioc_3_17_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_10_release	200	https://bioconductor.org/news/bioc_2_10_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_14_release	200	https://bioconductor.org/news/bioc_2_14_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_4_release	200	https://bioconductor.org/news/bioc_3_4_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_0_release	200	https://bioconductor.org/news/bioc_3_0_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_22_release	200	https://bioconductor.org/news/bioc_3_22_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_3_release	200	https://bioconductor.org/news/bioc_3_3_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_11_release	200	https://bioconductor.org/news/bioc_2_11_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_5_release	200	https://bioconductor.org/news/bioc_2_5_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_19_release	200	https://bioconductor.org/news/bioc_3_19_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_8_release	200	https://bioconductor.org/news/bioc_2_8_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_21_release	200	https://bioconductor.org/news/bioc_3_21_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_16_release	200	https://bioconductor.org/news/bioc_3_16_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_7_release	200	https://bioconductor.org/news/bioc_3_7_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_1_release	200	https://bioconductor.org/news/bioc_3_1_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_15_release	200	https://bioconductor.org/news/bioc_3_15_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_9_release	200	https://bioconductor.org/news/bioc_3_9_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_7_release	200	https://bioconductor.org/news/bioc_2_7_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_8_release	200	https://bioconductor.org/news/bioc_3_8_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_14_release	200	https://bioconductor.org/news/bioc_3_14_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_20_release	200	https://bioconductor.org/news/bioc_3_20_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_6_release	200	https://bioconductor.org/news/bioc_3_6_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_12_release	200	https://bioconductor.org/news/bioc_2_12_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_2_release	200	https://bioconductor.org/news/bioc_3_2_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_5_release	200	https://bioconductor.org/news/bioc_3_5_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_9_release	200	https://bioconductor.org/news/bioc_2_9_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_10_release	200	https://bioconductor.org/news/bioc_3_10_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_6_release	200	https://bioconductor.org/news/bioc_2_6_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_13_release	200	https://bioconductor.org/news/bioc_2_13_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/docs.docker.com/engine/docker-overview/	404		text/html	https://bioconductor.org/help/docker/
+https://bioconductor.org/images/logo/eps/bioconductor_logo_rgb.eps	200		application/postscript	https://bioconductor.org/about/logo/
+https://bioconductor.org/images/logo/eps/bioconductor_logo_spot.eps	200		application/postscript	https://bioconductor.org/about/logo/
+https://bioconductor.org/images/logo/eps/bioconductor_logo_cmyk.eps	200		application/postscript	https://bioconductor.org/about/logo/
+https://bioconductor.org/install	200	https://bioconductor.org/install/	text/html	https://bioconductor.org/help/support/posting-guide/
+https://bioconductor.org/help/publications/books/r-programming-for-bioinformatics/web-supplement/	200		text/html	https://bioconductor.org/help/publications/books/r-programming-for-bioinformatics/
+https://bioconductor.org/images/logo/eps/bioconductor_logo_grey.eps	200		application/postscript	https://bioconductor.org/about/logo/
+http://bioconductor.org/help/mailing-list/	200	https://bioconductor.org/help/support/	text/html	https://bioconductor.org/developers/rss-feeds/
+https://bioconductor.org/help/publications/books/bioconductor-case-studies/web-supplement/	200		text/html	https://bioconductor.org/help/publications/books/bioconductor-case-studies/
+https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/metadata/	200		text/html	https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/getmono/	200		text/html	https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/microarrays/	200		text/html	https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/case/	200		text/html	https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/preprocessing/	200		text/html	https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/data/	200		text/html	https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/graphs/	200		text/html	https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://bioconductor.org/help/bioconductor-cloud-ami/	200		text/html	https://bioconductor.org/news/bioc_3_12_release
+http://bioconductor.org/install/	200	https://bioconductor.org/install/	text/html	https://bioconductor.org/news/bioc_2_10_release
+http://bioconductor.org/help/bioconductor-cloud-ami/	200	https://bioconductor.org/help/bioconductor-cloud-ami/	text/html	https://bioconductor.org/news/bioc_2_10_release
+http://bioconductor.org	200	https://bioconductor.org/	text/html	https://bioconductor.org/news/bioc_2_10_release
+http://bioconductor.org/help/docker/	200	https://bioconductor.org/help/docker/	text/html	https://bioconductor.org/news/bioc_3_4_release
+https://bioconductor.org	200		text/html	https://bioconductor.org/news/bioc_3_7_release

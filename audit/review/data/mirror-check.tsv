@@ -1,0 +1,48 @@
+url	status	n_redirects	redirect_chain	final_url	content_type	title	note
+http://bioconductor.org/	200	1	301->https://bioconductor.org/	https://bioconductor.org/	text/html	Bioconductor - Home	
+http://bioconductor.posit.co/	200	1	301->https://bioconductor.posit.co/	https://bioconductor.posit.co/	text/html;charset=ISO-8859-1	Index of /	
+http://bioconductor.riken.jp/	200	0			text/html;charset=UTF-8	Index of /	
+http://bioconductor.statistik.tu-dortmund.de/	200	0			text/html	Bioconductor Mirror, Department of Statistics, TU Dortmund	
+http://bioconductor.uib.no/	200	1	302->https://bioconductor.uib.no/	https://bioconductor.uib.no/	text/html;charset=UTF-8	Index of /	
+http://bioconductor.unipi.it	200	0			text/html	Bioconductor Mirror, Department of Biology, University of Pisa	
+http://cran.asia	200	1	301->https://cran.asia/	https://cran.asia/	text/html	The Comprehensive R Archive Network	
+http://free.nchc.org.tw/bioconductor/	DNS_FAIL	0					
+http://ftp.gwdg.de/pub/misc/bioconductor/	200	0			text/html	Index of /pub/misc/bioconductor/	
+http://mirror.aarnet.edu.au/pub/bioconductor	301	0				301 Moved Permanently	
+http://mirror.accum.se/mirror/bioconductor.org/	TIMEOUT	0					
+http://mirrors.dotsrc.org/bioconductor/	200	0			text/html	mirrors.dotsrc.org	
+http://mirrors.nju.edu.cn/bioconductor/	200	0			text/html; charset=utf-8	NJU Mirror	
+http://mirrors.tuna.tsinghua.edu.cn/bioconductor/	200	0			text/html	Index of /bioconductor/ | 清华大学开源软件镜像站 | Tsinghua Open Source Mirror	
+http://mirrors.ustc.edu.cn/bioc/	200	0			text/html; charset=utf-8	Directory Listing	
+https://aarnet.edu.au	301	0					
+https://accc.riken.jp/en/	DNS_FAIL	0					
+https://bioconductor.org	200	0			text/html	Bioconductor - Home	
+https://bioconductor.org/	200	0			text/html	Bioconductor - Home	
+https://bioconductor.posit.co/	200	0			text/html;charset=ISO-8859-1	Index of /	
+https://bioconductor.riken.jp/	200	0			text/html;charset=UTF-8	Index of /	
+https://bioconductor.statistik.tu-dortmund.de/	200	0			text/html	Bioconductor Mirror, Department of Statistics, TU Dortmund	
+https://bioconductor.uib.no/	200	0			text/html;charset=UTF-8	Index of /	
+https://bioconductor.unipi.it	TLS_ERROR	0					
+https://cran.asia	200	0			text/html	The Comprehensive R Archive Network	
+https://dotsrc.org/	200	0			text/html; charset=utf-8	About dotsrc - dotsrc	
+https://free.nchc.org.tw/bioconductor/	DNS_FAIL	0					
+https://ftp.gwdg.de/	200	0			text/html	ftp.gwdg.de - GWDG - IT in der Wissenschaft	
+https://ftp.gwdg.de/pub/misc/bioconductor/	200	0			text/html	Index of /pub/misc/bioconductor/	
+https://mirror.aarnet.edu.au/pub/bioconductor	301	0				301 Moved Permanently	
+https://mirror.accum.se/mirror/bioconductor.org/	TIMEOUT	0					
+https://mirrors.dotsrc.org/bioconductor/	200	0			text/html	mirrors.dotsrc.org	
+https://mirrors.nju.edu.cn/bioconductor/	200	0			text/html; charset=utf-8	NJU Mirror	
+https://mirrors.tuna.tsinghua.edu.cn/bioconductor/	200	0			text/html	Index of /bioconductor/ | 清华大学开源软件镜像站 | Tsinghua Open Source Mirror	
+https://mirrors.ustc.edu.cn/bioc/	200	0			text/html; charset=utf-8	Directory Listing	
+https://mirrors.westlake.edu.cn/bioconductor	403	0			text/html	您的访问请求可能对网站造成安全威胁，请求已被阻断。	
+https://mirrors.zju.edu.cn/bioconductor	200	1	301->https://mirrors.zju.edu.cn/bioconductor/	https://mirrors.zju.edu.cn/bioconductor/	text/html		
+https://posit.co/	503	0			text/html	Technical Difficulties	
+https://sci.nju.edu.cn/	200	0			text/html		
+https://ustc.edu.cn	200	0			text/html	中国科学技术大学	
+https://www.accum.se/	200	0			text/html	Academic Computer Club in Umeå	
+https://www.nchc.org.tw/	DNS_FAIL	0					
+https://www.statistik.tu-dortmund.de/	200	1	301->https://statistik.tu-dortmund.de/	https://statistik.tu-dortmund.de/			
+https://www.uib.no/	200	1	302->https://www4.uib.no	https://www4.uib.no	text/html; charset=UTF-8	Universitetet i Bergen | UiB	
+https://www.unipi.it/	200	0			text/html; charset=UTF-8		
+https://www.westlake.edu.cn/	403	0			text/html	您的访问请求可能对网站造成安全威胁，请求已被阻断。	
+https://www.zju.edu.cn/	200	0			text/html		

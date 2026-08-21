@@ -1,0 +1,704 @@
+url	status	final_url	content_type	referrer
+https://bioconductor.org/	200		text/html	SEED
+https://bioconductor.org/install/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/about/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/install/index.html	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/support/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/about/collaborations/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/community/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/dashboard/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/developers/bioccommits/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/about/funding/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/news/bioc_3_23_release/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/bioconductor-books/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/faq	200	https://bioconductor.org/help/faq/	text/html	https://bioconductor.org/
+https://bioconductor.org/developers/release-schedule/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/about/get-involved/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/about/index.html	200		text/html	https://bioconductor.org/
+https://bioconductor.org/news/	403		text/html	https://bioconductor.org/
+https://bioconductor.org/about/code-of-conduct/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/developers/index.html	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/course-materials/	403		text/html	https://bioconductor.org/
+https://bioconductor.org/help/docker/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/seminar-series/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/publications/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/package-vignettes/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/about/mirrors/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/about/release-announcements/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/events/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/developers/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/developers/help_wanted	200	https://bioconductor.org/developers/help_wanted/	text/html	https://bioconductor.org/
+https://bioconductor.org/about/core-team/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/about/annual-reports/	200		text/html	https://bioconductor.org/
+https://bioconductor.org/help/index.html	200		text/html	https://bioconductor.org/
+https://bioconductor.org/about/removed-packages/	200		text/html	https://bioconductor.org/about/
+https://bioconductor.org/help/seminar-series	200	https://bioconductor.org/help/seminar-series/	text/html	https://bioconductor.org/
+https://bioconductor.org/about/community-advisory-board/	200		text/html	https://bioconductor.org/about/
+https://bioconductor.org/about/privacy/	200		text/html	https://bioconductor.org/about/
+https://bioconductor.org/about/logo/	200		text/html	https://bioconductor.org/about/
+https://bioconductor.org/about/scientific-advisory-board/	200		text/html	https://bioconductor.org/about/
+https://bioconductor.org/about/release-announcements	200	https://bioconductor.org/about/release-announcements/	text/html	https://bioconductor.org/about/
+https://bioconductor.org/about/technical-advisory-board/	200		text/html	https://bioconductor.org/about/
+https://bioconductor.org/about/european-bioconductor-society/	200		text/html	https://bioconductor.org/about/
+https://bioconductor.org/about/package-reviewers/	200		text/html	https://bioconductor.org/about/
+https://bioconductor.org/about/awards/	200		text/html	https://bioconductor.org/about/
+https://bioconductor.org/developers/new-developer-program/	200		text/html	https://bioconductor.org/help/support/
+https://bioconductor.org/help/faq/	200		text/html	https://bioconductor.org/help/
+https://bioconductor.org/developers/developers-forum/	200		text/html	https://bioconductor.org/help/support/
+https://bioconductor.org/help/support/posting-guide/	200		text/html	https://bioconductor.org/help/support/
+https://bioconductor.org/developers/help_wanted/	200		text/html	https://bioconductor.org/help/
+https://bioconductor.org/help/publications	200	https://bioconductor.org/help/publications/	text/html	https://bioconductor.org/help/
+https://bioconductor.org/news/bioc_3_23_release	200	https://bioconductor.org/news/bioc_3_23_release/	text/html	https://bioconductor.org/help/
+https://bioconductor.org/books/release/OSCA	200	https://bioconductor.org/books/release/OSCA/	text/html	https://bioconductor.org/help/bioconductor-books/
+https://bioconductor.org/books/release/SingleRBook	200	https://bioconductor.org/books/release/SingleRBook/	text/html	https://bioconductor.org/help/bioconductor-books/
+https://bioconductor.org/books/SingleRBook	200	https://bioconductor.org/books/release/SingleRBook/	text/html	https://bioconductor.org/help/bioconductor-books/
+https://bioconductor.org/books/csawBook	200	https://bioconductor.org/books/release/csawBook/	text/html	https://bioconductor.org/help/bioconductor-books/
+https://bioconductor.org/books/scrapbook	200	https://bioconductor.org/books/release/scrapbook/	text/html	https://bioconductor.org/help/bioconductor-books/
+https://bioconductor.org/books/OSTA	200	https://bioconductor.org/books/release/OSTA/	text/html	https://bioconductor.org/help/bioconductor-books/
+https://bioconductor.org/books/OMA	200	https://bioconductor.org/books/release/OMA/	text/html	https://bioconductor.org/help/bioconductor-books/
+https://bioconductor.org/books/OSCA	200	https://bioconductor.org/books/release/OSCA/	text/html	https://bioconductor.org/help/bioconductor-books/
+https://bioconductor.org/books/release/csawBook	200	https://bioconductor.org/books/release/csawBook/	text/html	https://bioconductor.org/help/bioconductor-books/
+https://bioconductor.org/help/faq/4	404		text/html	https://bioconductor.org/help/faq
+https://bioconductor.org/books/OHCA	200	https://bioconductor.org/books/release/OHCA/	text/html	https://bioconductor.org/help/bioconductor-books/
+https://www.bioconductor.org/about/package-reviewers/	200		text/html	https://bioconductor.org/about/get-involved/
+https://www.bioconductor.org/about/technical-advisory-board/	200		text/html	https://bioconductor.org/about/get-involved/
+https://www.bioconductor.org/about/community-advisory-board/	200		text/html	https://bioconductor.org/about/get-involved/
+https://bioconductor.org/books/BiocBookDemo	200	https://bioconductor.org/books/release/BiocBookDemo/	text/html	https://bioconductor.org/help/bioconductor-books/
+https://bioconductor.org/developers/rss-feeds/	200		text/html	https://bioconductor.org/developers/index.html
+https://bioconductor.org/developers/developers-forum	200	https://bioconductor.org/developers/developers-forum/	text/html	https://bioconductor.org/developers/index.html
+https://bioconductor.org/developers/new-developer-program	200	https://bioconductor.org/developers/new-developer-program/	text/html	https://bioconductor.org/developers/index.html
+https://bioconductor.org/developers/bioccommits	200	https://bioconductor.org/developers/bioccommits/	text/html	https://bioconductor.org/developers/index.html
+https://bioconductor.org/docs.docker.com/engine/docker-overview/	404		text/html	https://bioconductor.org/help/docker/
+https://www.bioconductor.org/books/OSTA/	200	https://bioconductor.org/books/release/OSTA/	text/html	https://bioconductor.org/help/publications/
+https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/	200		text/html	https://bioconductor.org/help/publications/
+https://bioconductor.org/help/publications/books/r-programming-for-bioinformatics/	200		text/html	https://bioconductor.org/help/publications/
+https://bioconductor.org/help/publications/books/bioconductor-case-studies/	200		text/html	https://bioconductor.org/help/publications/
+https://bioconductor.org/about/mirrors/mirror-how-to/	200		text/html	https://bioconductor.org/about/mirrors/
+https://bioconductor.org/about/mirrors/mirrors.tuna.tsinghua.edu.cn	404		text/html	https://bioconductor.org/about/mirrors/
+https://bioconductor.org/help/publications/book-chapters/MiMB	200	https://bioconductor.org/help/publications/book-chapters/MiMB/	text/html	https://bioconductor.org/help/publications/
+https://bioconductor.org/news/bioc_2_8_release	200	https://bioconductor.org/news/bioc_2_8_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_20_release	200	https://bioconductor.org/news/bioc_3_20_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_17_release	200	https://bioconductor.org/news/bioc_3_17_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_15_release	200	https://bioconductor.org/news/bioc_3_15_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_9_release	200	https://bioconductor.org/news/bioc_3_9_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_14_release	200	https://bioconductor.org/news/bioc_3_14_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_6_release	200	https://bioconductor.org/news/bioc_2_6_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_8_release	200	https://bioconductor.org/news/bioc_3_8_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_18_release	200	https://bioconductor.org/news/bioc_3_18_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_0_release	200	https://bioconductor.org/news/bioc_3_0_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_19_release	200	https://bioconductor.org/news/bioc_3_19_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_7_release	200	https://bioconductor.org/news/bioc_2_7_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_13_release	200	https://bioconductor.org/news/bioc_2_13_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_11_release	200	https://bioconductor.org/news/bioc_3_11_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_11_release	200	https://bioconductor.org/news/bioc_2_11_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_10_release	200	https://bioconductor.org/news/bioc_3_10_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_13_release	200	https://bioconductor.org/news/bioc_3_13_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_5_release	200	https://bioconductor.org/news/bioc_3_5_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_2_release	200	https://bioconductor.org/news/bioc_3_2_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_4_release	200	https://bioconductor.org/news/bioc_3_4_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_9_release	200	https://bioconductor.org/news/bioc_2_9_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_7_release	200	https://bioconductor.org/news/bioc_3_7_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_21_release	200	https://bioconductor.org/news/bioc_3_21_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_6_release	200	https://bioconductor.org/news/bioc_3_6_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_3_release	200	https://bioconductor.org/news/bioc_3_3_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_1_release	200	https://bioconductor.org/news/bioc_3_1_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_10_release	200	https://bioconductor.org/news/bioc_2_10_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_12_release	200	https://bioconductor.org/news/bioc_2_12_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_3_22_release	200	https://bioconductor.org/news/bioc_3_22_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_5_release	200	https://bioconductor.org/news/bioc_2_5_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/news/bioc_2_14_release	200	https://bioconductor.org/news/bioc_2_14_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/help/course-materials/2017/BioC2017/	403		text/html	https://bioconductor.org/help/events/
+https://bioconductor.org/news/bioc_3_12_release	200	https://bioconductor.org/news/bioc_3_12_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/help/course-materials/2015/BioC2015/	403		text/html	https://bioconductor.org/help/events/
+https://bioconductor.org/news/bioc_3_16_release	200	https://bioconductor.org/news/bioc_3_16_release/	text/html	https://bioconductor.org/about/release-announcements/
+https://bioconductor.org/help/course-materials/2015/BiocAsia2015/	403		text/html	https://bioconductor.org/help/events/
+https://bioconductor.org/help/education-training/	200		text/html	https://bioconductor.org/help/events/
+https://bioconductor.org/help/course-materials/2016/BioC2016/	403		text/html	https://bioconductor.org/help/events/
+https://bioconductor.org/images/logo/eps/bioconductor_logo_spot.eps	200		application/postscript	https://bioconductor.org/about/logo/
+https://bioconductor.org/images/logo/eps/bioconductor_logo_rgb.eps	200		application/postscript	https://bioconductor.org/about/logo/
+https://bioconductor.org/images/logo/eps/bioconductor_logo_cmyk.eps	200		application/postscript	https://bioconductor.org/about/logo/
+https://bioconductor.org/images/logo/eps/bioconductor_logo_grey.eps	200		application/postscript	https://bioconductor.org/about/logo/
+https://bioconductor.org/books/release/OSCA/book-contents.html	200		text/html	https://bioconductor.org/books/release/OSCA
+https://bioconductor.org/install	200	https://bioconductor.org/install/	text/html	https://bioconductor.org/help/support/posting-guide/
+https://bioconductor.org/books/release/OSCA/index.html	200		text/html	https://bioconductor.org/books/release/OSCA
+https://bioconductor.org	200		text/html	https://bioconductor.org/books/release/OSCA
+https://bioconductor.org/books/release/OSCA/	200		text/html	https://bioconductor.org/books/release/OSCA
+https://bioconductor.org/books/release/OSCA/contributors.html	200		text/html	https://bioconductor.org/books/release/OSCA
+https://bioconductor.org/books/release/SingleRBook/advanced-options.html	200		text/html	https://bioconductor.org/books/release/SingleRBook
+https://bioconductor.org/books/release/SingleRBook/classic-mode.html	200		text/html	https://bioconductor.org/books/release/SingleRBook
+https://bioconductor.org/books/release/SingleRBook/sc-mode.html	200		text/html	https://bioconductor.org/books/release/SingleRBook
+https://bioconductor.org/books/release/SingleRBook/exploiting-the-cell-ontology.html	200		text/html	https://bioconductor.org/books/release/SingleRBook
+https://bioconductor.org/books/release/SingleRBook/annotation-diagnostics.html	200		text/html	https://bioconductor.org/books/release/SingleRBook
+https://bioconductor.org/books/release/SingleRBook/index.html	200		text/html	https://bioconductor.org/books/release/SingleRBook
+https://bioconductor.org/books/release/SingleRBook/pancreas-case-study.html	200		text/html	https://bioconductor.org/books/release/SingleRBook
+https://bioconductor.org/books/release/SingleRBook/using-multiple-references.html	200		text/html	https://bioconductor.org/books/release/SingleRBook
+https://bioconductor.org/books/release/SingleRBook/cross-annotating-mouse-brains.html	200		text/html	https://bioconductor.org/books/release/SingleRBook
+https://bioconductor.org/books/release/SingleRBook/introduction.html	200		text/html	https://bioconductor.org/books/release/SingleRBook
+https://bioconductor.org/books/release/SingleRBook/contributors.html	200		text/html	https://bioconductor.org/books/release/SingleRBook
+https://bioconductor.org/books/release/SingleRBook/	200		text/html	https://bioconductor.org/books/release/SingleRBook
+https://bioconductor.org/books/release/SingleRBook/bibliography.html	200		text/html	https://bioconductor.org/books/release/SingleRBook
+https://bioconductor.org/books/release/csawBook/h3k9ac-pro-b-versus-mature-b.html	200		text/html	https://bioconductor.org/books/csawBook
+https://bioconductor.org/books/release/csawBook/chap-filter.html	200		text/html	https://bioconductor.org/books/csawBook
+https://bioconductor.org/books/release/csawBook/more-counting-options.html	200		text/html	https://bioconductor.org/books/csawBook
+https://bioconductor.org/books/release/csawBook/contributors.html	200		text/html	https://bioconductor.org/books/csawBook
+https://bioconductor.org/books/release/csawBook/cbp-wild-type-versus-knock-out.html	200		text/html	https://bioconductor.org/books/csawBook
+https://bioconductor.org/books/release/csawBook/correction-for-multiple-testing.html	200		text/html	https://bioconductor.org/books/csawBook
+https://bioconductor.org/books/release/csawBook/index.html	200		text/html	https://bioconductor.org/books/csawBook
+https://bioconductor.org/books/release/csawBook/chap-norm.html	200		text/html	https://bioconductor.org/books/csawBook
+https://bioconductor.org/books/release/csawBook/counting-reads-into-windows.html	200		text/html	https://bioconductor.org/books/csawBook
+https://bioconductor.org/books/release/csawBook/chap-stats.html	200		text/html	https://bioconductor.org/books/csawBook
+https://bioconductor.org/books/release/csawBook/annotation-and-visualization.html	200		text/html	https://bioconductor.org/books/csawBook
+http://www.bioconductor.org/help/support/posting-guide	200	https://bioconductor.org/help/support/posting-guide/	text/html	https://bioconductor.org/books/csawBook
+https://bioconductor.org/books/release/csawBook/	200		text/html	https://bioconductor.org/books/csawBook
+https://bioconductor.org/books/release/csawBook/h3k27me3-wild-type-versus-knock-out.html	200		text/html	https://bioconductor.org/books/csawBook
+https://bioconductor.org/books/release/csawBook/bibliography.html	200		text/html	https://bioconductor.org/books/csawBook
+https://bioconductor.org/books/release/scrapbook/batch-correction.html	200		text/html	https://bioconductor.org/books/scrapbook
+https://bioconductor.org/books/release/scrapbook/visualization.html	200		text/html	https://bioconductor.org/books/scrapbook
+https://bioconductor.org/books/release/scrapbook/index.html	200		text/html	https://bioconductor.org/books/scrapbook
+https://bioconductor.org/books/release/scrapbook/marker-detection.html	200		text/html	https://bioconductor.org/books/scrapbook
+https://bioconductor.org/books/release/scrapbook/quality-control.html	200		text/html	https://bioconductor.org/books/scrapbook
+https://bioconductor.org/books/release/scrapbook/principal-components-analysis.html	200		text/html	https://bioconductor.org/books/scrapbook
+https://bioconductor.org/books/release/scrapbook/closing-remarks.html	200		text/html	https://bioconductor.org/books/scrapbook
+https://bioconductor.org/books/release/scrapbook/normalization.html	200		text/html	https://bioconductor.org/books/scrapbook
+https://bioconductor.org/books/release/scrapbook/feature-selection.html	200		text/html	https://bioconductor.org/books/scrapbook
+https://bioconductor.org/books/release/scrapbook/clustering.html	200		text/html	https://bioconductor.org/books/scrapbook
+https://bioconductor.org/books/release/scrapbook/protein-multiomics.html	200		text/html	https://bioconductor.org/books/scrapbook
+https://bioconductor.org/books/release/scrapbook/references.html	200		text/html	https://bioconductor.org/books/scrapbook
+https://bioconductor.org/books/release/scrapbook/	200		text/html	https://bioconductor.org/books/scrapbook
+https://bioconductor.org/books/release/OSTA/pages/seq-intermediate-processing.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/img-cell-cell-communication.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/img-segmentation.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/bkg-importing-data.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/img-quality-control.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/seq-reads-to-counts.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/bkg-exp-design.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/img-neighborhood-analysis.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/apx-citation.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/ind-normalization.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/apx-contributing.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/apx-session-info.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/seq-introduction.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/seq-workflow-visium-crc.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/ind-clustering.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/index.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/crs-imputation.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/mult-diff-spatial-patterns.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/seq-deconvolution.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/img-intermediate-processing.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/img-workflow-cosmx.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/bkg-ecosystem.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/OSCA/	200	https://bioconductor.org/books/release/OSCA/	text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/bkg-example-datasets.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/bkg-python-interoperability.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/ind-feature-set-signatures.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/seq-workflow-dlpfc.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/bkg-introduction.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/crs-registration.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/bkg-infrastructure.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/mult-structure-based.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/img-workflow-xenium.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/ind-deep-learning.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/seq-workflow-visium-hd-seg.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/ind-dimensionality-reduction.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/ind-feature-selection-testing.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/apx-acknowledgments.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/img-introduction.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/ind-spatial-statistics.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/_beyond.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/img-sub-cellular-analysis.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/bkg-spatial-omics.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/ind-image-analysis.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/mult-diff-colocalization.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/seq-workflow-visium-hd-bin.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/crs-workflow-xenvis.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OSTA/pages/seq-quality-control.html	200		text/html	https://bioconductor.org/books/OSTA
+https://bioconductor.org/books/release/OMA/pages/cross_correlation.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/preprocess.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/wrangling.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/multiassay_ordination.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/taxonomy.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/containers.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/resources.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/support.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/multiomics.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/example_solutions.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/agglomeration.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/machine_learning.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/alpha_diversity.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/subsetting.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/index.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/phyloseq_cheatsheet.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/import.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/miaverse.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/session_info.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/composition.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/contributions.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/exercises.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/correlation.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/quality_control.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/mediation.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/intro.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/transformation.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/convert.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/community_similarity.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/differential_abundance.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/training.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OMA/pages/clustering.html	200		text/html	https://bioconductor.org/books/OMA
+https://bioconductor.org/books/release/OHCA/pages/workflow-centros.html	200		text/html	https://bioconductor.org/books/OHCA
+https://bioconductor.org/books/release/OHCA/pages/workflow-yeast.html	200		text/html	https://bioconductor.org/books/OHCA
+https://bioconductor.org/books/release/OHCA/pages/interoperability.html	200		text/html	https://bioconductor.org/books/OHCA
+https://bioconductor.org/books/release/OHCA/pages/workflow-chicken.html	200		text/html	https://bioconductor.org/books/OHCA
+https://bioconductor.org/books/release/OHCA/pages/visualization.html	200		text/html	https://bioconductor.org/books/OHCA
+https://bioconductor.org/books/release/OHCA/pages/interactions-centric.html	200		text/html	https://bioconductor.org/books/OHCA
+https://bioconductor.org/books/release/OHCA/index.html	200		text/html	https://bioconductor.org/books/OHCA
+https://bioconductor.org/books/release/OHCA/pages/principles.html	200		text/html	https://bioconductor.org/books/OHCA
+https://bioconductor.org/books/release/OHCA/pages/topological-features.html	200		text/html	https://bioconductor.org/books/OHCA
+https://bioconductor.org/books/release/OHCA/pages/data-representation.html	200		text/html	https://bioconductor.org/books/OHCA
+https://bioconductor.org/books/release/OHCA/pages/parsing.html	200		text/html	https://bioconductor.org/books/OHCA
+https://bioconductor.org/books/release/OHCA/pages/matrix-centric.html	200		text/html	https://bioconductor.org/books/OHCA
+https://bioconductor.org/books/release/OHCA/pages/preamble.html	200		text/html	https://bioconductor.org/books/OHCA
+https://bioconductor.org/books/release/OHCA/pages/disseminating.html	200		text/html	https://bioconductor.org/books/OHCA
+https://bioconductor.org/books/release/OHCA/	200		text/html	https://bioconductor.org/books/OHCA
+https://www.bioconductor.org/install/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/about/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/help/support/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/install/index.html	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/about/collaborations/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/help/community/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/dashboard/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/help/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/about/removed-packages/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/about/funding/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/about/privacy/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/about/logo/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/help/bioconductor-books/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/developers/release-schedule/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/about/get-involved/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/about/index.html	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/about/scientific-advisory-board/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/about/code-of-conduct/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/developers/index.html	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/help/publications/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/help/docker/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/help/package-vignettes/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/about/mirrors/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/about/european-bioconductor-society/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/about/release-announcements/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/developers/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/about/core-team/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/about/annual-reports/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/help/index.html	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://www.bioconductor.org/about/awards/	200		text/html	https://www.bioconductor.org/about/package-reviewers/
+https://bioconductor.org/books/release/BiocBookDemo/pages/Chapter-2.html	200		text/html	https://bioconductor.org/books/BiocBookDemo
+https://bioconductor.org/books/release/BiocBookDemo/index.html	200		text/html	https://bioconductor.org/books/BiocBookDemo
+https://bioconductor.org/books/release/BiocBookDemo/pages/Chapter-3.html	200		text/html	https://bioconductor.org/books/BiocBookDemo
+https://bioconductor.org/books/devel/csawBook	200	https://bioconductor.org/books/devel/csawBook/	text/html	https://bioconductor.org/books/BiocBookDemo
+https://bioconductor.org/books/release/BiocBookDemo/pages/biocbook-vs-rebook.html	200		text/html	https://bioconductor.org/books/BiocBookDemo
+https://bioconductor.org/books/release/BiocBookDemo/pages/preamble.html	200		text/html	https://bioconductor.org/books/BiocBookDemo
+https://bioconductor.org/books/release/BiocBookDemo/pages/Chapter-1.html	200		text/html	https://bioconductor.org/books/BiocBookDemo
+https://bioconductor.org/books/3.17/SingleRBook	200	https://bioconductor.org/books/3.17/SingleRBook/	text/html	https://bioconductor.org/books/BiocBookDemo
+https://bioconductor.org/books/release/BiocBookDemo/	200		text/html	https://bioconductor.org/books/BiocBookDemo
+https://bioconductor.org/books/devel/OSCA	200	https://bioconductor.org/books/devel/OSCA/	text/html	https://bioconductor.org/books/BiocBookDemo
+https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/case/	200		text/html	https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+http://bioconductor.org/help/mailing-list/	200	https://bioconductor.org/help/support/	text/html	https://bioconductor.org/developers/rss-feeds/
+https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/metadata/	200		text/html	https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/graphs/	200		text/html	https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/microarrays/	200		text/html	https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/getmono/	200		text/html	https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/preprocessing/	200		text/html	https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/data/	200		text/html	https://bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://bioconductor.org/help/publications/books/r-programming-for-bioinformatics/web-supplement/	200		text/html	https://bioconductor.org/help/publications/books/r-programming-for-bioinformatics/
+http://bioconductor.org/install/	200	https://bioconductor.org/install/	text/html	https://bioconductor.org/news/bioc_2_8_release
+https://bioconductor.org/help/publications/books/bioconductor-case-studies/web-supplement/	200		text/html	https://bioconductor.org/help/publications/books/bioconductor-case-studies/
+http://bioconductor.org	200	https://bioconductor.org/	text/html	https://bioconductor.org/news/bioc_2_8_release
+http://bioconductor.org/help/bioconductor-cloud-ami/	200	https://bioconductor.org/help/bioconductor-cloud-ami/	text/html	https://bioconductor.org/news/bioc_2_8_release
+https://bioconductor.org/help/bioconductor-cloud-ami/	200		text/html	https://bioconductor.org/news/bioc_3_9_release
+https://bioconductor.org/books/3.18/BiocBookDemo/	200		text/html	https://bioconductor.org/news/bioc_3_18_release
+http://bioconductor.org/help/docker/	200	https://bioconductor.org/help/docker/	text/html	https://bioconductor.org/news/bioc_3_2_release
+https://bioconductor.org/books/3.19/OHCA/	200		text/html	https://bioconductor.org/news/bioc_3_19_release
+https://bioconductor.org/books/3.12/SingleRBook/	200		text/html	https://bioconductor.org/news/bioc_3_12_release
+https://bioconductor.org/books/3.12/OSCA/	200		text/html	https://bioconductor.org/news/bioc_3_12_release
+http://bioconductor.org/books/3.23/OSCA.basic	200	https://bioconductor.org/books/3.23/OSCA.basic/	text/html	https://bioconductor.org/books/release/OSCA/book-contents.html
+http://bioconductor.org/books/3.23/OSCA.intro	200	https://bioconductor.org/books/3.23/OSCA.intro/	text/html	https://bioconductor.org/books/release/OSCA/book-contents.html
+http://bioconductor.org/books/3.23/OSCA.workflows	200	https://bioconductor.org/books/3.23/OSCA.workflows/	text/html	https://bioconductor.org/books/release/OSCA/book-contents.html
+http://bioconductor.org/books/3.23/OSCA.multisample	200	https://bioconductor.org/books/3.23/OSCA.multisample/	text/html	https://bioconductor.org/books/release/OSCA/book-contents.html
+http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html	200	https://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html	text/html	https://bioconductor.org/books/release/SingleRBook/sc-mode.html
+https://bioconductor.org/books/release/OSCA.basic/normalization.html	200		text/html	https://bioconductor.org/books/release/OSTA/pages/ind-normalization.html
+http://bioconductor.org/books/3.23/OSCA.advanced	200	https://bioconductor.org/books/3.23/OSCA.advanced/	text/html	https://bioconductor.org/books/release/OSCA/book-contents.html
+https://www.bioconductor.org/about/code-of-conduct	200	https://bioconductor.org/about/code-of-conduct/	text/html	https://bioconductor.org/books/release/OSTA/pages/apx-contributing.html
+https://bioconductor.org/books/release/OSCA.basic/clustering.html	200		text/html	https://bioconductor.org/books/release/OSTA/pages/ind-clustering.html
+https://bioconductor.org/books/release/OSCA.multisample/	200		text/html	https://bioconductor.org/books/release/OSTA/pages/crs-imputation.html
+https://bioconductor.org/books/3.19/OSCA.basic/marker-detection.html	200		text/html	https://bioconductor.org/books/release/OSTA/pages/ind-clustering.html
+https://bioconductor.org/books/3.15/OSCA.basic/cell-type-annotation.html	200		text/html	https://bioconductor.org/books/release/OSTA/pages/ind-feature-set-signatures.html
+https://bioconductor.org/books/release/OSCA.basic/dimensionality-reduction.html	200		text/html	https://bioconductor.org/books/release/OSTA/pages/ind-dimensionality-reduction.html
+https://bioconductor.org/books/release/OSCA.basic/feature-selection.html	200		text/html	https://bioconductor.org/books/release/OSTA/pages/ind-feature-selection-testing.html
+https://bioconductor.org/books/release/OSCA.basic/marker-detection.html	200		text/html	https://bioconductor.org/books/release/OSTA/pages/ind-feature-selection-testing.html
+https://bioconductor.org/books/release/OSCA.multisample/integrating-datasets.html	200		text/html	https://bioconductor.org/books/release/OSTA/pages/_beyond.html
+https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html	200		text/html	https://bioconductor.org/books/release/OSTA/pages/_beyond.html
+https://bioconductor.org/books/release/OMA/pages/[@sec-loading-experimental-microbiome-data]	404		text/html	https://bioconductor.org/books/release/OMA/pages/cross_correlation.html
+https://bioconductor.org/books/release/OMA/pages/	403		text/html	https://bioconductor.org/books/release/OMA/pages/cross_correlation.html
+https://bioconductor.org/help/course-materials/2019/BSS2019/04_Practical_CoreApproachesInBioconductor.html	403		text/html	https://bioconductor.org/books/release/OMA/pages/import.html
+https://bioconductor.org/books/3.18/OSCA.basic/normalization.html	200		text/html	https://bioconductor.org/books/release/OMA/pages/transformation.html
+http://bioconductor.org/books/release/OSCA/clustering.html	200	https://bioconductor.org/books/release/OSCA/clustering.html	text/html	https://bioconductor.org/books/release/OMA/pages/community_similarity.html
+https://www.bioconductor.org/help/course-materials/2015/UseBioconductorFeb2015/	403		text/html	https://bioconductor.org/books/release/OHCA/pages/data-representation.html
+https://www.bioconductor.org/about/release-announcements	200	https://bioconductor.org/about/release-announcements/	text/html	https://www.bioconductor.org/about/
+https://www.bioconductor.org/developers/developers-forum/	200		text/html	https://www.bioconductor.org/help/support/
+https://www.bioconductor.org/developers/new-developer-program/	200		text/html	https://www.bioconductor.org/help/support/
+https://www.bioconductor.org/help/support/posting-guide/	200		text/html	https://www.bioconductor.org/help/support/
+https://www.bioconductor.org/help/course-materials/	403		text/html	https://www.bioconductor.org/about/
+https://www.bioconductor.org/help/events/	200		text/html	https://www.bioconductor.org/help/support/
+https://www.bioconductor.org/developers/help_wanted	200	https://bioconductor.org/developers/help_wanted/	text/html	https://www.bioconductor.org/help/support/
+https://www.bioconductor.org/help/faq/	200		text/html	https://www.bioconductor.org/help/
+https://www.bioconductor.org/developers/help_wanted/	200		text/html	https://www.bioconductor.org/help/
+https://www.bioconductor.org/help/publications	200	https://bioconductor.org/help/publications/	text/html	https://www.bioconductor.org/help/
+https://www.bioconductor.org/news/bioc_3_23_release	200	https://bioconductor.org/news/bioc_3_23_release/	text/html	https://www.bioconductor.org/help/
+https://www.bioconductor.org/images/logo/eps/bioconductor_logo_spot.eps	200		application/postscript	https://www.bioconductor.org/about/logo/
+https://www.bioconductor.org/images/logo/eps/bioconductor_logo_rgb.eps	200		application/postscript	https://www.bioconductor.org/about/logo/
+https://www.bioconductor.org/images/logo/eps/bioconductor_logo_cmyk.eps	200		application/postscript	https://www.bioconductor.org/about/logo/
+https://www.bioconductor.org/books/release/OSCA	200	https://bioconductor.org/books/release/OSCA/	text/html	https://www.bioconductor.org/help/bioconductor-books/
+https://www.bioconductor.org/images/logo/eps/bioconductor_logo_grey.eps	200		application/postscript	https://www.bioconductor.org/about/logo/
+https://www.bioconductor.org/books/SingleRBook	200	https://bioconductor.org/books/release/SingleRBook/	text/html	https://www.bioconductor.org/help/bioconductor-books/
+https://www.bioconductor.org/books/release/SingleRBook	200	https://bioconductor.org/books/release/SingleRBook/	text/html	https://www.bioconductor.org/help/bioconductor-books/
+https://www.bioconductor.org/books/csawBook	200	https://bioconductor.org/books/release/csawBook/	text/html	https://www.bioconductor.org/help/bioconductor-books/
+https://www.bioconductor.org/books/scrapbook	200	https://bioconductor.org/books/release/scrapbook/	text/html	https://www.bioconductor.org/help/bioconductor-books/
+https://www.bioconductor.org/books/OMA	200	https://bioconductor.org/books/release/OMA/	text/html	https://www.bioconductor.org/help/bioconductor-books/
+https://www.bioconductor.org/books/OSTA	200	https://bioconductor.org/books/release/OSTA/	text/html	https://www.bioconductor.org/help/bioconductor-books/
+https://www.bioconductor.org/books/OSCA	200	https://bioconductor.org/books/release/OSCA/	text/html	https://www.bioconductor.org/help/bioconductor-books/
+https://www.bioconductor.org/books/OHCA	200	https://bioconductor.org/books/release/OHCA/	text/html	https://www.bioconductor.org/help/bioconductor-books/
+https://www.bioconductor.org/books/BiocBookDemo	200	https://bioconductor.org/books/release/BiocBookDemo/	text/html	https://www.bioconductor.org/help/bioconductor-books/
+https://www.bioconductor.org/books/release/csawBook	200	https://bioconductor.org/books/release/csawBook/	text/html	https://www.bioconductor.org/help/bioconductor-books/
+https://www.bioconductor.org/developers/developers-forum	200	https://bioconductor.org/developers/developers-forum/	text/html	https://www.bioconductor.org/developers/index.html
+https://www.bioconductor.org/developers/rss-feeds/	200		text/html	https://www.bioconductor.org/developers/index.html
+https://www.bioconductor.org/developers/new-developer-program	200	https://bioconductor.org/developers/new-developer-program/	text/html	https://www.bioconductor.org/developers/index.html
+https://www.bioconductor.org/developers/bioccommits	200	https://bioconductor.org/developers/bioccommits/	text/html	https://www.bioconductor.org/developers/index.html
+https://www.bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/	200		text/html	https://www.bioconductor.org/help/publications/
+https://www.bioconductor.org/help/publications/books/r-programming-for-bioinformatics/	200		text/html	https://www.bioconductor.org/help/publications/
+https://www.bioconductor.org/help/publications/books/bioconductor-case-studies/	200		text/html	https://www.bioconductor.org/help/publications/
+https://www.bioconductor.org/developers/bioccommits/	200		text/html	https://www.bioconductor.org/
+https://www.bioconductor.org/help/publications/book-chapters/MiMB	200	https://bioconductor.org/help/publications/book-chapters/MiMB/	text/html	https://www.bioconductor.org/help/publications/
+https://www.bioconductor.org/docs.docker.com/engine/docker-overview/	404		text/html	https://www.bioconductor.org/help/docker/
+https://www.bioconductor.org/news/bioc_3_23_release/	200		text/html	https://www.bioconductor.org/
+https://www.bioconductor.org/help/faq	200	https://bioconductor.org/help/faq/	text/html	https://www.bioconductor.org/
+https://www.bioconductor.org/news/	403		text/html	https://www.bioconductor.org/
+https://www.bioconductor.org/help/seminar-series/	200		text/html	https://www.bioconductor.org/
+https://www.bioconductor.org/help/seminar-series	200	https://bioconductor.org/help/seminar-series/	text/html	https://www.bioconductor.org/
+https://www.bioconductor.org/about/mirrors/mirror-how-to/	200		text/html	https://www.bioconductor.org/about/mirrors/
+https://www.bioconductor.org/news/bioc_2_8_release	200	https://bioconductor.org/news/bioc_2_8_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/about/mirrors/mirrors.tuna.tsinghua.edu.cn	404		text/html	https://www.bioconductor.org/about/mirrors/
+https://www.bioconductor.org/news/bioc_3_20_release	200	https://bioconductor.org/news/bioc_3_20_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_15_release	200	https://bioconductor.org/news/bioc_3_15_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_17_release	200	https://bioconductor.org/news/bioc_3_17_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_9_release	200	https://bioconductor.org/news/bioc_3_9_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_14_release	200	https://bioconductor.org/news/bioc_3_14_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_2_6_release	200	https://bioconductor.org/news/bioc_2_6_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_18_release	200	https://bioconductor.org/news/bioc_3_18_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_8_release	200	https://bioconductor.org/news/bioc_3_8_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_0_release	200	https://bioconductor.org/news/bioc_3_0_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_19_release	200	https://bioconductor.org/news/bioc_3_19_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_2_13_release	200	https://bioconductor.org/news/bioc_2_13_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_2_7_release	200	https://bioconductor.org/news/bioc_2_7_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_11_release	200	https://bioconductor.org/news/bioc_3_11_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_2_11_release	200	https://bioconductor.org/news/bioc_2_11_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_13_release	200	https://bioconductor.org/news/bioc_3_13_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_10_release	200	https://bioconductor.org/news/bioc_3_10_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_5_release	200	https://bioconductor.org/news/bioc_3_5_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_2_release	200	https://bioconductor.org/news/bioc_3_2_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_2_9_release	200	https://bioconductor.org/news/bioc_2_9_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_4_release	200	https://bioconductor.org/news/bioc_3_4_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_7_release	200	https://bioconductor.org/news/bioc_3_7_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_21_release	200	https://bioconductor.org/news/bioc_3_21_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_6_release	200	https://bioconductor.org/news/bioc_3_6_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_3_release	200	https://bioconductor.org/news/bioc_3_3_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_1_release	200	https://bioconductor.org/news/bioc_3_1_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_2_10_release	200	https://bioconductor.org/news/bioc_2_10_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_2_12_release	200	https://bioconductor.org/news/bioc_2_12_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_22_release	200	https://bioconductor.org/news/bioc_3_22_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_2_5_release	200	https://bioconductor.org/news/bioc_2_5_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_2_14_release	200	https://bioconductor.org/news/bioc_2_14_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_12_release	200	https://bioconductor.org/news/bioc_3_12_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://www.bioconductor.org/news/bioc_3_16_release	200	https://bioconductor.org/news/bioc_3_16_release/	text/html	https://www.bioconductor.org/about/release-announcements/
+https://bioconductor.org/books/devel/csawBook/more-counting-options.html	200		text/html	https://bioconductor.org/books/devel/csawBook
+https://bioconductor.org/books/devel/csawBook/h3k9ac-pro-b-versus-mature-b.html	200		text/html	https://bioconductor.org/books/devel/csawBook
+https://bioconductor.org/books/devel/csawBook/chap-filter.html	200		text/html	https://bioconductor.org/books/devel/csawBook
+https://bioconductor.org/books/devel/csawBook/contributors.html	200		text/html	https://bioconductor.org/books/devel/csawBook
+https://bioconductor.org/books/devel/csawBook/index.html	200		text/html	https://bioconductor.org/books/devel/csawBook
+https://bioconductor.org/books/devel/csawBook/cbp-wild-type-versus-knock-out.html	200		text/html	https://bioconductor.org/books/devel/csawBook
+https://bioconductor.org/books/devel/csawBook/correction-for-multiple-testing.html	200		text/html	https://bioconductor.org/books/devel/csawBook
+https://bioconductor.org/books/devel/csawBook/chap-norm.html	200		text/html	https://bioconductor.org/books/devel/csawBook
+https://bioconductor.org/books/devel/csawBook/counting-reads-into-windows.html	200		text/html	https://bioconductor.org/books/devel/csawBook
+https://bioconductor.org/books/devel/csawBook/annotation-and-visualization.html	200		text/html	https://bioconductor.org/books/devel/csawBook
+https://bioconductor.org/books/devel/csawBook/chap-stats.html	200		text/html	https://bioconductor.org/books/devel/csawBook
+https://bioconductor.org/books/devel/csawBook/h3k27me3-wild-type-versus-knock-out.html	200		text/html	https://bioconductor.org/books/devel/csawBook
+https://bioconductor.org/books/devel/csawBook/bibliography.html	200		text/html	https://bioconductor.org/books/devel/csawBook
+https://bioconductor.org/books/devel/csawBook/	200		text/html	https://bioconductor.org/books/devel/csawBook
+https://bioconductor.org/books/3.17/SingleRBook/sc-mode.html	200		text/html	https://bioconductor.org/books/3.17/SingleRBook
+https://bioconductor.org/books/3.17/SingleRBook/advanced-options.html	200		text/html	https://bioconductor.org/books/3.17/SingleRBook
+https://bioconductor.org/books/3.17/SingleRBook/classic-mode.html	200		text/html	https://bioconductor.org/books/3.17/SingleRBook
+https://bioconductor.org/books/3.17/SingleRBook/exploiting-the-cell-ontology.html	200		text/html	https://bioconductor.org/books/3.17/SingleRBook
+https://bioconductor.org/books/3.17/SingleRBook/annotation-diagnostics.html	200		text/html	https://bioconductor.org/books/3.17/SingleRBook
+https://bioconductor.org/books/3.17/SingleRBook/index.html	200		text/html	https://bioconductor.org/books/3.17/SingleRBook
+https://bioconductor.org/books/3.17/SingleRBook/using-multiple-references.html	200		text/html	https://bioconductor.org/books/3.17/SingleRBook
+https://bioconductor.org/books/3.17/SingleRBook/pancreas-case-study.html	200		text/html	https://bioconductor.org/books/3.17/SingleRBook
+https://bioconductor.org/books/3.17/SingleRBook/cross-annotating-mouse-brains.html	200		text/html	https://bioconductor.org/books/3.17/SingleRBook
+https://bioconductor.org/books/3.17/SingleRBook/introduction.html	200		text/html	https://bioconductor.org/books/3.17/SingleRBook
+https://bioconductor.org/books/3.17/SingleRBook/contributors.html	200		text/html	https://bioconductor.org/books/3.17/SingleRBook
+https://bioconductor.org/books/3.17/SingleRBook/bibliography.html	200		text/html	https://bioconductor.org/books/3.17/SingleRBook
+https://bioconductor.org/books/3.17/SingleRBook/	200		text/html	https://bioconductor.org/books/3.17/SingleRBook
+https://bioconductor.org/books/devel/OSCA/book-contents.html	200		text/html	https://bioconductor.org/books/devel/OSCA
+https://bioconductor.org/books/devel/OSCA/index.html	200		text/html	https://bioconductor.org/books/devel/OSCA
+https://bioconductor.org/books/devel/OSCA/	200		text/html	https://bioconductor.org/books/devel/OSCA
+https://bioconductor.org/books/devel/OSCA/contributors.html	200		text/html	https://bioconductor.org/books/devel/OSCA
+http://www.bioconductor.org	200	https://www.bioconductor.org/	text/html	https://bioconductor.org/help/publications/books/r-programming-for-bioinformatics/web-supplement/
+https://www.bioconductor.org/help/bioconductor-cloud-ami/	200		text/html	http://bioconductor.org/help/bioconductor-cloud-ami/
+https://bioconductor.org/books/3.18/BiocBookDemo/pages/Chapter-2.html	200		text/html	https://bioconductor.org/books/3.18/BiocBookDemo/
+https://bioconductor.org/books/3.18/BiocBookDemo/index.html	200		text/html	https://bioconductor.org/books/3.18/BiocBookDemo/
+https://bioconductor.org/books/3.18/BiocBookDemo/pages/Chapter-3.html	200		text/html	https://bioconductor.org/books/3.18/BiocBookDemo/
+https://bioconductor.org/books/3.18/BiocBookDemo/pages/biocbook-vs-rebook.html	200		text/html	https://bioconductor.org/books/3.18/BiocBookDemo/
+https://bioconductor.org/books/3.18/BiocBookDemo/pages/preamble.html	200		text/html	https://bioconductor.org/books/3.18/BiocBookDemo/
+https://bioconductor.org/books/3.18/BiocBookDemo/pages/Chapter-1.html	200		text/html	https://bioconductor.org/books/3.18/BiocBookDemo/
+https://bioconductor.org/books/3.19/OHCA/pages/workflow-yeast.html	200		text/html	https://bioconductor.org/books/3.19/OHCA/
+https://bioconductor.org/books/3.19/OHCA/pages/workflow-centros.html	200		text/html	https://bioconductor.org/books/3.19/OHCA/
+https://bioconductor.org/books/3.19/OHCA/pages/interoperability.html	200		text/html	https://bioconductor.org/books/3.19/OHCA/
+https://bioconductor.org/books/3.19/OHCA/pages/workflow-chicken.html	200		text/html	https://bioconductor.org/books/3.19/OHCA/
+https://bioconductor.org/books/3.19/OHCA/pages/visualization.html	200		text/html	https://bioconductor.org/books/3.19/OHCA/
+https://bioconductor.org/books/3.19/OHCA/pages/interactions-centric.html	200		text/html	https://bioconductor.org/books/3.19/OHCA/
+https://bioconductor.org/books/3.19/OHCA/index.html	200		text/html	https://bioconductor.org/books/3.19/OHCA/
+https://bioconductor.org/books/3.19/OHCA/pages/principles.html	200		text/html	https://bioconductor.org/books/3.19/OHCA/
+https://bioconductor.org/books/3.19/OHCA/pages/data-representation.html	200		text/html	https://bioconductor.org/books/3.19/OHCA/
+https://bioconductor.org/books/3.19/OHCA/pages/topological-features.html	200		text/html	https://bioconductor.org/books/3.19/OHCA/
+https://bioconductor.org/books/3.19/OHCA/pages/parsing.html	200		text/html	https://bioconductor.org/books/3.19/OHCA/
+https://bioconductor.org/books/3.19/OHCA/pages/matrix-centric.html	200		text/html	https://bioconductor.org/books/3.19/OHCA/
+https://bioconductor.org/books/3.19/OHCA/pages/disseminating.html	200		text/html	https://bioconductor.org/books/3.19/OHCA/
+https://bioconductor.org/books/3.19/OHCA/pages/preamble.html	200		text/html	https://bioconductor.org/books/3.19/OHCA/
+https://bioconductor.org/books/3.12/SingleRBook/advanced-options.html	200		text/html	https://bioconductor.org/books/3.12/SingleRBook/
+https://bioconductor.org/books/3.12/SingleRBook/exploiting-the-cell-ontology.html	200		text/html	https://bioconductor.org/books/3.12/SingleRBook/
+https://bioconductor.org/books/3.12/SingleRBook/annotation-diagnostics.html	200		text/html	https://bioconductor.org/books/3.12/SingleRBook/
+https://bioconductor.org/books/3.12/SingleRBook/using-multiple-references.html	200		text/html	https://bioconductor.org/books/3.12/SingleRBook/
+https://bioconductor.org/books/3.12/SingleRBook/pancreas-case-study.html	200		text/html	https://bioconductor.org/books/3.12/SingleRBook/
+https://bioconductor.org/books/3.12/SingleRBook/cross-annotating-mouse-brains.html	200		text/html	https://bioconductor.org/books/3.12/SingleRBook/
+https://bioconductor.org/books/3.12/SingleRBook/introduction.html	200		text/html	https://bioconductor.org/books/3.12/SingleRBook/
+https://bioconductor.org/books/3.12/SingleRBook/more-markers.html	200		text/html	https://bioconductor.org/books/3.12/SingleRBook/
+https://bioconductor.org/books/3.12/SingleRBook/using-the-classic-mode.html	200		text/html	https://bioconductor.org/books/3.12/SingleRBook/
+https://bioconductor.org/books/3.12/SingleRBook/contributors.html	200		text/html	https://bioconductor.org/books/3.12/SingleRBook/
+https://bioconductor.org/books/3.12/SingleRBook/bibliography.html	200		text/html	https://bioconductor.org/books/3.12/SingleRBook/
+https://bioconductor.org/books/3.12/SingleRBook/index.html	200		text/html	https://bioconductor.org/books/3.12/SingleRBook/
+https://bioconductor.org/books/3.12/OSCA/muraro-human-pancreas-cel-seq.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/filtered-human-pbmcs-10x-genomics.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/learning-r-and-more.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/data-infrastructure.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/droplet-processing.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/merged-hsc.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/quality-control.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/messmer-hesc.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/repertoire-seq.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/doublet-detection.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/beyond-r-basics.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/cell-type-annotation.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/zeisel-mouse-brain-strt-seq.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/pijuan-sala-chimeric-mouse-embryo-10x-genomics.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/interactive-sharing.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/multi-sample-comparisons.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/bach-mouse-mammary-gland-10x-genomics.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/introduction.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/dealing-with-big-data.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/marker-detection.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/normalization.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/human-pbmc-with-surface-proteins-10x-genomics.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/lun-416b-cell-line-smart-seq2.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/grun-human-pancreas-cel-seq2.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/nestorowa-mouse-hsc-smart-seq2.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/dimensionality-reduction.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/clustering.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/cell-cycle-assignment.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/trajectory-analysis.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/hca-human-bone-marrow-10x-genomics.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/feature-selection.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/paul-mouse-hsc-mars-seq.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/integrating-with-protein-abundance.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/unfiltered-human-pbmcs-10x-genomics.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/contributors.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/grun-mouse-hsc-cel-seq.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/segerstolpe-human-pancreas-smart-seq2.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/lawlor-human-pancreas-smarter.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/single-nuclei-rna-seq-processing.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/integrating-datasets.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/merged-pancreas.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/overview.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/interoperability.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/index.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.12/OSCA/bibliography.html	200		text/html	https://bioconductor.org/books/3.12/OSCA/
+https://bioconductor.org/books/3.23/OSCA.basic/quality-control.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.basic
+https://bioconductor.org/books/3.23/OSCA.basic/clustering.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.basic
+https://bioconductor.org/books/3.23/OSCA.basic/marker-detection.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.basic
+https://bioconductor.org/books/3.23/OSCA.basic/cell-type-annotation.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.basic
+https://bioconductor.org/books/3.23/OSCA.basic/normalization.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.basic
+https://bioconductor.org/books/3.23/OSCA.basic/index.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.basic
+https://bioconductor.org/books/3.23/OSCA.basic/dimensionality-reduction.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.basic
+https://bioconductor.org/books/3.23/OSCA.basic/	200		text/html	http://bioconductor.org/books/3.23/OSCA.basic
+http://bioconductor.org/books/3.23/OSCA	200	https://bioconductor.org/books/3.23/OSCA/	text/html	http://bioconductor.org/books/3.23/OSCA.basic
+https://bioconductor.org/books/3.23/OSCA.basic/feature-selection.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.basic
+https://bioconductor.org/books/3.23/OSCA.intro/learning-r.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.intro
+https://bioconductor.org/books/3.23/OSCA.intro/installation.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.intro
+https://bioconductor.org/books/3.23/OSCA.intro/the-singlecellexperiment-class.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.intro
+https://bioconductor.org/books/3.23/OSCA.intro/index.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.intro
+https://bioconductor.org/books/3.23/OSCA.intro/	200		text/html	http://bioconductor.org/books/3.23/OSCA.intro
+https://bioconductor.org/books/3.23/OSCA.intro/getting-scrna-seq-datasets.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.intro
+https://bioconductor.org/books/3.23/OSCA.intro/analysis-overview.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.intro
+https://bioconductor.org/books/3.23/OSCA.workflows/grun-mouse-hsc-cel-seq.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.workflows
+https://bioconductor.org/books/3.23/OSCA.workflows/human-pbmc-with-surface-proteins-10x-genomics.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.workflows
+https://bioconductor.org/books/3.23/OSCA.workflows/grun-human-pancreas-cel-seq2.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.workflows
+https://bioconductor.org/books/3.23/OSCA.workflows/lun-416b-cell-line-smart-seq2.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.workflows
+https://bioconductor.org/books/3.23/OSCA.workflows/unfiltered-human-pbmcs-10x-genomics.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.workflows
+https://bioconductor.org/books/3.23/OSCA.workflows/nestorowa-mouse-hsc-smart-seq2.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.workflows
+https://bioconductor.org/books/3.23/OSCA.workflows/index.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.workflows
+https://bioconductor.org/books/3.23/OSCA.workflows/messmer-hesc.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.workflows
+https://bioconductor.org/books/3.23/OSCA.workflows/zeisel-mouse-brain-strt-seq.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.workflows
+https://bioconductor.org/books/3.23/OSCA.workflows/segerstolpe-human-pancreas-smart-seq2.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.workflows
+https://bioconductor.org/books/3.23/OSCA.workflows/lawlor-human-pancreas-smarter.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.workflows
+https://bioconductor.org/books/3.23/OSCA.workflows/muraro-human-pancreas-cel-seq.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.workflows
+https://bioconductor.org/books/3.23/OSCA.workflows/bach-mouse-mammary-gland-10x-genomics.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.workflows
+https://bioconductor.org/books/3.23/OSCA.workflows/	200		text/html	http://bioconductor.org/books/3.23/OSCA.workflows
+https://bioconductor.org/books/3.23/OSCA.workflows/hca-human-bone-marrow-10x-genomics.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.workflows
+https://bioconductor.org/books/3.23/OSCA.workflows/paul-mouse-hsc-mars-seq.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.workflows
+https://bioconductor.org/books/3.23/OSCA.multisample/human-pbmcs-10x-genomics.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.multisample
+https://bioconductor.org/books/3.23/OSCA.multisample/index.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.multisample
+https://bioconductor.org/books/3.23/OSCA.multisample/merged-pancreas.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.multisample
+https://bioconductor.org/books/3.23/OSCA.multisample/integrating-datasets.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.multisample
+https://bioconductor.org/books/3.23/OSCA.multisample/correction-diagnostics.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.multisample
+https://bioconductor.org/books/3.23/OSCA.multisample/multi-sample-comparisons.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.multisample
+https://bioconductor.org/books/3.23/OSCA.multisample/ambient-problems.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.multisample
+https://bioconductor.org/books/3.23/OSCA.multisample/chimeric-mouse-embryo-10x-genomics.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.multisample
+https://bioconductor.org/books/3.23/OSCA.multisample/using-corrected-values.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.multisample
+https://bioconductor.org/books/3.23/OSCA.multisample/differential-abundance.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.multisample
+https://bioconductor.org/books/3.23/OSCA.multisample/	200		text/html	http://bioconductor.org/books/3.23/OSCA.multisample
+https://bioconductor.org/books/3.23/OSCA.multisample/merged-hsc.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.multisample
+https://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html	200		text/html	http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html
+https://bioconductor.org/books/release/OSCA.workflows/grun-mouse-hsc-cel-seq.html	200		text/html	http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html
+https://bioconductor.org/books/release/OSCA.workflows/human-pbmc-with-surface-proteins-10x-genomics.html	200		text/html	http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html
+https://bioconductor.org/books/release/OSCA.workflows/lun-416b-cell-line-smart-seq2.html	200		text/html	http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html
+https://bioconductor.org/books/release/OSCA.workflows/unfiltered-human-pbmcs-10x-genomics.html	200		text/html	http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html
+https://bioconductor.org/books/release/OSCA.workflows/zeisel-mouse-brain-strt-seq.html	200		text/html	http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html
+https://bioconductor.org/books/release/OSCA.workflows/nestorowa-mouse-hsc-smart-seq2.html	200		text/html	http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html
+https://bioconductor.org/books/release/OSCA.workflows/messmer-hesc.html	200		text/html	http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html
+https://bioconductor.org/books/release/OSCA.workflows/segerstolpe-human-pancreas-smart-seq2.html	200		text/html	http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html
+https://bioconductor.org/books/release/OSCA.workflows/lawlor-human-pancreas-smarter.html	200		text/html	http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html
+https://bioconductor.org/books/release/OSCA.workflows/muraro-human-pancreas-cel-seq.html	200		text/html	http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html
+https://bioconductor.org/books/release/OSCA.workflows/bach-mouse-mammary-gland-10x-genomics.html	200		text/html	http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html
+https://bioconductor.org/books/release/OSCA.workflows/hca-human-bone-marrow-10x-genomics.html	200		text/html	http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html
+https://bioconductor.org/books/release/OSCA.workflows/paul-mouse-hsc-mars-seq.html	200		text/html	http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html
+https://bioconductor.org/books/release/OSCA.workflows/index.html	200		text/html	http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html
+https://bioconductor.org/books/release/OSCA.workflows/	200		text/html	http://bioconductor.org/books/release/OSCA.workflows/grun-human-pancreas-cel-seq2.html
+https://bioconductor.org/books/release/OSCA.basic/quality-control.html	200		text/html	https://bioconductor.org/books/release/OSCA.basic/normalization.html
+http://bioconductor.org/books/3.23/OSCA.workflows/zeisel-mouse-brain-strt-seq.html	200	https://bioconductor.org/books/3.23/OSCA.workflows/zeisel-mouse-brain-strt-seq.html	text/html	https://bioconductor.org/books/release/OSCA.basic/normalization.html
+https://bioconductor.org/books/release/OSCA.basic/cell-type-annotation.html	200		text/html	https://bioconductor.org/books/release/OSCA.basic/normalization.html
+http://bioconductor.org/books/3.23/OSCA.advanced/more-norm.html	200	https://bioconductor.org/books/3.23/OSCA.advanced/more-norm.html	text/html	https://bioconductor.org/books/release/OSCA.basic/normalization.html
+https://bioconductor.org/books/release/OSCA.basic/index.html	200		text/html	https://bioconductor.org/books/release/OSCA.basic/normalization.html
+https://bioconductor.org/books/3.23/OSCA.advanced/more-norm.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.advanced
+https://bioconductor.org/books/release/OSCA.basic/	200		text/html	https://bioconductor.org/books/release/OSCA.basic/normalization.html
+https://bioconductor.org/books/3.23/OSCA.advanced/clustering-redux.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.advanced
+https://bioconductor.org/books/3.23/OSCA.advanced/trajectory-analysis.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.advanced
+https://bioconductor.org/books/3.23/OSCA.advanced/dimensionality-reduction-redux.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.advanced
+https://bioconductor.org/books/3.23/OSCA.advanced/droplet-processing.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.advanced
+https://bioconductor.org/books/3.23/OSCA.advanced/doublet-detection.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.advanced
+https://bioconductor.org/books/3.23/OSCA.advanced/quality-control-redux.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.advanced
+https://bioconductor.org/books/3.23/OSCA.advanced/single-nuclei-rna-seq-processing.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.advanced
+https://bioconductor.org/books/3.23/OSCA.advanced/index.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.advanced
+https://bioconductor.org/books/3.23/OSCA.advanced/more-hvgs.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.advanced
+https://bioconductor.org/books/3.23/OSCA.advanced/integrating-with-protein-abundance.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.advanced
+https://bioconductor.org/books/3.23/OSCA.advanced/dealing-with-big-data.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.advanced
+https://bioconductor.org/books/3.23/OSCA.advanced/cell-cycle-assignment.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.advanced
+https://bioconductor.org/books/3.23/OSCA.advanced/interactive-sharing.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.advanced
+https://bioconductor.org/books/3.23/OSCA.advanced/marker-detection-redux.html	200		text/html	http://bioconductor.org/books/3.23/OSCA.advanced
+https://bioconductor.org/books/3.23/OSCA.advanced/	200		text/html	http://bioconductor.org/books/3.23/OSCA.advanced
+http://bioconductor.org/books/3.23/OSCA.workflows/unfiltered-human-pbmcs-10x-genomics.html	200	https://bioconductor.org/books/3.23/OSCA.workflows/unfiltered-human-pbmcs-10x-genomics.html	text/html	https://bioconductor.org/books/release/OSCA.basic/clustering.html
+http://bioconductor.org/books/3.23/OSCA.advanced/clustering-redux.html	200	https://bioconductor.org/books/3.23/OSCA.advanced/clustering-redux.html	text/html	https://bioconductor.org/books/release/OSCA.basic/clustering.html
+http://bioconductor.org/books/3.23/OSCA.workflows/lun-416b-cell-line-smart-seq2.html	200	https://bioconductor.org/books/3.23/OSCA.workflows/lun-416b-cell-line-smart-seq2.html	text/html	https://bioconductor.org/books/release/OSCA.basic/clustering.html
+https://bioconductor.org/books/release/OSCA.multisample/human-pbmcs-10x-genomics.html	200		text/html	https://bioconductor.org/books/release/OSCA.multisample/
+https://bioconductor.org/books/release/OSCA.multisample/index.html	200		text/html	https://bioconductor.org/books/release/OSCA.multisample/
+https://bioconductor.org/books/release/OSCA.multisample/merged-pancreas.html	200		text/html	https://bioconductor.org/books/release/OSCA.multisample/
+https://bioconductor.org/books/release/OSCA.multisample/correction-diagnostics.html	200		text/html	https://bioconductor.org/books/release/OSCA.multisample/
+https://bioconductor.org/books/release/OSCA.multisample/multi-sample-comparisons.html	200		text/html	https://bioconductor.org/books/release/OSCA.multisample/
+https://bioconductor.org/books/release/OSCA.multisample/chimeric-mouse-embryo-10x-genomics.html	200		text/html	https://bioconductor.org/books/release/OSCA.multisample/
+https://bioconductor.org/books/release/OSCA.multisample/ambient-problems.html	200		text/html	https://bioconductor.org/books/release/OSCA.multisample/
+https://bioconductor.org/books/release/OSCA.multisample/differential-abundance.html	200		text/html	https://bioconductor.org/books/release/OSCA.multisample/
+https://bioconductor.org/books/release/OSCA.multisample/using-corrected-values.html	200		text/html	https://bioconductor.org/books/release/OSCA.multisample/
+https://bioconductor.org/books/release/OSCA.multisample/merged-hsc.html	200		text/html	https://bioconductor.org/books/release/OSCA.multisample/
+https://bioconductor.org/books/3.19/OSCA.basic/quality-control.html	200		text/html	https://bioconductor.org/books/3.19/OSCA.basic/marker-detection.html
+https://bioconductor.org/books/3.19/OSCA.basic/clustering.html	200		text/html	https://bioconductor.org/books/3.19/OSCA.basic/marker-detection.html
+https://bioconductor.org/books/3.19/OSCA.basic/cell-type-annotation.html	200		text/html	https://bioconductor.org/books/3.19/OSCA.basic/marker-detection.html
+https://bioconductor.org/books/3.19/OSCA.basic/normalization.html	200		text/html	https://bioconductor.org/books/3.19/OSCA.basic/marker-detection.html
+http://bioconductor.org/books/3.19/OSCA.advanced/marker-detection-redux.html	200	https://bioconductor.org/books/3.19/OSCA.advanced/marker-detection-redux.html	text/html	https://bioconductor.org/books/3.19/OSCA.basic/marker-detection.html
+https://bioconductor.org/books/3.19/OSCA.basic/dimensionality-reduction.html	200		text/html	https://bioconductor.org/books/3.19/OSCA.basic/marker-detection.html
+http://bioconductor.org/books/3.19/OSCA.workflows/lun-416b-cell-line-smart-seq2.html	200	https://bioconductor.org/books/3.19/OSCA.workflows/lun-416b-cell-line-smart-seq2.html	text/html	https://bioconductor.org/books/3.19/OSCA.basic/marker-detection.html
+http://bioconductor.org/books/3.19/OSCA.workflows/unfiltered-human-pbmcs-10x-genomics.html	200	https://bioconductor.org/books/3.19/OSCA.workflows/unfiltered-human-pbmcs-10x-genomics.html	text/html	https://bioconductor.org/books/3.19/OSCA.basic/marker-detection.html
+https://bioconductor.org/books/3.19/OSCA.basic/feature-selection.html	200		text/html	https://bioconductor.org/books/3.19/OSCA.basic/marker-detection.html
+https://bioconductor.org/books/3.19/OSCA.basic/index.html	200		text/html	https://bioconductor.org/books/3.19/OSCA.basic/marker-detection.html
+https://bioconductor.org/books/3.19/OSCA.basic/	200		text/html	https://bioconductor.org/books/3.19/OSCA.basic/marker-detection.html
+https://bioconductor.org/books/3.15/OSCA.basic/quality-control.html	200		text/html	https://bioconductor.org/books/3.15/OSCA.basic/cell-type-annotation.html
+https://bioconductor.org/books/3.15/OSCA.basic/clustering.html	200		text/html	https://bioconductor.org/books/3.15/OSCA.basic/cell-type-annotation.html
+https://bioconductor.org/books/3.15/OSCA.basic/marker-detection.html	200		text/html	https://bioconductor.org/books/3.15/OSCA.basic/cell-type-annotation.html
+https://bioconductor.org/books/3.15/OSCA.basic/normalization.html	200		text/html	https://bioconductor.org/books/3.15/OSCA.basic/cell-type-annotation.html
+http://bioconductor.org/books/3.15/OSCA.workflows/bach-mouse-mammary-gland-10x-genomics.html	200	https://bioconductor.org/books/3.15/OSCA.workflows/bach-mouse-mammary-gland-10x-genomics.html	text/html	https://bioconductor.org/books/3.15/OSCA.basic/cell-type-annotation.html
+https://bioconductor.org/books/3.15/OSCA.basic/dimensionality-reduction.html	200		text/html	https://bioconductor.org/books/3.15/OSCA.basic/cell-type-annotation.html
+http://bioconductor.org/books/3.15/OSCA.workflows/muraro-human-pancreas-cel-seq.html	200	https://bioconductor.org/books/3.15/OSCA.workflows/muraro-human-pancreas-cel-seq.html	text/html	https://bioconductor.org/books/3.15/OSCA.basic/cell-type-annotation.html
+https://bioconductor.org/books/3.15/OSCA.basic/feature-selection.html	200		text/html	https://bioconductor.org/books/3.15/OSCA.basic/cell-type-annotation.html
+http://bioconductor.org/books/3.15/OSCA.workflows/zeisel-mouse-brain-strt-seq.html	200	https://bioconductor.org/books/3.15/OSCA.workflows/zeisel-mouse-brain-strt-seq.html	text/html	https://bioconductor.org/books/3.15/OSCA.basic/cell-type-annotation.html
+http://bioconductor.org/books/3.15/OSCA.workflows/segerstolpe-human-pancreas-smart-seq2.html	200	https://bioconductor.org/books/3.15/OSCA.workflows/segerstolpe-human-pancreas-smart-seq2.html	text/html	https://bioconductor.org/books/3.15/OSCA.basic/cell-type-annotation.html
+http://bioconductor.org/books/3.15/OSCA.workflows/unfiltered-human-pbmcs-10x-genomics.html	200	https://bioconductor.org/books/3.15/OSCA.workflows/unfiltered-human-pbmcs-10x-genomics.html	text/html	https://bioconductor.org/books/3.15/OSCA.basic/cell-type-annotation.html
+https://bioconductor.org/books/3.15/OSCA.basic/index.html	200		text/html	https://bioconductor.org/books/3.15/OSCA.basic/cell-type-annotation.html
+https://bioconductor.org/books/3.15/OSCA.basic/	200		text/html	https://bioconductor.org/books/3.15/OSCA.basic/cell-type-annotation.html
+http://bioconductor.org/books/3.23/OSCA.advanced/dealing-with-big-data.html	200	https://bioconductor.org/books/3.23/OSCA.advanced/dealing-with-big-data.html	text/html	https://bioconductor.org/books/release/OSCA.basic/dimensionality-reduction.html
+http://bioconductor.org/books/3.23/OSCA.advanced/dimensionality-reduction-redux.html	200	https://bioconductor.org/books/3.23/OSCA.advanced/dimensionality-reduction-redux.html	text/html	https://bioconductor.org/books/release/OSCA.basic/dimensionality-reduction.html
+http://bioconductor.org/books/3.23/OSCA.advanced/more-hvgs.html	200	https://bioconductor.org/books/3.23/OSCA.advanced/more-hvgs.html	text/html	https://bioconductor.org/books/release/OSCA.basic/feature-selection.html
+http://bioconductor.org/books/3.23/OSCA.multisample/integrating-datasets.html	200	https://bioconductor.org/books/3.23/OSCA.multisample/integrating-datasets.html	text/html	https://bioconductor.org/books/release/OSCA.basic/feature-selection.html
+http://bioconductor.org/books/3.23/OSCA.advanced/marker-detection-redux.html	200	https://bioconductor.org/books/3.23/OSCA.advanced/marker-detection-redux.html	text/html	https://bioconductor.org/books/release/OSCA.basic/marker-detection.html
+http://bioconductor.org/books/3.23/OSCA.advanced/quality-control-redux.html	200	https://bioconductor.org/books/3.23/OSCA.advanced/quality-control-redux.html	text/html	https://bioconductor.org/books/release/OSCA.multisample/integrating-datasets.html
+http://bioconductor.org/books/3.23/OSCA.basic/feature-selection.html	200	https://bioconductor.org/books/3.23/OSCA.basic/feature-selection.html	text/html	https://bioconductor.org/books/release/OSCA.multisample/integrating-datasets.html
+https://bioconductor.org/books/release/OSCA.advanced/clustering-redux.html	200		text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+https://bioconductor.org/books/release/OSCA.advanced/doublet-detection.html	200		text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+https://bioconductor.org/books/release/OSCA.advanced/droplet-processing.html	200		text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+https://bioconductor.org/books/release/OSCA.advanced/more-norm.html	200		text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+https://bioconductor.org/books/release/OSCA.advanced/quality-control-redux.html	200		text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+https://bioconductor.org/books/release/OSCA.advanced/dealing-with-big-data.html	200		text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+https://bioconductor.org/books/release/OSCA.advanced/interactive-sharing.html	200		text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+https://bioconductor.org/books/release/OSCA.advanced/dimensionality-reduction-redux.html	200		text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+https://bioconductor.org/books/release/OSCA.advanced/integrating-with-protein-abundance.html	200		text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+https://bioconductor.org/books/release/OSCA.advanced/more-hvgs.html	200		text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+https://bioconductor.org/books/release/OSCA.advanced/marker-detection-redux.html	200		text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+https://bioconductor.org/books/release/OSCA.advanced/cell-cycle-assignment.html	200		text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+http://bioconductor.org/books/3.23/OSCA.basic/dimensionality-reduction.html	200	https://bioconductor.org/books/3.23/OSCA.basic/dimensionality-reduction.html	text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+http://bioconductor.org/books/3.23/OSCA.basic/normalization.html	200	https://bioconductor.org/books/3.23/OSCA.basic/normalization.html	text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+http://bioconductor.org/books/3.23/OSCA.workflows/nestorowa-mouse-hsc-smart-seq2.html	200	https://bioconductor.org/books/3.23/OSCA.workflows/nestorowa-mouse-hsc-smart-seq2.html	text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+https://bioconductor.org/books/release/OSCA.advanced/	200		text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+https://bioconductor.org/books/release/OSCA.advanced/single-nuclei-rna-seq-processing.html	200		text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+https://bioconductor.org/books/release/OSCA.advanced/index.html	200		text/html	https://bioconductor.org/books/release/OSCA.advanced/trajectory-analysis.html
+https://bioconductor.org/books/3.18/OSCA.basic/quality-control.html	200		text/html	https://bioconductor.org/books/3.18/OSCA.basic/normalization.html
+https://bioconductor.org/books/3.18/OSCA.basic/clustering.html	200		text/html	https://bioconductor.org/books/3.18/OSCA.basic/normalization.html
+https://bioconductor.org/books/3.18/OSCA.basic/marker-detection.html	200		text/html	https://bioconductor.org/books/3.18/OSCA.basic/normalization.html
+https://bioconductor.org/books/3.18/OSCA.basic/cell-type-annotation.html	200		text/html	https://bioconductor.org/books/3.18/OSCA.basic/normalization.html
+https://bioconductor.org/books/3.18/OSCA.basic/dimensionality-reduction.html	200		text/html	https://bioconductor.org/books/3.18/OSCA.basic/normalization.html
+http://bioconductor.org/books/3.18/OSCA.workflows/zeisel-mouse-brain-strt-seq.html	200	https://bioconductor.org/books/3.18/OSCA.workflows/zeisel-mouse-brain-strt-seq.html	text/html	https://bioconductor.org/books/3.18/OSCA.basic/normalization.html
+https://bioconductor.org/books/3.18/OSCA.basic/feature-selection.html	200		text/html	https://bioconductor.org/books/3.18/OSCA.basic/normalization.html
+http://bioconductor.org/books/3.18/OSCA.advanced/more-norm.html	200	https://bioconductor.org/books/3.18/OSCA.advanced/more-norm.html	text/html	https://bioconductor.org/books/3.18/OSCA.basic/normalization.html
+https://bioconductor.org/books/3.18/OSCA.basic/index.html	200		text/html	https://bioconductor.org/books/3.18/OSCA.basic/normalization.html
+http://bioconductor.org/books/3.23/OSCA.basic/clustering.html	200	https://bioconductor.org/books/3.23/OSCA.basic/clustering.html	text/html	http://bioconductor.org/books/release/OSCA/clustering.html
+https://bioconductor.org/books/3.18/OSCA.basic/	200		text/html	https://bioconductor.org/books/3.18/OSCA.basic/normalization.html
+https://www.bioconductor.org/install	200	https://bioconductor.org/install/	text/html	https://www.bioconductor.org/help/support/posting-guide/
+https://www.bioconductor.org/help/course-materials/2017/BioC2017/	403		text/html	https://www.bioconductor.org/help/events/
+https://www.bioconductor.org/help/course-materials/2015/BioC2015/	403		text/html	https://www.bioconductor.org/help/events/
+https://www.bioconductor.org/help/course-materials/2015/BiocAsia2015/	403		text/html	https://www.bioconductor.org/help/events/
+https://www.bioconductor.org/help/course-materials/2016/BioC2016/	403		text/html	https://www.bioconductor.org/help/events/
+https://www.bioconductor.org/help/faq/4	404		text/html	https://www.bioconductor.org/help/faq/
+https://www.bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/case/	200		text/html	https://www.bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://www.bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/metadata/	200		text/html	https://www.bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://www.bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/graphs/	200		text/html	https://www.bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://www.bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/microarrays/	200		text/html	https://www.bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://www.bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/getmono/	200		text/html	https://www.bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://www.bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/preprocessing/	200		text/html	https://www.bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://www.bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/data/	200		text/html	https://www.bioconductor.org/help/publications/books/bioinformatics-and-computational-biology-solutions/
+https://www.bioconductor.org/help/publications/books/r-programming-for-bioinformatics/web-supplement/	200		text/html	https://www.bioconductor.org/help/publications/books/r-programming-for-bioinformatics/
+https://www.bioconductor.org/help/publications/books/bioconductor-case-studies/web-supplement/	200		text/html	https://www.bioconductor.org/help/publications/books/bioconductor-case-studies/
