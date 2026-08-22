@@ -7,6 +7,23 @@ The rendered site is the point — this repo is its source. It is deliberately
 separate from the repos it documents, so that no one of them is the privileged
 place where the estate gets described.
 
+## Status
+
+Every status light across the repo family, in one place. Red means broken or
+stale — click through for the failing run.
+
+| Repo | What it watches | Badges |
+|---|---|---|
+| [bioc-website](https://github.com/seandavi/bioc-website) | build + deploy to R2; PR link/a11y checks ride along | [![site](https://github.com/seandavi/bioc-website/actions/workflows/site.yml/badge.svg)](https://github.com/seandavi/bioc-website/actions/workflows/site.yml) |
+| [bioc-website](https://github.com/seandavi/bioc-website) | daily link-rot sample of the served site | [![links](https://github.com/seandavi/bioc-website/actions/workflows/links.yml/badge.svg)](https://github.com/seandavi/bioc-website/actions/workflows/links.yml) |
+| [bioc-registry](https://github.com/seandavi/bioc-registry) | tests | [![test](https://github.com/seandavi/bioc-registry/actions/workflows/test.yml/badge.svg)](https://github.com/seandavi/bioc-registry/actions/workflows/test.yml) |
+| [bioc-registry](https://github.com/seandavi/bioc-registry) | daily: worker up, observations fresh | [![freshness](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml/badge.svg)](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml) |
+| [bioc-registry](https://github.com/seandavi/bioc-registry) | daily: packages actually install | [![install](https://github.com/seandavi/bioc-registry/actions/workflows/install.yml/badge.svg)](https://github.com/seandavi/bioc-registry/actions/workflows/install.yml) |
+| [bioc-edge](https://github.com/seandavi/bioc-edge) | tests | [![test](https://github.com/seandavi/bioc-edge/actions/workflows/test.yml/badge.svg)](https://github.com/seandavi/bioc-edge/actions/workflows/test.yml) |
+| [bioc-edge](https://github.com/seandavi/bioc-edge) | daily black-box serving probe | [![health](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml/badge.svg)](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml) |
+| [bioc-edge](https://github.com/seandavi/bioc-edge) | daily parity vs bioconductor.org (dies at cutover) | [![parity](https://github.com/seandavi/bioc-edge/actions/workflows/parity.yml/badge.svg)](https://github.com/seandavi/bioc-edge/actions/workflows/parity.yml) |
+| bioc-infrastructure | docs render + publish | [![docs](https://github.com/seandavi/bioc-infrastructure/actions/workflows/docs.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/docs.yml) |
+
 ## Rendering locally
 
 ```sh
