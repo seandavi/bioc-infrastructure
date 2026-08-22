@@ -11,11 +11,12 @@ place where the estate gets described.
 
 Every status light across the repo family, in one place. **Green means the
 check ran and its blocking assertions passed — not that there were no
-findings.** The report-only checks (accessibility on bioc-website PRs, the
-random-sample leg of the install canary) stay green while carrying findings;
-each run's step summary shows them, and the link/a11y checks also upload a
-full report artifact. Red means broken or stale — click through for the
-failing run.
+findings.** The one report-only check (accessibility on bioc-website PRs,
+non-blocking until its baseline is clean) stays green while carrying
+findings; each run's step summary shows them, and the link/a11y checks also
+upload a full report artifact. Everything else — including the install
+canary's random-sample leg — is blocking: red means broken or stale, click
+through for the failing run.
 
 | Repo | What it watches | Badges | Reports |
 |---|---|---|---|
