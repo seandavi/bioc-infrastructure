@@ -11,12 +11,16 @@ written down anywhere a newcomer — or a future maintainer — could find in on
 The replacement estate is four repos that meet at **data contracts rather than shared
 machines**, which is why each can proceed — or be replaced — without stopping the others.
 
-| Repo | What it is | Retires |
-|---|---|---|
-| [bioc-registry](https://github.com/seandavi/bioc-registry) | The data plane: an r-universe observer plus the propagation gate that decides *which build is fit to publish and what is true about a package*, exposed as an installable repository and a Parquet archive | The three builders and the legacy build system |
-| [bioc-website](https://github.com/seandavi/bioc-website) | The builder: a Python pipeline and an Astro static build that render package truth into ~93,000 pages, published immutably by CI | The master and staging webservers |
-| bioc-edge *(private during the [disclosure window](#where-to-file-issues))* | The serving side: a Cloudflare Worker and the R2 mirror behind `bioc-dev.cancerdatasci.org`, owner of the route table that decides *what is served where* | CloudFront, the S3 bucket, the Open Storage Network buckets |
-| [bioc-infrastructure](https://github.com/seandavi/bioc-infrastructure) | This documentation site | Nothing. It is the map. |
+| Repo | What it is | Retires | Status |
+|---|---|---|---|
+| [bioc-registry](https://github.com/seandavi/bioc-registry) | The data plane: an r-universe observer plus the propagation gate that decides *which build is fit to publish and what is true about a package*, exposed as an installable repository and a Parquet archive | The three builders and the legacy build system | [![freshness](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml/badge.svg)](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml) |
+| [bioc-website](https://github.com/seandavi/bioc-website) | The builder: a Python pipeline and an Astro static build that render package truth into ~93,000 pages, published immutably by CI | The master and staging webservers | [![site](https://github.com/seandavi/bioc-website/actions/workflows/site.yml/badge.svg)](https://github.com/seandavi/bioc-website/actions/workflows/site.yml) |
+| [bioc-edge](https://github.com/seandavi/bioc-edge) | The serving side: a Cloudflare Worker and the R2 mirror behind `bioc-dev.cancerdatasci.org`, owner of the route table that decides *what is served where* | CloudFront, the S3 bucket, the Open Storage Network buckets | [![health](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml/badge.svg)](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml) |
+| [bioc-infrastructure](https://github.com/seandavi/bioc-infrastructure) | This documentation site | Nothing. It is the map. | [![docs](https://github.com/seandavi/bioc-infrastructure/actions/workflows/docs.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/docs.yml) |
+
+The status badges are daily black-box probes of the live system, not just test suites —
+red means something is actually down or stale. Where this is all going, milestone by
+milestone: **the [roadmap](roadmap.qmd)**.
 
 ::: {.callout-tip}
 ## Try it now
@@ -41,11 +45,12 @@ most useful validation we can get.
 - **A package is missing, stale, or its build/check data looks wrong** →
   [bioc-registry issues](https://github.com/seandavi/bioc-registry/issues)
 - **Serving problems** (failed installs against `bioc-dev`, slow or missing files, stale
-  cache — see [Edge cache](cache.qmd) first), **doc corrections, or anything you can't
-  place** → [bioc-website issues](https://github.com/seandavi/bioc-website/issues) as the
-  catch-all, or email [seandavi@gmail.com](mailto:seandavi@gmail.com). The serving repo is
-  private until findings about the legacy site have been resolved with the Bioconductor
-  team; its tracker joins this list when it opens.
+  cache — see [Edge cache](cache.qmd) first) →
+  [bioc-edge issues](https://github.com/seandavi/bioc-edge/issues)
+- **Cross-cutting questions, doc corrections, or anything you can't place** →
+  [bioc-infrastructure issues](https://github.com/seandavi/bioc-infrastructure/issues), or
+  email [seandavi@gmail.com](mailto:seandavi@gmail.com). Suspected *security* issues go by
+  email, never a public issue — see each repo's SECURITY.md.
 
 ## How the pieces meet
 

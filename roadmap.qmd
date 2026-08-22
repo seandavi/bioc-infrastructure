@@ -1,0 +1,111 @@
+---
+title: "Roadmap"
+---
+
+Four milestones, in dependency order. Each has an **umbrella tracking issue** in this
+repo where progress is checked off; implementation issues are filed in the repo where
+the work happens ([where to file issues](index.qmd#where-to-file-issues)) and linked
+from the umbrella's checklist. This page is the narrative; the issues are the ledger.
+When they disagree, fix whichever is wrong.
+
+```{mermaid}
+flowchart LR
+  M0["M0 · Operational readiness<br/>hygiene, CI, health checks"] --> M1["M1 · Production cutover<br/>bioconductor.org → new edge"]
+  M1 --> M2["M2 · Full disconnect<br/>retire master, staging,<br/>build system, stats"]
+  M1 --> M3["M3 · Search + redesigns<br/>prove the PR process"]
+  M2 -.->|"build & stats tracks<br/>can start before M1 lands"| M0
+```
+
+## M0 — Operational readiness ([#1](https://github.com/seandavi/bioc-infrastructure/issues/1))
+
+The floor the rest stands on: every repo public, consistently named, licensed,
+contributable, tested, and watched. Mostly done 2026-08-21.
+
+**Acceptance criteria**
+
+- [x] Four public repos under the `bioc-*` convention, each with LICENSE, CONTRIBUTING, CODE_OF_CONDUCT
+- [x] Histories verified free of credentials and undisclosed findings
+- [x] CI with badges on every repo
+- [x] Daily black-box health checks with status badges — serving ([health](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml)) and data plane ([freshness](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml))
+- [ ] CD: the workers deploy from CI on `main`, not from laptops
+- [x] This roadmap, with umbrella issues
+
+**Dependencies:** none.
+
+## M1 — Production cutover ([#2](https://github.com/seandavi/bioc-infrastructure/issues/2))
+
+`bioconductor.org` DNS moves to the new edge. The serving replacement is functionally
+complete at `bioc-dev.cancerdatasci.org`; what remains is verification, sign-off, and a
+reversible flip.
+
+**Acceptance criteria**
+
+- [ ] Full-crawl cutover diff against production: zero unexplained differences
+- [ ] `BiocManager::install()` acceptance passes for release + devel against the new host
+- [ ] Load test under the course-materials access pattern; hit ratio acceptable
+- [ ] Rollback rehearsed and written up as a runbook page here; low-TTL plan for week one
+- [ ] Logging continuity: gap-alerted records, both eras queryable as one
+- [ ] Upstream security findings resolved with the Bioconductor core team
+- [ ] Core team sign-off; window scheduled
+- [ ] DNS flipped; a clean week of monitoring
+
+**Tasks**
+
+- [ ] Re-run `cutover-diff.sh` full crawl; triage every diff
+- [ ] Load test and record numbers
+- [ ] Cutover runbook page (DNS, verification, rollback)
+- [ ] Decide `www.` / `secure.` and satellite hostnames
+- [ ] Walk the security findings with the core team; schedule
+- [ ] Flip, monitor, keep the rollback lever warm
+
+**Dependencies:** M0 — the daily checks are what watches the flip.
+
+## M2 — Full disconnect from legacy infrastructure ([#3](https://github.com/seandavi/bioc-infrastructure/issues/3))
+
+After M1 the new stack serves production but still *mirrors* the legacy estate. M2 ends
+the dependency: master, staging, the legacy build system, and the legacy stats pipeline
+all retire, and roughly $5,000/month of AWS with them.
+
+**Acceptance criteria**
+
+- [ ] Prose content lives in bioc-website (markdown import done); content changes by PR
+- [ ] Hourly rsync from the legacy docroot retired — new content arrives only via CI builds and registry propagation
+- [ ] Annotation, experiment, and workflow packages have a build home (r-universe covers software only — the open workstream)
+- [ ] Download stats derive from the new edge logs, historical eras joined
+- [ ] Search off legacy Solr (or explicitly scoped to M3)
+- [ ] master + staging snapshotted, powered off, DNS retired
+- [ ] The legacy AWS bill ends
+
+**Tasks**
+
+- [ ] One-time markdown import of prose into bioc-website
+- [ ] Sync-source retirement plan (what still changes upstream post-cutover, and who publishes it instead)
+- [ ] Build-home decision for annotation/experiment/workflow, with the core team and the r-universe track
+- [ ] Stats surface + continuity decision
+- [ ] Final snapshots per the [decommission plan](decommission-plan.qmd); decommission
+- [ ] Record the end state in the migration record
+
+**Dependencies:** M1 for serving. The build-system and stats tracks do not need to wait
+for the flip.
+
+## M3 — Search and page redesigns, through the public PR process ([#4](https://github.com/seandavi/bioc-infrastructure/issues/4))
+
+Two goals in one: a real search story, and visible redesign work used deliberately to
+prove the contribution loop — PR → preview URL → review → merge → route flip.
+
+**Acceptance criteria**
+
+- [ ] Search design recorded as an ADR (scope, index strategy, fate of the Solr routes)
+- [ ] Search live on the production Astro-built routes
+- [ ] Two or more page redesigns shipped end-to-end through the public PR flow
+- [ ] Contributor docs good enough that an outside contributor gets a preview URL unaided
+
+**Tasks**
+
+- [ ] Revisit the July 2026 findability and UX/IA audits (`audit/review/`); pick candidates
+- [ ] Search ADR — Pagefind already indexes the Astro build; measure it at full-site scale first
+- [ ] Prototype search over the full ported surface
+- [ ] Ship redesign PRs #1 and #2; fold the friction into CONTRIBUTING
+- [ ] Invite at least one outside contributor through the flow
+
+**Dependencies:** M1 for "production"; the ADR and prototypes can start now.
