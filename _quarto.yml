@@ -47,6 +47,8 @@ website:
             text: Builder Transition
           - href: views-and-r-universe.qmd
             text: VIEWS &amp; r-universe
+          - href: data-packages-in-r-universe.qmd
+            text: Data Packages in r-universe
           - href: reproducing-package-pages.qmd
             text: Package Pages
           - href: download-stats.qmd

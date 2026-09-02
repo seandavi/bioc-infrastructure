@@ -1,0 +1,313 @@
+---
+title: "Data and workflow packages in r-universe: a size audit"
+date: 2026-09-02
+---
+
+::: {.callout-note}
+## A dated measurement, not a live view
+Numbers are from **2026-09-02** against Bioconductor **3.23** (release, R 4.6). Package
+sizes move every release; the script that produced these figures is
+[`package-sizes.py`](https://github.com/seandavi/bioc-infrastructure/blob/main/package-sizes.py)
+in this repository, so they can be regenerated rather than trusted.
+:::
+
+[r-universe-org/sync#8](https://github.com/r-universe-org/sync/pull/8) proposes adding
+Bioconductor's **data-experiment** and **workflow** packages to the `bioc` and `bioc-release`
+universes, which today carry software packages only. Jeroen Ooms
+[objected on size grounds](https://github.com/r-universe-org/sync/pull/8#issuecomment-5506765461):
+r-universe enforces a 100 MB limit on source and binary packages, some data packages exceed
+1 GB, and every added package gets binaries and checks built for every platform — "costly
+duplication" for data that does not change.
+
+That objection is correct in direction. It has not been correct in magnitude, in either
+direction, because nobody had measured the corpus. This page measures it.
+
+::: {.callout-tip}
+## The short answer
+**Workflows are essentially free.** 25 packages, 319 MiB total, 23 of them under 10 MiB. One
+package (`methylationArrayAnalysis`, 218 MiB) is the entire problem, and it already has no
+GitHub mirror to ingest from.
+
+**Experiment data is not free, but it is not 28 GiB of pain either.** 434 packages, 27.96 GiB.
+The distribution is extremely head-heavy: **67 packages (15%) hold 76% of the bytes**, and the
+367 that clear the 100 MB limit total 6.5 GiB — about the same as *all 2,384 software packages
+combined* (6.72 GiB).
+
+**31 packages would break the PR as written, today.** The registry it generates points every
+package at `https://github.com/bioc/<pkg>`, and 30 experiment packages plus 1 workflow package
+have no such repo. The mirror already refused them, quietly, and 24 of the 30 are exactly the
+oversized ones.
+
+**The data really are fixed.** 425 of 433 experiment packages (98%) shipped a tarball whose
+size did not move by 1% across the last release bump — including **all 67** of the oversized
+ones. Continuous rebuilds and multi-platform binaries are the wrong shape for this corpus, not
+just an expensive one.
+:::
+
+## What r-universe actually ingests
+
+The cost argument depends on the pipeline, so it is worth being precise about it. r-universe
+does not consume Bioconductor's built tarballs. The `sync` action builds a registry of git
+URLs, clones each one, and builds from source:
+
+```{mermaid}
+flowchart LR
+  G["git.bioconductor.org<br/>/packages/&lt;pkg&gt;"] -->|"mirror"| M["github.com/bioc/&lt;pkg&gt;<br/>3,770 repos"]
+  M -->|"registry entry<br/>(sync/R/monorepos.R)"| R["monorepo submodule"]
+  R -->|"R CMD build"| S["source package<br/>(100 MB gate)"]
+  S -->|"per platform<br/>× R version"| B["8–14 binary artifacts<br/>linux · mac · win · wasm"]
+
+  classDef ok fill:#f3fbf4,stroke:#3d8b47,color:#12263f
+  classDef gate fill:#fff8e6,stroke:#b8860b,color:#12263f
+  class G,M,R,B ok
+  class S gate
+```
+
+Two consequences follow, and both matter more than the headline tarball sizes.
+
+First, **the gate is the git mirror, not the tarball.** `monorepos.R` already carries a
+hand-maintained escape hatch for this — `nomirror <- c('SwathXtend', 'h5vc', 'scafari',
+'singIST')`, commented "large git files" — which routes four software packages straight at
+`git.bioconductor.org` because GitHub will not take them. Everything else is assumed to be on
+the mirror.
+
+Second, **storage is multiplied, not added.** Sampling the live `bioc` universe API, packages
+carry 8 to 14 binary artifacts each (`SummarizedExperiment` and `GenomicRanges`: 8; `limma` and
+`S4Vectors`: 14) across linux, macOS, Windows and wasm targets crossed with R versions.
+
+For data packages that multiplier applies almost in full. Unpacking four experiment tarballs,
+96–100% of their bytes sit in `data/` and `inst/` — precisely the directories `R CMD INSTALL`
+preserves:
+
+| Package | Tarball | Where the bytes live |
+|---|---:|---|
+| `tximportData` | 385.8 MiB | `inst/` 592.1 MiB (>99%) |
+| `macrophage` | 511.4 MiB | `inst/` 505.4 MiB, `data/` 8.5 MiB |
+| `affycompData` | 68.6 MiB | `data/` 69.0 MiB (>99%) |
+| `ARRmData` | 56.5 MiB | `data/` 56.5 MiB (>99%) |
+
+A software package sheds `tests/` and vignette sources on install — `easyRNASeq` goes from a
+69.7 MiB source to a 25.1 MiB Windows binary. A data package sheds nothing. Each of its 8+
+binaries is roughly a re-tar of the source.
+
+## Finding 1: the experiment corpus is head-heavy
+
+434 packages, 27.96 GiB of source, median 10.9 MiB, mean 66.0 MiB — a mean six times the
+median, which is the shape of the whole problem.
+
+| Size band | Packages | Share of packages | Bytes | Share of bytes |
+|---|---:|---:|---:|---:|
+| < 5 MiB | 165 | 38.0% | 0.15 GiB | 0.5% |
+| 5–25 MiB | 98 | 22.6% | 1.15 GiB | 4.1% |
+| 25–100 MiB | 104 | 24.0% | 5.36 GiB | 19.2% |
+| **100–500 MiB** | **56** | **12.9%** | **11.72 GiB** | **41.9%** |
+| **> 500 MiB** | **11** | **2.5%** | **9.58 GiB** | **34.3%** |
+
+The largest ten:
+
+| Package | Source tarball |
+|---|---:|
+| `ChIPXpressData` | 3.17 GiB |
+| `Single.mTEC.Transcriptomes` | 904.6 MiB |
+| `ccdata` | 893.9 MiB |
+| `ChAMPdata` | 667.1 MiB |
+| `ListerEtAlBSseq` | 658.7 MiB |
+| `MMDiffBamSubset` | 632.3 MiB |
+| `RTCGA.methylation` | 622.8 MiB |
+| `RTCGA.rnaseq` | 612.6 MiB |
+| `davidTiling` | 537.7 MiB |
+| `HD2013SGI` | 526.5 MiB |
+
+Jeroen's "some exceed 1 GB" is true of exactly one package. The 100 MB line, though, catches
+**67**, and 24 packages sit in the awkward 300 MB–1 GB range where they are too big to be
+routine and too small to be obviously someone else's problem.
+
+For scale, the existing software universe trips the same limit exactly **once**:
+`SwathXtend` at 346.5 MiB — already on the `nomirror` list.
+
+## Finding 2: workflows are a rounding error
+
+25 packages, 318.8 MiB total, median 3.3 MiB. Twenty-three are under 10 MiB.
+
+| Package | Source tarball |
+|---|---:|
+| `methylationArrayAnalysis` | 218.5 MiB |
+| `GeoMxWorkflows` | 22.8 MiB |
+| `arrays` | 9.6 MiB |
+| `rnaseqDTU` | 8.7 MiB |
+| `RNAseq123` | 6.9 MiB |
+| *(20 more)* | < 6.6 MiB each |
+
+One package holds 69% of the bytes. Drop it and the entire workflow repo is 100 MiB of source
+— less than one and a half `TCGAbiolinks`. **The size objection does not apply to workflows at
+all**, and the two halves of the PR deserve to be judged separately.
+
+Workflows carry a different cost, which this audit does not measure: their vignettes execute
+full analyses against heavy dependency trees, so their *check* time is unrepresentative of
+their size. That is a build-minutes question, not a storage question.
+
+## Finding 3: 31 packages have no mirror to ingest from
+
+This is the finding with the shortest path to a broken build.
+
+The PR reuses the existing registry construction, which resolves every non-`nomirror` package
+to `https://github.com/bioc/<pkg>`. Enumerating all 3,770 repos in that org and joining against
+the release manifests:
+
+| Repo | In release | Mirrored | Missing |
+|---|---:|---:|---:|
+| software (`bioc`) | 2,384 | 2,382 | 2 (`h5vc`, `SwathXtend` — both on `nomirror`) |
+| **data-experiment** | 434 | 404 | **30** |
+| **workflows** | 25 | 24 | **1** |
+| data-annotation | 928 | 50 | 878 *(not in this PR)* |
+
+The 30 unmirrored experiment packages, verified individually against the GitHub API:
+
+`Affyhgu133Plus2Expr`, `Affyhgu133aExpr`, `Affymoe4302Expr`, `ChAMPdata`, `ChIPXpressData`,
+`ConnectivityMap`, `ELMER.data`, `Fletcher2013b`, `FlowSorted.Blood.450k`,
+`FlowSorted.CordBlood.450k`, `FlowSorted.CordBloodNorway.450k`, `FlowSorted.DLPFC.450k`,
+`GeuvadisTranscriptExpr`, `HD2013SGI`, `Hiiragi2013`, `ListerEtAlBSseq`, `MMDiffBamSubset`,
+`RforProteomics`, `RnBeads.hg19`, `SVM2CRMdata`, `Single.mTEC.Transcriptomes`, `ccdata`,
+`curatedBreastData`, `davidTiling`, `furrowSeg`, `hapmapsnp6`, `mammaPrintData`,
+`msPurityData`, `msdata`, `pd.atdschip.tiling`
+
+Plus `methylationArrayAnalysis` from workflows.
+
+Twenty-four of the thirty are over 100 MB — the mirror has already been applying a size filter
+nobody wrote down. The remaining six are small, so the filter is not purely size-based and its
+actual rule is not visible from outside. Either way, the PR's registry would emit 31 URLs that
+404.
+
+The software repo shows what the intended handling looks like: both of its missing packages are
+on `nomirror` and get a `git.bioconductor.org` URL instead. Extending that list is a
+one-line change — but it goes from 4 entries to **74** once the over-limit and unmirrored sets
+are unioned, which is the point at which a hand-maintained constant stops being the right
+mechanism.
+
+## Finding 4: git repositories are not tarball-sized
+
+Screening on tarball size would miss the cases that hurt the mirror, because a git repo carries
+every historical revision of every data blob:
+
+| Package | Git mirror | Source tarball | Ratio |
+|---|---:|---:|---:|
+| `depmap` | 1.51 GiB | 1.6 MiB | **992×** |
+| `DoReMiTra` | 445.8 MiB | 1.1 MiB | **403×** |
+| `DAPARdata` | 631.4 MiB | 29.0 MiB | 22× |
+| `chipenrich.data` | 472.3 MiB | 106.3 MiB | 4.4× |
+| `pRolocdata` | 632.6 MiB | 191.1 MiB | 3.3× |
+| `macrophage` | 493.9 MiB | 511.4 MiB | 1.0× |
+
+`depmap` ships a 1.6 MiB tarball — it is an ExperimentHub client, the pattern everyone
+recommends — and drags a 1.5 GiB git history behind it anyway. It sails through a 100 MB
+package-size gate and is one of the heaviest things in the corpus to clone.
+
+Across the 404 mirrored experiment packages the git side totals 24.49 GiB, with 61 repos over
+100 MiB.
+
+## Finding 5: the data do not change
+
+Jeroen's framing question — *"I thought that data were fixed and do not need the continuous
+checks/binaries?"* — turns out to be answerable from the mirror.
+
+Bioconductor mirrors keep several release versions of each tarball side by side. Comparing each
+experiment package's current tarball against its immediately preceding release:
+
+| | Packages | Share |
+|---|---:|---:|
+| Size identical to within 0.01% | 369 | 85% |
+| Size stable to within 1% | 425 | **98%** |
+| Changed by more than 1% | 8 | 2% |
+
+And of the 67 packages over the 100 MB limit — the ones whose rebuild costs the most —
+**67 of 67** were stable across the bump. The expensive packages are precisely the inert ones.
+
+Tarball size is a proxy for content, not proof of it: a version-string change in `DESCRIPTION`
+moves a few bytes, and gzip output shifts with timestamps. But at 98% the signal is not
+ambiguous. The version numbers advance every release because Bioconductor bumps every package
+every release, not because the data changed.
+
+This reframes the cost question. It is not "is 28 GiB affordable" but "is rebuilding an
+unchanged 3 GiB tarball into 8 binaries twice a year a thing worth building at all."
+
+## What it would cost, if merged as written
+
+Taking only the packages that clear both gates — under 100 MB *and* actually mirrored — 385 of
+459 packages land:
+
+| | Packages | Source | With 8 binaries each |
+|---|---:|---:|---:|
+| data-experiment | 361 | 6.50 GiB | ~58.5 GiB |
+| workflows | 24 | 100.4 MiB | ~0.9 GiB |
+| **Total** | **385** | **6.59 GiB** | **~59.3 GiB** |
+| *(software today, for scale)* | *2,384* | *6.72 GiB* | |
+
+So: adding 385 packages — 16% more by count — roughly doubles the source bytes in the universe
+and adds something near 59 GiB of steady-state binary storage, for a corpus that is 98%
+unchanging. The 8× is the low end of the observed 8–14 range, so this is a floor.
+
+The 74 excluded packages are not a rounding error either. They include most of what makes the
+experiment repo worth having: `curatedOvarianData`, `curatedCRCData`, `RTCGA.*`, the
+`FlowSorted.*` reference panels, `msdata`. A merge that lands 84% of the packages and drops the
+large curated datasets delivers the discoverability benefit unevenly, in a way that is
+invisible from the universe page.
+
+## What this suggests
+
+Stated as options rather than a recommendation — the decision is r-universe's and
+Bioconductor's, not this repository's.
+
+1. **Split the PR.** Workflows are 100 MiB and 24 packages and have essentially none of the
+   objected-to properties. They can merge on their own merits today, minus
+   `methylationArrayAnalysis`. Experiment data is a genuinely different question.
+2. **Fix the registry to skip what it cannot fetch.** Whatever else is decided, generating
+   URLs for 31 repos that do not exist is a defect. The check is one API call per package
+   against the mirror org, or a `nomirror`-style list — but the list is 74 long, which argues
+   for computing it.
+3. **Screen on git size, not tarball size.** Finding 4 shows the two are uncorrelated for this
+   corpus. `depmap` passes the wrong test and fails the right one.
+4. **Register data packages without building them.** The value being sought is
+   discoverability — landing pages, search, dependency graphs — and Finding 5 says the builds
+   and checks produce no new information. If r-universe can carry a package as metadata plus a
+   pointer to Bioconductor's existing tarball, the objection largely dissolves. This is a
+   feature request, not a configuration.
+5. **Take the ORAS/registry suggestion seriously for the tail.** 11 packages hold 34% of the
+   bytes. Bioconductor already splits large data out of source control — every experiment
+   tarball carries an `external_data_store.txt` listing the directories (`data`,
+   `inst/extdata`) the build system stores externally and re-attaches at build time. The
+   mechanism exists; the question is whether r-universe can read from it.
+
+Note also the scope boundary: **data-annotation is not in this PR**, and it is 89.12 GiB across
+928 packages with 126 over the limit and 9 over 1 GiB. Only 50 of the 928 are mirrored at all.
+Whatever is decided for experiment data will be asked about annotation next, and the answer
+cannot be the same one.
+
+## Method
+
+`package-sizes.py` in this repository reproduces every number above. It:
+
+1. Reads `PACKAGES.gz` from `bioconductor.org/packages/release/<repo>/src/contrib/` for
+   `bioc`, `data/experiment`, `data/annotation`, `workflows` and `books` to get the
+   authoritative package/version list for BioC 3.23 (3,784 packages).
+2. Reads exact byte sizes from a Bioconductor mirror's Apache directory index
+   (`ftp.gwdg.de/pub/misc/bioconductor`) — one request per repo rather than 3,784 HEAD
+   requests against bioconductor.org, which rate-limits. All 3,784 current versions matched.
+3. Enumerates all 3,770 repos in `github.com/bioc` via the GitHub API for git mirror sizes and
+   mirror coverage.
+4. Compares each package's current tarball size against its previous release version, both
+   present in the mirror index, for the churn figures.
+5. Samples `bioc.r-universe.dev/api/packages/<pkg>` for binary artifact counts.
+
+Caveats worth carrying:
+
+- **Sizes are Bioconductor's tarballs, not r-universe's.** r-universe runs its own
+  `R CMD build` from git, and the results differ — `TCGAbiolinks` is 63.8 MiB on
+  bioconductor.org and 30.5 MiB in the universe. The 100 MB gate applies to r-universe's
+  artifact. Packages near the line may fall either side of it.
+- **The 100 MB figure is quoted from the PR comment**, not read out of r-universe's source.
+- **Binary sizes are estimated**, not measured: Bioconductor publishes binaries for software
+  only (`data/experiment/bin/**` is empty and 404s on bioconductor.org), so there is no
+  observed data-package binary to weigh. The estimate rests on the tar composition above.
+- **Churn is inferred from tarball size**, as noted in Finding 5.
+- **Mirror coverage is a snapshot.** Repos can be added; 30 missing today is not 30 missing
+  forever.

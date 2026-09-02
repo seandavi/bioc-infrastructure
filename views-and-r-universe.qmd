@@ -34,6 +34,11 @@ their packages are absent from the software universes.
 So r-universe cannot retire VIEWS on its own. It solves roughly two thirds of the problem.
 :::
 
+Closing that gap is now live work: [r-universe-org/sync#8](https://github.com/r-universe-org/sync/pull/8)
+proposes adding experiment and workflow packages to the universes, and stalled on file sizes.
+[Data and workflow packages in r-universe](data-packages-in-r-universe.qmd) measures what that
+would actually cost.
+
 ## What VIEWS is, and why it is load-bearing
 
 `VIEWS` is a DCF file, one stanza per package, 46 distinct fields, published per repository
