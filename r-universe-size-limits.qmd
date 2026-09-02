@@ -1,0 +1,280 @@
+---
+title: "Size limits in the r-universe build"
+date: 2026-09-02
+---
+
+::: {.callout-note}
+## A dated reading of code, not a published specification
+r-universe does not document a size limit anywhere on
+[docs.r-universe.dev](https://docs.r-universe.dev). Everything on this page was read on
+**2026-09-02** from the workflow that actually runs:
+[`r-universe-org/workflows`](https://github.com/r-universe-org/workflows) at ref `v3`,
+[`r-universe-org/actions`](https://github.com/r-universe-org/actions) at ref `v12`, and
+[`r-universe-org/build-source`](https://github.com/r-universe-org/build-source) at
+`1ee4788`. The measurements of BiocCheck's behaviour were made against **BiocCheck 1.49.30**.
+Any of this can change without notice; the point of citing line numbers is that it can be
+re-checked rather than believed.
+:::
+
+Bioconductor's builds are [moving to r-universe](builder-transition.qmd), which makes
+r-universe's constraints Bioconductor's constraints. The most consequential one is a limit on
+how large a package may be — the constraint that
+[stalled the proposal to add data and workflow packages](data-packages-in-r-universe.qmd) to
+the Bioconductor universes.
+
+Three different systems impose size limits on a Bioconductor package, and two of them use the
+number 100, which makes them easy to conflate. They apply to different objects at different
+moments, and a package can satisfy any one of them while failing another. This page states
+what each one is.
+
+::: {.callout-tip}
+## The short answer
+**r-universe** enforces exactly one size limit: **104,857,600 bytes (100 MiB) per published
+file**, applied independently to the source package and to every binary. It is enforced in
+two places in the build, both of which fail the job outright.
+
+**GitHub** blocks files over 100 MiB *when they are pushed to a repository* — the same
+number, but measured on a file inside a git commit rather than on a built package. Its other
+constraints (Git LFS ceilings, repository size, runner disk) bind in situations where
+r-universe's limit does not.
+
+**Bioconductor** asks for source tarballs under 10 MB and individual files under 5 MB, and
+enforces this through BiocCheck. In the r-universe pipeline, **those three checks never
+fire** — BiocCheck is handed a tarball, and its size checks are inert on tarball input. That
+is measured below, not inferred.
+:::
+
+## Three limits, three different objects
+
+| Limit | Applies to | Enforced by | At what moment |
+|---|---|---|---|
+| 104,857,600 bytes | one built package file (source `.tar.gz` or one platform binary) | r-universe build workflow | after the package is built, before upload |
+| 104,857,600 bytes | one file inside a git push | GitHub's git server | on `git push` |
+| 5,242,880 bytes | one file inside a git push, software packages only | Bioconductor's [pre-receive hook](propagation-gate.qmd#the-pre-hooks) | on `git push` to `git.bioconductor.org` |
+| 10,000,000 bytes | source tarball, software packages only | BiocCheck (`ERROR`) | during check — **but see below** |
+| 5,000,000 bytes | one file inside the package | BiocCheck (`WARNING`) | during check — **but see below** |
+
+The distinction that matters most: the first row is measured on a **compressed archive that
+the build produced**, and the second and third are measured on **individual files as stored in
+git**. A repository of forty 20 MB files passes every git-side check and fails r-universe. A
+single 500 MB file tracked in Git LFS passes r-universe's git-side concerns entirely and can
+never be built into a package small enough to publish.
+
+## Where r-universe's limit lives
+
+The same check appears twice, written the same way both times:
+
+| Stage | Location | Scope |
+|---|---|---|
+| End of the source build | [`build-source/entrypoint.sh:347`](https://github.com/r-universe-org/build-source/blob/1ee4788/entrypoint.sh#L346-L350) | the finished source `.tar.gz` |
+| Every artifact upload | [`actions/store-package/action.yml:38`](https://github.com/r-universe-org/actions/blob/v12/store-package/action.yml#L36-L41) | source **and** every binary — linux, Windows, macOS, wasm |
+
+The second is reached from six places in the build workflow (`build.yml` at ref `v3`, lines
+95, 105, 165, 229, 292 and 339), which is every target r-universe publishes. The only artifact
+that bypasses it is the BiocCheck output directory, uploaded directly at line 383.
+
+Both are one line of shell:
+
+```bash
+if [ -n "$(find "$FILE" -prune -size +100M)" ]; then
+  echo "File $FILE is larger than 100 MB. This is not allowed"
+  exit 1
+fi
+```
+
+### The number is 100 MiB, not 100 MB
+
+The message says "100 MB", but `find -size +100M` counts in 1 MiB units and **rounds each file
+up to the next whole unit** before comparing. The effective rule is therefore:
+
+> A file fails if it is **strictly larger than 104,857,600 bytes**.
+
+Checked against GNU findutils 4.8.0: 104,857,600 bytes passes, 104,857,601 bytes is rejected,
+and a file of 100,000,000 bytes — 100 MB in the decimal sense — passes with 4.8 MiB to spare.
+The gap between the two readings is about 4.9%, which is enough to matter for a package sitting
+near the line.
+
+### What is being measured
+
+The source-package check runs **after** r-universe has appended its own files to the tarball —
+the rendered README, the HTML manual, citation files and `contents.json` are unpacked into the
+archive at `entrypoint.sh:341-343`, immediately before the size check at line 347. A package's
+budget is therefore not what `R CMD build` produced locally; it is that, plus r-universe's
+additions, recompressed.
+
+```{mermaid}
+flowchart TB
+  C["git clone"] --> B["R CMD build<br/>vignettes, no manual"]
+  B --> X["append r-universe extras<br/>README · HTML manual · citation · contents.json"]
+  X --> G1{"&gt; 104,857,600 bytes?"}
+  G1 -->|"yes"| F1["exit 1 — source job fails<br/>nothing is published"]
+  G1 -->|"no"| S["source package"]
+  S --> BIN["binary builds<br/>linux · win · mac · wasm"]
+  BIN --> G2{"&gt; 104,857,600 bytes?"}
+  G2 -->|"yes"| F2["exit 1 — that platform fails<br/>source still deploys"]
+  G2 -->|"no"| U["uploaded and published"]
+
+  classDef ok fill:#f3fbf4,stroke:#3d8b47,color:#12263f
+  classDef gate fill:#fff8e6,stroke:#b8860b,color:#12263f
+  classDef bad fill:#fff1f0,stroke:#c0392b,color:#12263f
+  class C,B,X,S,BIN,U ok
+  class G1,G2 gate
+  class F1,F2 bad
+```
+
+The two failures are not equivalent. An oversized **source** package fails before
+`entrypoint.sh` writes its `SOURCEPKG` output, and every downstream job in the workflow is
+conditioned on that output being non-empty — so the package is not built for any platform, not
+checked, and not published at all. An oversized **binary** fails only its own job; the source
+package and the other platforms still deploy.
+
+### What r-universe does not limit
+
+No limit was found on any of: the size of individual files *inside* a package, the total size
+of a universe, the number of packages in a universe, vignette or documentation output, or the
+BiocCheck results artifact. Within the 100 MiB per-file ceiling, a universe is unbounded as far
+as the build code is concerned.
+
+One related constant is worth knowing about, because it is a size decision even though it is
+not a size check. `build-source/R/buildtools.R:395` carries a hard-coded list of four packages
+commented "Packages over 2GB in size" — `SNPlocs.Hsapiens.dbSNP155.GRCh38`,
+`SNPlocs.Hsapiens.dbSNP155.GRCh37`, `MafDb.gnomAD.r2.1.GRCh38` and `MafDb.gnomAD.r2.1.hs37d5` —
+which are never installed as dependencies. A package that depends on one of them is built
+without it, and whatever that does to its checks is what its check results report.
+
+## What GitHub imposes
+
+These are GitHub's platform limits, not r-universe's choices. They constrain the build because
+the build runs on GitHub Actions and clones from GitHub.
+
+| Constraint | Value |
+|---|---|
+| File in a push — hard block | 100 MiB |
+| File in a push — warning | 50 MiB |
+| File uploaded via the web UI | 25 MiB |
+| Git LFS, per file | 2 GB (Free/Pro), 4 GB (Team), 5 GB (Enterprise Cloud) |
+| Repository size | under 1 GB ideal, under 5 GB strongly recommended (advisory) |
+| Actions artifact, per artifact | **no documented limit** — only a shared storage quota, 500 MB (Free) to 50 GB (Enterprise Cloud) |
+| Artifacts per job | 500 |
+| Artifact retention | 90 days by default |
+| Job execution time | 6 hours |
+| Standard runner | 4 cores, 16 GB RAM, **14 GB SSD** |
+
+r-universe sets its own timeouts well inside GitHub's: 60 minutes for a source build (90 for
+Bioconductor), 150-minute caps on the platform jobs, and a 50-minute `timeout` around
+`R CMD build` itself. The workflow also deletes the preinstalled .NET, GHC and Boost trees
+before building, which is what a 14 GB disk looks like in practice.
+
+## Where the limits genuinely differ
+
+**The two 100 MiB numbers are unrelated.** They coincide numerically and share no scope.
+GitHub's applies to a single blob entering git history; r-universe's applies to a compressed
+archive leaving the build. Neither implies the other in either direction.
+
+**GitHub does not limit artifact size at all.** r-universe's ceiling is entirely self-imposed —
+GitHub would accept the upload. The limit is a statement about what r-universe is willing to
+store and serve, so it is a policy that can be discussed, not a platform constraint that has to
+be worked around.
+
+**r-universe has no per-file rule; Bioconductor's rules are all per-file.** Bioconductor's
+pre-receive hook and BiocCheck both police individual files and are indifferent to the total;
+r-universe polices only the total and is indifferent to how it is distributed.
+
+**Git size and tarball size are not the same quantity.** r-universe clones the full history
+(the clone at `entrypoint.sh:43` is deliberately not shallow, so that vignette modification
+times can be read), so a small package with a heavy history costs the build real time and disk
+while passing the size gate untouched. The
+[size audit](data-packages-in-r-universe.qmd#finding-4-git-repositories-are-not-tarball-sized)
+found `depmap` shipping a 1.6 MiB tarball behind a 1.51 GiB git repository.
+
+**The limit is undocumented.** For a maintainer, the only signal is a failed build log reading
+`File <pkg>.tar.gz is larger than 100 MB. This is not allowed`.
+
+## Bioconductor's own size rules are silent in this pipeline
+
+Bioconductor's stated guidance is a 10 MB source tarball for software packages (experiment and
+annotation packages are exempt) and 5 MB per individual file, enforced through BiocCheck. The
+r-universe workflow runs BiocCheck for the Bioconductor universes, so it is reasonable to
+assume those rules are being applied there. They are not.
+
+BiocCheck is invoked on the built tarball. Three things follow from that, all confirmed by
+running BiocCheck 1.49.30 on a purpose-built 30 MB package containing a single 30 MB file in
+`inst/extdata`:
+
+1. `checkPackageSize()` measures `file.size()` of the package's `sourceDir` field. For tarball
+   input that field holds the **directory the tarball was unpacked into**, so `file.size()`
+   returns a directory entry size — 83 bytes in the test — and the 10 MB comparison can never
+   be true. The same is true for source-directory input, where the field holds the source
+   directory itself.
+2. `checkIndivFileSizes()` and `checkDataFileSizes()` both delegate to a helper with two
+   branches, one for a git clone and one for a source directory. Tarball input is neither, so
+   the helper returns nothing. On source-directory input it works correctly and did find the
+   30 MB file.
+3. A full `BiocCheck()` run on the 30 MB tarball reported 2 errors and 2 warnings, none of them
+   about size.
+
+So in the r-universe Bioconductor jobs, the only size limit in force is r-universe's own
+104,857,600 bytes — roughly ten times Bioconductor's stated tarball guidance, and with no
+per-file component at all. This has been reported upstream as
+[Bioconductor/BiocCheck#259](https://github.com/Bioconductor/BiocCheck/issues/259).
+
+The Bioconductor rule that *is* enforced today is the 5,242,880-byte pre-receive hook on
+`git.bioconductor.org`, described in [the propagation gate](propagation-gate.qmd#the-pre-hooks).
+That hook runs on push, before r-universe is involved at all, and it covers software packages
+only. Nothing in the r-universe path reproduces it — which matters for any plan that treats
+r-universe's checks as a replacement for the git server's.
+
+## What this means for the migration
+
+The [size audit](data-packages-in-r-universe.qmd) put numbers to the consequences: 67 of 434
+experiment-data packages and 1 of 25 workflow packages exceed the limit, against exactly one
+software package (`SwathXtend`) in the current release. The limit is therefore invisible to the
+software corpus and decisive for the data corpus, which is why it surfaced only when adding
+data packages was proposed.
+
+Two properties of the limit are worth carrying into that discussion. It is a **policy of
+r-universe's**, not a GitHub constraint, so it is negotiable in a way platform limits are not.
+And it measures the wrong thing for the packages it excludes: the cost r-universe actually
+bears for a large data package is dominated by cloning a large git repository and by storing
+8–14 near-identical binaries, neither of which the tarball size predicts.
+
+::: {.callout-warning}
+## One thing that was not verified
+Neither `r-universe-org/base-image` nor `build-source` installs `git-lfs`, and the clone at
+`entrypoint.sh:43` is a plain `git clone --recurse-submodules`. On that reading, a repository
+whose data files are tracked in Git LFS would be checked out as pointer files and built into a
+package that is small, valid, and missing its data — while `buildtools.R:962` records
+`gitlfs: true` in the package metadata without failing anything. **This was not tested against
+a live build**, and it should be before anyone relies on it either way.
+:::
+
+## Reproducing this
+
+The r-universe boundary, against GNU findutils 4.8.0:
+
+```sh
+head -c 104857600 /dev/zero > f1   # exactly 100 MiB
+head -c 104857601 /dev/zero > f2   # one byte more
+find f1 -prune -size +100M         # no output — passes
+find f2 -prune -size +100M         # prints f2 — rejected
+```
+
+The BiocCheck behaviour, given any source package directory with a file over 5 MB in
+`inst/extdata`:
+
+```r
+R CMD build bigpkg    # produces bigpkg_0.99.0.tar.gz, ~30 MB
+
+bp <- BiocCheck:::.BiocPackage$copy()
+bp$initialize("bigpkg_0.99.0.tar.gz")
+bp$isTar                                          # TRUE
+file.size(bp$sourceDir)                           # 83 — a directory, not the tarball
+file.size(bp$tarFilename)                         # 30005481 — the tarball
+BiocCheck:::checkPackageSize(bp)                  # silent
+BiocCheck:::.findLargeFiles(bp, data_only = FALSE) # NULL
+
+bp2 <- BiocCheck:::.BiocPackage$copy()
+bp2$initialize("bigpkg")                          # the source directory
+BiocCheck:::.findLargeFiles(bp2, data_only = FALSE) # finds inst/extdata/blob.bin
+BiocCheck:::checkPackageSize(bp2)                  # still silent
+```

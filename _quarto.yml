@@ -35,6 +35,8 @@ website:
             text: Astro Site Build
           - href: propagation-gate.qmd
             text: Propagation Gate
+          - href: r-universe-size-limits.qmd
+            text: r-universe Size Limits
       - section: Migration record
         contents:
           - href: current-state.qmd

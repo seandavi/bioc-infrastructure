@@ -20,7 +20,12 @@ r-universe enforces a 100 MB limit on source and binary packages, some data pack
 duplication" for data that does not change.
 
 That objection is correct in direction. It has not been correct in magnitude, in either
-direction, because nobody had measured the corpus. This page measures it.
+direction, because nobody had measured the corpus. This page measures it. What the limit
+precisely is, where it is enforced, and how it relates to GitHub's and Bioconductor's own size
+rules is a separate question, answered in [Size limits in the r-universe
+build](r-universe-size-limits.qmd) — in short, it is 100 MiB rather than 100 MB, it applies
+independently to the source package and to each binary, and it is r-universe's own policy
+rather than a GitHub constraint.
 
 ::: {.callout-tip}
 ## The short answer
