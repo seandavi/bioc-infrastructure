@@ -246,7 +246,7 @@ does not:
 
 | Hook rule | BiocCheck | Covered? |
 |---|---|---|
-| 5,242,880-byte file limit | `.MAX_FILE_SIZE <- 5e+6L`, emits **WARNING** | No — different threshold, different severity |
+| 5,242,880-byte file limit | `.MAX_FILE_SIZE <- 5e+6L`, emits **WARNING** | No — different threshold, different severity, and [it does not fire at all on tarball input](r-universe-size-limits.qmd#bioconductors-own-size-rules-are-silent-in-this-pipeline), which is how r-universe runs it |
 | version parity | `checkVersionNumber()`, emits **WARNING** | Partial and weaker |
 | x unchanged, y unchanged, z non-decreasing | — | **No.** Structurally impossible: BiocCheck never sees the previous version |
 | merge markers | — | No |

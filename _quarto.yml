@@ -35,6 +35,8 @@ website:
             text: Astro Site Build
           - href: propagation-gate.qmd
             text: Propagation Gate
+          - href: r-universe-size-limits.qmd
+            text: r-universe Size Limits
       - section: Migration record
         contents:
           - href: current-state.qmd
@@ -47,6 +49,8 @@ website:
             text: Builder Transition
           - href: views-and-r-universe.qmd
             text: VIEWS &amp; r-universe
+          - href: data-packages-in-r-universe.qmd
+            text: Data Packages in r-universe
           - href: reproducing-package-pages.qmd
             text: Package Pages
           - href: download-stats.qmd
