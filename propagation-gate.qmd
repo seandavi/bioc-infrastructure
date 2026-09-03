@@ -1,92 +1,74 @@
 ---
-title: "What propagates, and why: the r-universe gate"
+title: "The propagation gate: what bioc-registry publishes, and why"
 date: 2026-08-04
+date-modified: 2026-09-03
 ---
 
-r-universe builds Bioconductor packages continuously, but only some of those builds become
-what bioconductor.org serves. This page documents the rule that decides, why it is shaped
-the way it is, and what it would take to run the same decision as a GitHub Actions job.
-
-It matters for this project because [the decommission plan](decommission-plan.qmd) eventually
-has to answer "who decides a package is fit to publish" without `nebbiolo1` in the room.
+r-universe builds Bioconductor packages continuously. Only some of those builds become what
+[bioc-registry](https://github.com/seandavi/bioc-registry) serves as an installable repository
+and as the data behind the new site's package pages. This page states the rule that decides,
+read from the code that runs it.
 
 ::: {.callout-note}
-## Provenance of this page
-The rule itself was described by a **Bioconductor core team member** in conversation on
-2026-08-04 and is paraphrased below. Everything else is either a live measurement taken the
-same day (marked as
-such, with the command or endpoint) or a reading of public source (linked). Where something
-could not be confirmed, the page says so. As with the rest of this site, the numbers are
-point-in-time.
+## This is the new system's gate
+Bioconductor's production propagation to `bioconductor.org` is a different gate, run in core
+infrastructure next to BBS and known here only from conversation. It is described on
+[Propagation in the legacy system](legacy-propagation.qmd), together with the push hooks and
+the measured agreement between r-universe's checks and `nebbiolo1`'s. The two are compared at
+the [end of this page](#relation-to-the-legacy-production-gate).
 :::
 
-::: {.callout-important}
-## The pilot gate now runs per-architecture (2026-08-13)
-The experimental gate implemented in the bioc-prop pilot has moved past the all-or-nothing
-rule described below: **a package propagates when it builds and its checks pass on at least
-one architecture** (linux, windows, mac — judged per-architecture from the same
-BBS-equivalent check jobs on the branch's gating R). Only the passing architectures'
-binaries propagate; a failing architecture is simply *not available* until a later version
-passes there. The source tarball always accompanies an eligible package, `NOTE`/`WARNING`
-pass, `ERROR`/`FAIL` block only the architecture they occur on, and BiocCheck remains
-advisory — recorded, never blocking. The passing set is recorded on each propagation-index
-entry.
-:::
+## The gate, check by check
 
-## The rule
+Everything below is in [`src/index.ts`](https://github.com/seandavi/bioc-registry/blob/c614a8a/src/index.ts#L486-L593)
+(`evaluate`) and [`src/repo.ts`](https://github.com/seandavi/bioc-registry/blob/c614a8a/src/repo.ts#L171-L209)
+(`passingFamilies`, `approveByDeps`) at commit `c614a8a`, 2026-08-29. A package observed from
+r-universe propagates when **all** of the following hold:
 
-Paraphrased:
+1. **The build succeeded.** r-universe's `_status` is `success` and the package has at least
+   one check job. `_failure` is not read: a green status on a stale commit is caught by rule 5
+   in practice, because the stale version has already propagated.
+2. **Checks are judged on the gating R version**, resolved at evaluation time from
+   `bioconductor.org/config.yaml` (`r_ver_for_bioc_ver` for the universe's Bioconductor
+   version) and matched against each job's actual R version, not its label. Jobs on other
+   R lines are ignored.
+3. **At least one platform family passes.** Three families are gated: `linux` (the `source`
+   job plus `linux-*` x86_64), `win` (`windows-*` x86_64) and `mac` (`macos-*` arm64). A
+   family passes when it has at least one gating job on the gating R and none of them is
+   `ERROR`, `FAIL` or `FAILURE`. `NOTE` and `WARNING` pass. Everything else gates nothing:
+   `bioc-checks` (BiocCheck), `wasm`, linux arm64, mac x86_64.
+4. **The version is well-formed** (digits separated by `.` or `-`) and a source sha256 exists.
+5. **The version is a strict bump** over the version already in the propagation index. A
+   push without a bump never propagates. A seeded entry (below) counts as the current version
+   for this comparison.
+6. **Hard dependencies this registry publishes are satisfiable.** Every `Depends`, `Imports`
+   and `LinkingTo` entry naming a package that is itself in the propagation index must be
+   present at a version meeting its `>=` or `>` constraint. Dependencies not published here
+   (CRAN, base R, and annotation, experiment and workflow packages until they have a build
+   home) pass untouched. Candidates are approved in waves until a fixpoint, so a package
+   lands as soon as what it waits on does. Blocked candidates are written to
+   `prop/{universe}/blocked/` with the unmet requirement spelled out.
 
-> r-universe does not care about `R CMD check`; we do — that is the first big difference. And
-> they build and propagate on any new commit, regardless of a version bump. So right now we
-> match on the sha and version of the `nebbiolo1` build to r-universe, because that Linux
-> host still has all our pre-hooks valid — preventing bad version numbers, large files, and
-> the rest that we also check. And then we make sure the check is actually clean.
+What propagates for an eligible package: the **source tarball always**; **binaries only for
+the families that passed** in rule 3, and only those built at the same version with status
+`success`. `wasm` binaries ride along with no gate of their own. The passing families are
+recorded on the index entry as `archs`, the BiocCheck verdict as `bioccheck`.
 
-So the gate is three conditions, not one:
+What this gate does **not** check, and the [legacy production gate or the push hooks](legacy-propagation.qmd) do:
 
-1. the r-universe build's **version** matches what `nebbiolo1` built,
-2. its **source commit sha** matches too, and
-3. the **check is clean**.
+- The `nebbiolo1` sha match. The pilot gate has no provenance check of its own.
+- The push-hook rules: version parity, `x` and `y` unchanged, the 5 MiB file limit, merge
+  markers. It inherits them by trusting that the commit reached `git.bioconductor.org`.
 
-## Why it keys on nebbiolo1
+## Two ways into the index
 
-The sha match looks redundant next to the version match, and the choice of `nebbiolo1`
-specifically looks arbitrary. Neither is.
-
-Bioconductor's push-time checks are **gitolite server-side hooks** on `git.bioconductor.org`
-(see [The pre-hooks](#the-pre-hooks) below). r-universe does not build from gitolite — it
-builds from a GitHub mirror, because it requires a GitHub remote. `nebbiolo1` builds from
-canonical git.
-
-Matching the sha against `nebbiolo1` is therefore a **provenance check wearing the costume of
-an equality check**. It establishes that the commit came through the git server, and so had
-the pre-hooks applied to it. Bioconductor inherits that guarantee without re-running anything.
-
-```{mermaid}
-flowchart LR
-  DEV["maintainer push"] --> HOOKS{"gitolite pre-hooks<br/>version rules · 5 MiB limit<br/>merge markers"}
-  HOOKS -->|rejected| X["push fails"]
-  HOOKS -->|accepted| GIT["git.bioconductor.org<br/>canonical source"]
-  GIT --> MIRROR["GitHub mirror<br/>github.com/bioc/*"]
-  GIT --> NEB["nebbiolo1<br/>R CMD build / check"]
-  MIRROR --> RU["r-universe<br/>build + R CMD check + BiocCheck"]
-  NEB --> GATE{"gate<br/>sha + version match<br/>check clean"}
-  RU --> GATE
-  GATE -->|pass| WEB["bioconductor.org"]
-  GATE -->|hold| NOP["not propagated"]
-
-  classDef g fill:#f3fbf4,stroke:#3d8b47,color:#12263f
-  classDef r fill:#fdf0ef,stroke:#b4453c,color:#12263f
-  classDef n fill:#eef4ff,stroke:#4a6fa5,color:#12263f
-  class GIT,NEB,WEB g
-  class X,NOP r
-  class MIRROR,RU n
-```
-
-The practical consequence: **a gate that runs outside this path must replace the provenance
-guarantee**, either by verifying the sha traces back to canonical git or by re-implementing
-the hooks. The former is cheaper and more faithful.
+About 300 packages build in BBS and fail in r-universe's environment, usually because an
+example reaches a network service the runner cannot. Those are **seeded** from
+Bioconductor's own release repositories so the registry matches what Bioconductor ships.
+Each index entry carries an `origin`: `r-universe` means it passed the gate above and `archs`
+says on which platforms; `bioconductor` means it was seeded, never faced the gate, and has
+empty `archs` and null `bioccheck`. Seeding only fills holes; a seeded package is replaced
+the ordinary way when the maintainer bumps the version and r-universe builds it.
 
 ## What r-universe already computes
 
@@ -112,41 +94,6 @@ Build logs and the full BiocCheck artifact are retrievable without authenticatio
 `/api/actions/logs/{job}` and `/api/actions/artifacts/{id}` (both 302 to a signed blob URL).
 
 The gate therefore does not need to run checks. It needs to **read** them.
-
-## How closely does r-universe agree with nebbiolo1?
-
-This is the load-bearing question for any plan that lets r-universe's check stand in for BBS's,
-so it was measured rather than assumed.
-
-Comparing r-universe's `linux-release-x86_64` job against `nebbiolo1`'s `checksrc` stage in
-`BUILD_STATUS_DB.txt` for release 3.23, across all 2,416 packages present in both, excluding
-the 90 where BBS skipped the check or r-universe had no job:
-
-| Reading of "shippable" | Agreement |
-|---|---|
-| `WARNINGS` counts as clean | **2,249 / 2,326 = 96.7%** |
-| `WARNINGS` counts as dirty | 2,196 / 2,326 = 94.4% |
-
-The residual is asymmetric: **59 packages r-universe calls `ERROR` that nebbiolo1 passes**,
-against **18 the other way**.
-
-For reference, `nebbiolo1`'s own 3.23 distribution:
-
-| Stage | OK | WARNINGS | ERROR | skipped | TIMEOUT |
-|---|---|---|---|---|---|
-| `install` | 2382 | — | 34 | — | — |
-| `buildsrc` | 2330 | — | 86 | — | — |
-| `checksrc` | 1870 | 391 | 68 | 86 | 1 |
-
-Close, but **not a drop-in substitute.** That 3.3% is precisely the risk surface of ever
-treating r-universe's check as authoritative.
-
-::: {.callout-warning}
-## Compare like with like
-An earlier version of this comparison used r-universe's `bioc-checks` job and found only ~20%
-agreement. That job is **BiocCheck**, not `R CMD check` — a different check with different
-severities. The platform jobs (`linux-release-x86_64` and siblings) are the right comparand.
-:::
 
 ## There is no build notification to subscribe to
 
@@ -198,120 +145,25 @@ Read both.
 changes, a nightly retry cron (`30 1 * * *`), and a reverse-dependency cascade after any
 version change. Most of that churn carries no new source.
 
-## The pre-hooks
+## Relation to the legacy production gate
 
-Public, at [`Bioconductor/git-hooks`](https://github.com/Bioconductor/git-hooks). Two caveats
-before trusting any of it:
-
-- The default `devel` branch is stale Python 2. The live code is almost certainly the
-  **`ConvertToPython3`** branch, which was never merged. **Which branch is actually deployed
-  could not be confirmed** — that needs access to the git server itself.
-- A server-side `hooks.conf` can **disable any hook per package**. Its contents are not public.
-  These are defaults, not guarantees.
-
-**File size** (`prevent_large_files.py`): **exactly 5,242,880 bytes** (5 MiB, strict `>`),
-raised from 5,000,000 decimal in August 2020. Applies to **software packages only** — data
-experiment, workflow and book packages are not size-gated by the hook. The implementation
-sizes files at the push tip rather than walking the push range, so a large blob added and
-deleted within one push passes.
-
-**Version numbers** (`prevent_bad_version_numbers.py`): format must match `^\d+\.\d+\.\d+$`,
-then:
-
-| Branch | Rule |
-|---|---|
-| `RELEASE_*` | x unchanged; y unchanged **and even**; z non-decreasing |
-| devel | x unchanged; y **odd**; y unchanged unless 99; z non-decreasing unless y is 99 |
-
-Two properties matter for the gate. The hook **never requires a bump** — a push with no
-version change is accepted, and that acceptance is exactly what makes "no bump, no
-propagation" the gate's job rather than the hook's. And the hook has **no knowledge of the
-current Bioconductor release number**; it enforces parity and stability, not "y matches this
-cycle."
-
-The parity rule holds almost perfectly in practice. Across the release universe, **2,398 of
-2,399 packages have an even `y`**. The single exception is `BiocVersion 3.23.1`, whose version
-*is* the Bioconductor version — so any reimplementation needs one hardcoded exception.
-
-Also present: a merge-conflict-marker check (known leaky —
-[`git-hooks#2`](https://github.com/Bioconductor/git-hooks/issues/2)) and a duplicate-commit
-check that is pure SVN-transition legacy and can be dropped. Force-push and branch-creation
-restrictions come from gitolite ACLs rather than hooks; GitHub branch protection covers those
-natively.
-
-### BiocCheck does not substitute for the hooks
-
-Since r-universe runs BiocCheck, it is tempting to treat that as covering the pre-hooks. It
-does not:
-
-| Hook rule | BiocCheck | Covered? |
+| | Legacy production gate | This gate |
 |---|---|---|
-| 5,242,880-byte file limit | `.MAX_FILE_SIZE <- 5e+6L`, emits **WARNING** | No — different threshold, different severity, and [it does not fire at all on tarball input](r-universe-size-limits.qmd#bioconductors-own-size-rules-are-silent-in-this-pipeline), which is how r-universe runs it |
-| version parity | `checkVersionNumber()`, emits **WARNING** | Partial and weaker |
-| x unchanged, y unchanged, z non-decreasing | — | **No.** Structurally impossible: BiocCheck never sees the previous version |
-| merge markers | — | No |
+| Feeds | `bioconductor.org/packages/...` (the legacy site and mirrors) | `bioc-registry` (`/repo/...`, the propagation index, the new site's data) |
+| Runs in | Bioconductor core infrastructure, alongside BBS | a Cloudflare Worker |
+| Described from | conversation with a core team member, 2026-08-04, not re-verified since | the code, pinned at commit [`c614a8a`](https://github.com/seandavi/bioc-registry/tree/c614a8a) |
+| Provenance check | source sha must match what `nebbiolo1` built | none: pushes to `git.bioconductor.org` are assumed hook-checked upstream |
+| Check verdict | "the check is clean", all-or-nothing | per platform family; at least one family must pass |
+| Version rule | version must match `nebbiolo1`'s build | strict bump over the last propagated version |
+| Dependency rule | unknown | hard deps that this registry publishes must be satisfiable |
+| BiocCheck | advisory | advisory, recorded on the index entry |
 
-That last row is the useful one. **A gate does have the previous version** — it is already in
-the state it keeps for delta detection — so it is naturally positioned to enforce exactly the
-rules BiocCheck cannot, at no extra data cost.
-
-If the size check is ported, `Bioconductor/BiocContributions`' `scripts/validate.py` already
-uses `5 * 1024 * 1024`, matching the hook exactly.
-
-## What a GitHub Actions gate would look like
-
-Given the above, the job is a **reconciler over metadata**, not a check farm: no matrix, no
-re-running checks, no webhook receiver.
-
-```yaml
-on:
-  schedule: [{cron: '55 * * * *'}]   # after r-universe's :41 sync has had time to build
-  workflow_dispatch:
-jobs:
-  gate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: python3 gate.py          # diff vs state, evaluate, rewrite state
-      - run: |
-          git add state/gate.json
-          git diff --cached --quiet || { git commit -m "gate $(date -u +%FT%TZ)"; git push; }
-```
-
-Per changed package, `gate.py` evaluates: version-diff rules against its own state, check
-outcome from `_jobs`, BiocCheck counts from `_bioccheck`, `_failure` for the stale-green case,
-and sha provenance. State lives in a committed file rather than the Actions cache — it
-survives past the cache's seven-day eviction, and `git log` becomes a free audit trail
-answering "why did this propagate."
-
-### Two modes, and the order to build them in
-
-**Shadow.** BBS stays authoritative; the workflow only reconciles r-universe against
-`BUILD_STATUS_DB.txt` and reports disagreements. Every input is public, so this needs no
-builder access and no Bioconductor-side change. It also supplies the check-status axis that
-`model-binary-flow.py` currently lacks.
-
-**Reference.** Actions runs the canonical Linux check itself and becomes what `nebbiolo1` is
-now. This is the mode that actually retires a builder — and where the 59-vs-18 divergence has
-to be *explained* rather than merely measured.
-
-Shadow first, and let the divergence data decide whether reference mode is safe.
-
-## What could not be determined
-
-- **Whether `checksrc: WARNINGS` counts as "clean" for propagation.** 391 packages — 16% of
-  the repo — sit in that state. The answer changes whether the gate reads as ~77% or ~93%
-  permissive. This is a question for the Bioconductor core team, not something to infer.
-- **Which branch of `git-hooks` is deployed**, and the contents of the per-package
-  `hooks.conf` that can disable individual hooks.
-- **Measured commit-to-build latency.** It is bounded below by the hourly sync cron, but no
-  primary source gives a wall-clock figure.
+Whether `WARNINGS` counts as clean in the legacy gate is still [undetermined](legacy-propagation.qmd#what-could-not-be-determined);
+this gate answers it explicitly (rule 3: yes).
 
 ## Sources
 
-- Conversation with a Bioconductor core team member, 2026-08-04 (the rule)
-- [`Bioconductor/git-hooks`](https://github.com/Bioconductor/git-hooks) — `prevent_large_files.py`, `prevent_bad_version_numbers.py`, `pre-receive-hook-software`; branch `ConvertToPython3`
-- `Bioconductor/BiocCheck` — `R/checks.R`, `R/checkDESCRIPTION.R`; `Bioconductor/BiocContributions` — `scripts/validate.py`
-- [`r-universe-org/frontend`](https://github.com/r-universe-org/frontend) — `routes/packages.js`, `routes/universe.js`; [`r-universe-org/workflows`](https://github.com/r-universe-org/workflows) — `build.yml`, `deploy.yml`; `r-universe-org/control-room` — `sync.yml`, `rebuilds.yml`
-- Live endpoints, 2026-08-04: `bioc-release.r-universe.dev/api/{packages,files}`, `bioc.r-universe.dev/api/packages/limma`, `bioconductor.org/checkResults/3.23/bioc-LATEST/BUILD_STATUS_DB.txt`
-- Related: [Builder Transition](builder-transition.qmd), [VIEWS & r-universe](views-and-r-universe.qmd), [Decommission Plan](decommission-plan.qmd)
+- [`seandavi/bioc-registry`](https://github.com/seandavi/bioc-registry) at `c614a8a` — `src/index.ts` (`evaluate`, `gatingRMinor`), `src/repo.ts` (`passingFamilies`, `approveByDeps`, `verGt`)
+- [`r-universe-org/frontend`](https://github.com/r-universe-org/frontend) — `routes/packages.js`, `routes/universe.js`; [`r-universe-org/workflows`](https://github.com/r-universe-org/workflows) — `build.yml`, `deploy.yml`
+- Live endpoints, 2026-08-04: `bioc-release.r-universe.dev/api/{packages,files}`, `bioc.r-universe.dev/api/packages/limma`
+- Related: [Propagation in the legacy system](legacy-propagation.qmd), [Builder Transition](builder-transition.qmd)

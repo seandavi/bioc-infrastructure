@@ -137,7 +137,7 @@ report that the bioconductor.org website build consumes.
 | Can r-universe supply the package metadata the site needs? | **For software packages, yes.** For annotation, experiment and workflow packages, it carries nothing — see [VIEWS & r-universe](views-and-r-universe.qmd). |
 | Are the k8s and r-universe tracks coordinated? | Not visibly. No cross-references, disjoint maintainers. Undetermined off-GitHub. |
 | Is there a dated cutover plan? | No. The published roadmap is explicitly phased and open-ended. |
-| Does everything r-universe builds reach bioconductor.org? | **No.** Propagation is gated on the sha and version matching `nebbiolo1` plus a clean check — see [the propagation gate](propagation-gate.qmd). |
+| Does everything r-universe builds reach bioconductor.org? | **No.** Propagation is gated on the sha and version matching `nebbiolo1` plus a clean check — see [propagation in the legacy system](legacy-propagation.qmd). |
 
 The consequence for [the decommission plan](decommission-plan.qmd) is mildly reassuring and
 one part cautionary. Reassuring: sourcing check results directly from `nebbiolo1`/`nebbiolo2`

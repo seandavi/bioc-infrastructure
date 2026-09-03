@@ -27,7 +27,7 @@ website:
         text: Roadmap
       - href: install.qmd
         text: Install from the New Site
-      - section: Reference
+      - section: The new system
         contents:
           - href: cache.qmd
             text: Edge Cache
@@ -37,24 +37,26 @@ website:
             text: Propagation Gate
           - href: r-universe-size-limits.qmd
             text: r-universe Size Limits
-      - section: Migration record
+          - href: data-packages-in-r-universe.qmd
+            text: Data Packages in r-universe
+      - section: The legacy system (historical)
         contents:
           - href: current-state.qmd
             text: Current State (legacy)
-          - href: decommission-plan.qmd
-            text: Decommission Plan
-          - href: r2-migration.qmd
-            text: R2 Migration
+          - href: legacy-propagation.qmd
+            text: Legacy Propagation & Push Hooks
           - href: builder-transition.qmd
             text: Builder Transition
           - href: views-and-r-universe.qmd
             text: VIEWS &amp; r-universe
-          - href: data-packages-in-r-universe.qmd
-            text: Data Packages in r-universe
           - href: reproducing-package-pages.qmd
             text: Package Pages
           - href: download-stats.qmd
             text: Download Stats
+          - href: r2-migration.qmd
+            text: R2 Migration
+          - href: decommission-plan.qmd
+            text: Decommission Plan
       - section: Decisions (ADRs)
         contents:
           - auto: "adr/*.md"
