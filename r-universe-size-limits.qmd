@@ -50,7 +50,7 @@ is measured below, not inferred.
 |---|---|---|---|
 | 104,857,600 bytes | one built package file (source `.tar.gz` or one platform binary) | r-universe build workflow | after the package is built, before upload |
 | 104,857,600 bytes | one file inside a git push | GitHub's git server | on `git push` |
-| 5,242,880 bytes | one file inside a git push, software packages only | Bioconductor's [pre-receive hook](propagation-gate.qmd#the-pre-hooks) | on `git push` to `git.bioconductor.org` |
+| 5,242,880 bytes | one file inside a git push, software packages only | Bioconductor's [pre-receive hook](legacy-propagation.qmd#the-pre-hooks) | on `git push` to `git.bioconductor.org` |
 | 10,000,000 bytes | source tarball, software packages only | BiocCheck (`ERROR`) | during check — **but see below** |
 | 5,000,000 bytes | one file inside the package | BiocCheck (`WARNING`) | during check — **but see below** |
 
@@ -219,7 +219,7 @@ per-file component at all. This has been reported upstream as
 [Bioconductor/BiocCheck#259](https://github.com/Bioconductor/BiocCheck/issues/259).
 
 The Bioconductor rule that *is* enforced today is the 5,242,880-byte pre-receive hook on
-`git.bioconductor.org`, described in [the propagation gate](propagation-gate.qmd#the-pre-hooks).
+`git.bioconductor.org`, described in [the propagation gate](legacy-propagation.qmd#the-pre-hooks).
 That hook runs on push, before r-universe is involved at all, and it covers software packages
 only. Nothing in the r-universe path reproduces it — which matters for any plan that treats
 r-universe's checks as a replacement for the git server's.

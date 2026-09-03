@@ -146,17 +146,22 @@ Stated here rather than discovered later:
 
 The pages fall into two kinds, and the sidebar separates them:
 
-- **Reference** — pages that describe the replacement system itself and should still be
-  true, with only numbers to refresh, once the transition completes:
+- **The new system** — pages that describe the replacement estate and should still be true,
+  with only numbers to refresh, once the transition completes:
   [Installing packages](install.qmd), the [edge cache](cache.qmd), the
-  [site build](astro-site-build.qmd), and the [propagation gate](propagation-gate.qmd).
-- **Migration record** — dated snapshots of the legacy estate and the analysis that drove
-  the transition: [what runs today](current-state.qmd), the
-  [decommission plan](decommission-plan.qmd), the [R2 migration](r2-migration.qmd), the
-  [builder transition](builder-transition.qmd), and the measurement pages on
-  [VIEWS](views-and-r-universe.qmd), [package pages](reproducing-package-pages.qmd), and
-  [download stats](download-stats.qmd). These are kept as history — corrected if wrong,
-  but not updated to track the system.
+  [site build](astro-site-build.qmd), the [propagation gate](propagation-gate.qmd), and the
+  r-universe half of the build estate: its [size limits](r-universe-size-limits.qmd) and the
+  [data-package size audit](data-packages-in-r-universe.qmd) behind the standalone build
+  system ([bioc-build](https://github.com/seandavi/bioc-build)).
+- **The legacy system (historical)** — dated snapshots of the BBS-era estate and the record
+  of the transition away from it: [what ran on staging and master](current-state.qmd),
+  [legacy propagation and the push hooks](legacy-propagation.qmd), the
+  [builder transition](builder-transition.qmd), the measurement pages on
+  [VIEWS](views-and-r-universe.qmd), [package pages](reproducing-package-pages.qmd) and
+  [download stats](download-stats.qmd), the [R2 migration](r2-migration.qmd) and the
+  [decommission plan](decommission-plan.qmd). These are kept as history — corrected if
+  wrong, but not updated to track the system. Pages about the new system may cite them;
+  nothing new should depend on them.
 
 If you want the reasoning rather than the description, the
 [ADRs](adr/0008-three-repos-and-a-strangler-migration.html) are the honest record —
