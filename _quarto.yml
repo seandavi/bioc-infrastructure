@@ -29,6 +29,8 @@ website:
         text: Install from the New Site
       - section: The new system
         contents:
+          - href: dns-cutover.qmd
+            text: DNS Inventory &amp; Cutover
           - href: cache.qmd
             text: Edge Cache
           - href: astro-site-build.qmd
