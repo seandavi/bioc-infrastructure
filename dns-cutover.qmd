@@ -1,0 +1,358 @@
+---
+title: "DNS Inventory & Cutover Runbook"
+date: 2026-09-11
+---
+
+::: {.callout-note}
+## Status: draft, unreviewed
+Built from a Route53 hosted-zone export for `bioconductor.org` (166 records, reviewed
+2026-09) plus a direct HTTPS probe of every resolvable hostname in it — not just the
+DNS target, but what each one actually serves today. Satisfies the M1 tasks "decide
+`www.`/`secure.` and satellite hostnames" and "cutover runbook page (DNS,
+verification, rollback)" from the [roadmap](roadmap.qmd). Not yet walked with the core
+team — treat every status and finding below as the reviewer's read, not a decision.
+Probes were run from the open internet with no VPN/internal access, so "no response"
+below means *not reachable from outside*, not necessarily dead.
+:::
+
+## What M1 actually changes
+
+Two records carry the entire cutover:
+
+| Hostname | Type | Current target | Note |
+|---|---|---|---|
+| [`bioconductor.org`]{#dns-bioconductor-org} (apex) | A, Route53 Alias | `d3hzwifbu1gvt4.cloudfront.net.` | The CloudFront distribution being retired |
+| [`www.bioconductor.org`]{#dns-www-bioconductor-org} | A, Route53 Alias | `bioconductor.org.` | Aliases to the apex, not to CloudFront directly |
+
+Both are live and serve the production site ("Bioconductor - Home") today. Everything
+else in the zone is satellite: conference sites, mailing-list infrastructure, build
+machines, DKIM keys. None of it needs to change for the site itself to move — it either
+already points off AWS, or points at AWS/Jetstream2 resources this cutover doesn't touch.
+
+### The apex is the hard part
+
+Route53 "Alias" records — the mechanism used for the apex today — only resolve to AWS
+resources (CloudFront, ELB, S3, another record in the same zone, etc.). They cannot
+target an arbitrary external host like `bioc-dev.cancerdatasci.org`, and a plain CNAME
+isn't legal at a zone apex per the DNS spec. `www.bioconductor.org` doesn't have this
+problem — it's not the apex, so it can become a normal CNAME to the new edge once the
+zone is ready. The apex needs one of:
+
+1. **Move the zone's nameservers to Cloudflare.** Every other record in this inventory
+   gets recreated there too. Gets AWS out of DNS entirely; touches everything below in
+   one change.
+2. **A thin AWS CloudFront distribution as pass-through**, origin set to
+   `bioc-dev.cancerdatasci.org`, with the existing Route53 Alias repointed at it instead
+   of the current distribution. No data moves — the 4TB already lives in R2 behind the
+   Worker, this is only a proxy hop — but it keeps a (cheap) sliver of AWS in the request
+   path indefinitely, and adds a cache-miss origin-fetch charge (~$0.02/GB) on top of
+   viewer egress for every request CloudFront can't serve from cache.
+
+Neither is committed. Current bandwidth/request numbers (needed to size option 2's
+egress cost, and to size the load test in the M1 acceptance criteria) haven't been
+pulled yet.
+
+## Full inventory, with detail links
+
+Every non-apex hostname the review reached a status on, linked to what was actually
+found at each one. The 27 conference/event CNAMEs, the 25 confirmed-dead delete
+candidates, and the mail/cert/wildcard plumbing are tabulated further down without
+individual detail sections — their purpose is self-evident from the hostname and
+target, and a paragraph each would add noise, not information. Say the word if you want
+those expanded too.
+
+| Hostname | Type | Reviewer status |
+|---|---|---|
+| [`bioconductor.org`](#dns-bioconductor-org) | A | **cutover — see above** |
+| [`www.bioconductor.org`](#dns-www-bioconductor-org) | A | **cutover — see above** |
+| [`master.bioconductor.org`](#dns-master-bioconductor-org) | A | keep |
+| [`staging.bioconductor.org`](#dns-staging-bioconductor-org) | A | keep |
+| [`git.bioconductor.org`](#dns-git-bioconductor-org) | A | keep |
+| [`chat.bioconductor.org`](#dns-chat-bioconductor-org) | A | keep |
+| [`zulip.bioconductor.org`](#dns-zulip-bioconductor-org) | A | keep |
+| [`www.zulip.bioconductor.org`](#dns-www-zulip-bioconductor-org) | A | keep |
+| [`www.chat.bioconductor.org`](#dns-www-chat-bioconductor-org) | A | keep |
+| [`packages.bioconductor.org`](#dns-packages-bioconductor-org) | A | keep |
+| [`support.bioconductor.org`](#dns-support-bioconductor-org) | A | keep |
+| [`issues.bioconductor.org`](#dns-issues-bioconductor-org) | A | keep |
+| [`code.bioconductor.org`](#dns-code-bioconductor-org) | A | keep |
+| [`rabbitmq.bioconductor.org`](#dns-rabbitmq-bioconductor-org) | A | keep |
+| [`pkgmaintainers.bioconductor.org`](#dns-pkgmaintainers-bioconductor-org) | A | keep |
+| [`annotationhub.bioconductor.org`](#dns-annotationhub-bioconductor-org) | A | keep |
+| [`experimenthub.bioconductor.org`](#dns-experimenthub-bioconductor-org) | A | keep |
+| [`nebbiolo1.bioconductor.org`](#dns-nebbiolo1-bioconductor-org) | A | keep |
+| [`nebbiolo2.bioconductor.org`](#dns-nebbiolo2-bioconductor-org) | A | keep |
+| [`kjohnson3.bioconductor.org`](#dns-kjohnson3-bioconductor-org) | A | keep |
+| [`workshop.bioconductor.org`](#dns-workshop-bioconductor-org) | A | keep |
+| [`workshopauth.bioconductor.org`](#dns-workshopauth-bioconductor-org) | A | keep |
+| [`webr.bioconductor.org`](#dns-webr-bioconductor-org) | A | keep |
+| [`run.webr.bioconductor.org`](#dns-run-webr-bioconductor-org) | A | keep |
+| [`discourse.dev.bioconductor.org`](#dns-discourse-dev-bioconductor-org) | A | keep |
+| [`isee.bioconductor.org`](#dns-isee-bioconductor-org) | A | keep |
+| [`hubsingest.bioconductor.org`](#dns-hubsingest-bioconductor-org) | A | keep |
+| [`certs.bioconductor.org`](#dns-certs-bioconductor-org) | A | keep |
+| [`workinggroups.bioconductor.org`](#dns-workinggroups-bioconductor-org) | CNAME | keep |
+| [`training.bioconductor.org`](#dns-training-bioconductor-org) | CNAME | keep |
+| [`contributions.bioconductor.org`](#dns-contributions-bioconductor-org) | CNAME | keep |
+| [`blog.bioconductor.org`](#dns-blog-bioconductor-org) | CNAME | keep |
+| [`testweb.bioconductor.org`](#dns-testweb-bioconductor-org) | A | undecided |
+| [`testinggit.bioconductor.org`](#dns-testinggit-bioconductor-org) | A | undecided |
+| [`support.test.bioconductor.org`](#dns-support-test-bioconductor-org) | A | undecided |
+| [`slack.bioconductor.org`](#dns-slack-bioconductor-org) | A | undecided |
+| [`posters.bioconductor.org`](#dns-posters-bioconductor-org) | CNAME | undecided |
+| [`pm-bounces.bioconductor.org`](#dns-pm-bounces-bioconductor-org) | CNAME | undecided |
+| [`osca.bioconductor.org`](#dns-osca-bioconductor-org) | CNAME | undecided |
+| [`osca-dev.bioconductor.org`](#dns-osca-dev-bioconductor-org) | CNAME | undecided |
+| [`new.bioconductor.org`](#dns-new-bioconductor-org) | A | undecided |
+| [`meet.bioconductor.org`](#dns-meet-bioconductor-org) | A | undecided |
+| [`gitdevtest2.bioconductor.org`](#dns-gitdevtest2-bioconductor-org) | A | undecided |
+| [`gitdevtest.bioconductor.org`](#dns-gitdevtest-bioconductor-org) | A | undecided |
+| [`federated-packages.bioconductor.org`](#dns-federated-packages-bioconductor-org) | A | undecided |
+| [`courses.bioconductor.org`](#dns-courses-bioconductor-org) | A | undecided |
+| [`core-sops.bioconductor.org`](#dns-core-sops-bioconductor-org) | CNAME | undecided |
+| [`cfp.bioconductor.org`](#dns-cfp-bioconductor-org) | A | undecided |
+| [`auth.bioconductor.org`](#dns-auth-bioconductor-org) | A | undecided |
+| [`anvil.bioconductor.org`](#dns-anvil-bioconductor-org) | CNAME | undecided |
+
+## Core infrastructure, staying put (27)
+
+Marked "keep" in the source review, not touched by the M1 apex/www flip. Visited each directly (`curl -sI https://<host>/`) rather than assuming from the hostname.
+
+### `master.bioconductor.org` {#dns-master-bioconductor-org}
+
+A → `52.71.54.154`. Live — full production `bioconductor.org` mirror. This is the legacy master webserver being retired by the M1/M2 migration.
+
+### `staging.bioconductor.org` {#dns-staging-bioconductor-org}
+
+A → `52.4.245.79`. No public HTTPS response. Confirmed elsewhere in this repo (see the [decommission plan](decommission-plan.qmd)) that no web server listens here — this is the legacy build host, not a public site.
+
+### `git.bioconductor.org` {#dns-git-bioconductor-org}
+
+A → `34.192.48.227`. Confirmed live: gitolite3 v3.6.6 serving the package git repos directly (`admin/…`, `packages/ABAData`, …) — this *is* the canonical package source, not a redirect target.
+
+### `chat.bioconductor.org` {#dns-chat-bioconductor-org}
+
+A → `34.192.48.227`. Same redirect target as `zulip.bioconductor.org` — an alias into the same Zulip Cloud instance.
+
+### `zulip.bioconductor.org` {#dns-zulip-bioconductor-org}
+
+A → `34.192.48.227`. Redirects to the team's hosted Zulip Cloud instance (`community-bioc.zulipchat.com`) — the real chat entry point.
+
+### `www.zulip.bioconductor.org` {#dns-www-zulip-bioconductor-org}
+
+A → `34.192.48.227`. No public response. Shares its target IP with `zulip`/`chat`/`git`/`packages` — routing for `www.`-prefixed vhosts on that box looks inconsistent.
+
+### `www.chat.bioconductor.org` {#dns-www-chat-bioconductor-org}
+
+A → `34.192.48.227`. No public response, same shared-IP pattern as `www.zulip`.
+
+### `packages.bioconductor.org` {#dns-packages-bioconductor-org}
+
+A → `34.192.48.227`. Redirects to the Open Storage Network archive bucket — a convenience alias so people don't need the full OSN URL to browse package archives.
+
+### `support.bioconductor.org` {#dns-support-bioconductor-org}
+
+A → `54.164.10.157`. Live — the Bioconductor Support Forum (Django app, Biostars-derived).
+
+### `issues.bioconductor.org` {#dns-issues-bioconductor-org}
+
+A → `52.4.116.154`. Responds but the body is literally "Nothing to see here" — currently a stub. Worth checking whether the real issue tracker moved elsewhere, or this is mid-decommission.
+
+### `code.bioconductor.org` {#dns-code-bioconductor-org}
+
+A → `194.94.45.72`. No public HTTPS response — purpose unconfirmed from outside; worth a direct look.
+
+### `rabbitmq.bioconductor.org` {#dns-rabbitmq-bioconductor-org}
+
+A → `52.20.79.236`. No public HTTPS response — a message broker (STOMP/AMQP), expected to not answer on plain HTTPS; the SPB build-results pipeline depends on it (see the [decommission plan](decommission-plan.qmd)).
+
+### `pkgmaintainers.bioconductor.org` {#dns-pkgmaintainers-bioconductor-org}
+
+A → `44.218.162.37`. Live — "API Summary," a maintainer-facing API service.
+
+### `annotationhub.bioconductor.org` {#dns-annotationhub-bioconductor-org}
+
+A → `52.73.93.102`. Live — "BiocHub Server API," the AnnotationHub backend.
+
+### `experimenthub.bioconductor.org` {#dns-experimenthub-bioconductor-org}
+
+A → `52.73.93.102`. Live — same BiocHub Server API, serving ExperimentHub instead of AnnotationHub.
+
+### `nebbiolo1.bioconductor.org` {#dns-nebbiolo1-bioconductor-org}
+
+A → `155.52.47.135`. No public HTTPS response — a dedicated Linux package-build machine (release), not a webserver.
+
+### `nebbiolo2.bioconductor.org` {#dns-nebbiolo2-bioconductor-org}
+
+A → `155.52.47.146`. No public HTTPS response — same role as `nebbiolo1`, devel branch.
+
+### `kjohnson3.bioconductor.org` {#dns-kjohnson3-bioconductor-org}
+
+A → `172.24.216.75`. No public HTTPS response — a macOS package-build machine.
+
+### `workshop.bioconductor.org` {#dns-workshop-bioconductor-org}
+
+A → `149.165.171.210`. No public HTTPS response — workshop compute cluster, likely gated (auth or VPN) rather than dead.
+
+### `workshopauth.bioconductor.org` {#dns-workshopauth-bioconductor-org}
+
+A → `149.165.154.124`. No public HTTPS response — the auth front-end for the workshop cluster above.
+
+### `webr.bioconductor.org` {#dns-webr-bioconductor-org}
+
+A → `149.165.154.124`. No public HTTPS response despite "keep" status — serves a WebR package repository; each version needs its own path (e.g. `/3.23`) rather than a splash page at the root, which may explain the empty response at `/`.
+
+### `run.webr.bioconductor.org` {#dns-run-webr-bioconductor-org}
+
+A → `149.165.154.124`. No public HTTPS response — reserved for a planned in-browser WebR demo page (fully client-side, eventually movable to GitHub Pages).
+
+### `discourse.dev.bioconductor.org` {#dns-discourse-dev-bioconductor-org}
+
+A → `149.165.153.32`. No public HTTPS response despite "keep" status — a dev/staging Discourse instance; may only answer on a non-standard port or be gated.
+
+### `isee.bioconductor.org` {#dns-isee-bioconductor-org}
+
+A → `149.165.171.200`. Live Shiny app — linked to the `Bioconductor/isee.bioconductor.org` GitHub repo. The wildcard `*.isee.bioconductor.org` is kept for the same app; check with the app's maintainer before touching either.
+
+### `hubsingest.bioconductor.org` {#dns-hubsingest-bioconductor-org}
+
+A → `149.165.171.200`. No public HTTPS response — an ingestion endpoint, not a browsable site. Kept for an active hub-ingestion workflow; confirm it's still in use before any change.
+
+### `certs.bioconductor.org` {#dns-certs-bioconductor-org}
+
+A → `149.165.171.200`. Live — the BiocCertificate Shiny app for issuing training certificates.
+
+### `workinggroups.bioconductor.org` {#dns-workinggroups-bioconductor-org}
+
+CNAME → `bioconductor.github.io`. Live — GitHub Pages site for Bioconductor Working Groups.
+
+### `training.bioconductor.org` {#dns-training-bioconductor-org}
+
+CNAME → `bioconductor.github.io`. Live, but the page title is just "index" — likely a generic template; content itself may still be fine, the title tag just isn't descriptive.
+
+### `contributions.bioconductor.org` {#dns-contributions-bioconductor-org}
+
+CNAME → `bioconductor.github.io`. Live — "Bioconductor Packages: Development, Maintenance, and Peer Review," the package contribution/review site.
+
+### `blog.bioconductor.org` {#dns-blog-bioconductor-org}
+
+CNAME → `bioconductor.github.io`. Live — the community blog, GitHub Pages.
+
+## Undecided — needs an owner (18 with live content or a clear guess; 24 more listed in the appendix table are wildcards or mail/cert plumbing)
+
+### `testweb.bioconductor.org` {#dns-testweb-bioconductor-org}
+
+A → `d3h1507zzd6849.cloudfront.net.`. No public HTTPS response. Points at a **second, separate** CloudFront distribution (`d3h1507zzd6849.cloudfront.net`, different from production) — worth checking what that distribution is before the main cutover, in case it needs retiring alongside it.
+
+### `testinggit.bioconductor.org` {#dns-testinggit-bioconductor-org}
+
+A → `44.207.152.77`. No public HTTPS response — looks like a test git host, name suggests safe to retire once confirmed unused.
+
+### `support.test.bioconductor.org` {#dns-support-test-bioconductor-org}
+
+A → `44.210.209.116`. No public HTTPS response — test instance of the support forum.
+
+### `slack.bioconductor.org` {#dns-slack-bioconductor-org}
+
+A → `34.192.48.227`. Serves a generic "Countdown with Embedded Blog" template — not Slack-branded content. Whatever this vhost used to do, it no longer matches its hostname; worth a direct look before deciding keep/delete.
+
+### `posters.bioconductor.org` {#dns-posters-bioconductor-org}
+
+CNAME → `bioconductor.github.io`. No public HTTPS response despite pointing at GitHub Pages — check whether the underlying Pages site still exists.
+
+### `pm-bounces.bioconductor.org` {#dns-pm-bounces-bioconductor-org}
+
+CNAME → `pm.mtasv.net`. No public HTTPS response — mailing-list bounce handling (Postmark), not meant to be browsed.
+
+### `osca.bioconductor.org` {#dns-osca-bioconductor-org}
+
+CNAME → `bioconductor.github.io`. Live — redirects into "the OSCA book" (Orchestrating Single-Cell Analysis), an external teaching resource.
+
+### `osca-dev.bioconductor.org` {#dns-osca-dev-bioconductor-org}
+
+CNAME → `bioconductor.github.io`. Same pattern as `osca`, development version.
+
+### `new.bioconductor.org` {#dns-new-bioconductor-org}
+
+A → `52.71.54.154`. Live, and resolves to the **same IP as `master.bioconductor.org`**, serving an identical "Bioconductor - Home" page. Looks like a leftover alias rather than a distinct site — worth confirming with the team before assuming it can be dropped.
+
+### `meet.bioconductor.org` {#dns-meet-bioconductor-org}
+
+A → `54.82.236.113`. No public HTTPS response — purpose unconfirmed; hostname suggests a meeting/scheduling tool.
+
+### `gitdevtest2.bioconductor.org` {#dns-gitdevtest2-bioconductor-org}
+
+A → `149.165.171.129`. No public HTTPS response — second test git host, same IP as the first.
+
+### `gitdevtest.bioconductor.org` {#dns-gitdevtest-bioconductor-org}
+
+A → `149.165.171.129`. No public HTTPS response — test git host.
+
+### `federated-packages.bioconductor.org` {#dns-federated-packages-bioconductor-org}
+
+A → `149.165.155.146`. No public HTTPS response — purpose unconfirmed; name suggests an experimental federated package-serving effort.
+
+### `courses.bioconductor.org` {#dns-courses-bioconductor-org}
+
+A → `52.54.47.64`. No public HTTPS response — purpose unconfirmed.
+
+### `core-sops.bioconductor.org` {#dns-core-sops-bioconductor-org}
+
+CNAME → `victorious-wave-0b018b710.4.azurestaticapps.net`. Live, redirects to a `/login/` page — internal SOPs site (Azure Static Web Apps), access-gated as expected.
+
+### `cfp.bioconductor.org` {#dns-cfp-bioconductor-org}
+
+A → `3.139.155.94`. No public HTTPS response — hostname suggests a call-for-proposals form, possibly tied to a past conference and safe to retire, but unconfirmed.
+
+### `auth.bioconductor.org` {#dns-auth-bioconductor-org}
+
+A → `149.165.153.78`. No public HTTPS response — likely an internal auth service (the wildcard `*.auth.bioconductor.org` mirrors it). Undecided status suggests this needs an owner check.
+
+### `anvil.bioconductor.org` {#dns-anvil-bioconductor-org}
+
+CNAME → `bioconductor.github.io`. Live — BiocAnVIL project pages, part of the AnVIL cloud-genomics collaboration.
+
+
+## Already off AWS — no action (27, one table)
+
+Event-site CNAMEs (`bioc20{18..26}`, `biocasia20{20..26}`, `eurobioc20{19..26}`,
+`gbcc2025`) plus `dev.status`, and `fe-bounces` — all confirmed live, all pointing at
+GitHub Pages, Netlify, or forwardemail.net. None resolve through CloudFront, master, or
+staging — the cutover is invisible to them.
+
+## Delete candidates (25) — confirmed unreachable
+
+Every host in this list returned no public HTTPS response in the probe, consistent with
+being retired already: `tokay1/2`, `merida1/2`, `malbec1/2`, `machv2`, `celaya2`,
+`monitor`, `docbuilder`, `kjohnson1`, `k8slaunch`, `js2launch`, `bbr` (×2),
+`yescure(cluster)`, `prodaks` — plus seven tagged "delete end of 2026"
+(`workshopk8s`, `workshopcluster`, `prodk8s`, `hsdsdev`, `cloudman.kubeinstall`,
+`ci-mirror`, `biocworkshop`), presumably tied to a class or grant ending. The probe is
+supporting evidence for the delete call, not proof — "no public HTTPS" doesn't rule out
+an internal-only service still in use.
+
+## Mail/cert plumbing and wildcards, undecided (24)
+
+Not individually probed — none of these are meant to serve HTTP content. ACM
+certificate-validation CNAMEs (`_....acm-validations.aws.`) and DKIM selector CNAMEs
+need re-verification against whatever currently sends mail as `bioconductor.org`, not
+assumption of obsolescence. The wildcard records (`*.workshop`, `*.auth`, `*.bbr`, …)
+mirror a decision already made on their base hostname above but weren't themselves
+tagged — worth confirming they're meant to inherit it rather than being reviewed
+independently.
+
+## Open questions for the core team
+
+- Apex mechanism: thin CloudFront proxy (stays partly on AWS, ~$0.02/GB origin-fetch on
+  cache misses) vs. full nameserver migration to Cloudflare (touches everything above in
+  one move). Needs current bandwidth/request numbers to cost out properly.
+- `new.bioconductor.org` mirrors `master.bioconductor.org` exactly (same IP, same
+  content) — leftover alias or intentional?
+- `slack.bioconductor.org` serves a generic template unrelated to its name — check what
+  this vhost is actually for.
+- `issues.bioconductor.org` responds with a bare "Nothing to see here" — confirm whether
+  the real tracker moved.
+- Confirm the 18 undecided hosts above, especially the stale-looking test hosts
+  (`testweb`, `testinggit`, `gitdevtest`, `gitdevtest2`, `support.test`) and the
+  second CloudFront distribution behind `testweb` (`d3h1507zzd6849.cloudfront.net`,
+  distinct from production — does it need retiring too?).
