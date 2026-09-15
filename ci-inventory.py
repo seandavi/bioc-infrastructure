@@ -9,9 +9,15 @@ import base64, json, re, subprocess, sys
 OWNER = "seandavi"
 # ponytail: hand-kept group map; a repo not listed here is not on the page.
 GROUPS = {
-    "New system pipeline": ["bioc-manifest", "bioc-build", "bioc-registry",
-                            "bioc-edge", "bioc-website", "bioc-infrastructure"],
+    "New system pipeline": ["bioc-registry", "bioc-edge", "bioc-website", "bioc-infrastructure"],
     "Platform services": ["bioc-intelligence"],
+    "Experimental": ["bioc-manifest", "bioc-build"],
+}
+NOTES = {
+    "Experimental": "Prototypes of a standalone build path for the packages r-universe "
+                    "does not build (data-experiment, annotation, workflows; ADR 0010). "
+                    "Not the production route: software packages reach the registry from "
+                    "r-universe. A red badge here is not a production incident.",
 }
 TRIGGERS = ("schedule", "push", "pull_request", "workflow_dispatch", "workflow_call",
             "workflow_run", "repository_dispatch", "release")
@@ -72,6 +78,8 @@ with open("ci-inventory.md", "w") as f:
         if group not in rows:
             continue
         f.write(f"## {group}\n\n")
+        if group in NOTES:
+            f.write(NOTES[group] + "\n\n")
         for name, desc, out in rows[group]:
             f.write(f"### [{name}](https://github.com/{OWNER}/{name})\n\n")
             if desc:
