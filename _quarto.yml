@@ -9,6 +9,7 @@ project:
 
 website:
   title: "Bioconductor Infrastructure"
+  google-analytics: "G-29EGVRD25B"
   description: "How bioconductor.org is built, served, and being replaced — and the decisions behind it"
   navbar:
     left:
