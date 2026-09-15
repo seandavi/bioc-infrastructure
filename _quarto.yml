@@ -29,6 +29,8 @@ website:
         text: Install from the New Site
       - href: mirror-how-to.qmd
         text: Running a Mirror
+      - href: ci.qmd
+        text: CI &amp; Scheduled Jobs
       - section: The new system
         contents:
           - href: dns-cutover.qmd

@@ -1,0 +1,62 @@
+---
+title: "CI & Scheduled Jobs"
+description: "Every GitHub Actions workflow in the public bioc repos, what it tests, how they relate, and whether it is green right now"
+---
+
+One page for the question "what is red, and does it matter?" Status badges are
+live. The table under [Workflows](#workflows) is generated at site build by
+[`ci-inventory.py`](https://github.com/seandavi/bioc-infrastructure/blob/main/ci-inventory.py)
+from the GitHub API, so it cannot drift from what actually exists; the
+description column is each workflow's leading comment block, so a workflow with
+no header comment shows only its name. Everything else on this page is
+hand-written.
+
+## How the new-system workflows relate
+
+```{mermaid}
+flowchart LR
+  M[bioc-manifest<br/>validate] --> B
+  subgraph B[bioc-build]
+    D[dispatch] --> BP[build-package] --> BW[build.yml<br/>r-universe copy]
+  end
+  B -- attested tarballs --> P[bioc-registry<br/>publish]
+  P --> R[(registry /repo)]
+  R --> F[freshness<br/>serves?]
+  R --> I[install<br/>installs?]
+  W[bioc-website<br/>site] -- static site --> R2[(R2)]
+  S[systemd bioc-sync<br/>bioconductor.org → R2] --> R2
+  R2 --> E[bioc-edge worker]
+  E --> H[health] & PA[parity] & L[bioc-website<br/>links]
+```
+
+Reading a red badge:
+
+- **publish** red: the build → registry ingest broke; nothing new lands until fixed.
+- **freshness** red, publish green: the Worker is down, the observer stalled, or the served index is inconsistent (the #34 invariant).
+- **install** red, freshness green: what the registry serves does not install. Since [#47](https://github.com/seandavi/bioc-registry/issues/47) the canary runs in the r-universe build image, so this is no longer "the runner lacks a system library".
+- **health** or **parity** red: the served site, not the data plane. Parity compares bioc-dev against production path by path.
+- **links** red: link rot on the served site, a content problem.
+
+## Scheduled jobs outside GitHub Actions
+
+The systemd `--user` timers on onclappc02, following the platform
+[scheduling convention](https://github.com/seandavi/monode/blob/main/infrastructure/SCHEDULING.md).
+There is no live status column: these alert on failure only (a GitHub issue
+or an ntfy push), and the heartbeat that would prove "ran OK today" is not
+set up yet.
+
+| Unit | Repo | Cadence | What it does | On failure |
+|---|---|---|---|---|
+| [`bioc-sync`](https://github.com/seandavi/bioc-edge/blob/main/systemd/bioc-sync.service) | bioc-edge | hourly | Sync the bioconductor.org docroot to R2 | GitHub issue |
+| [`bioc-reconcile`](https://github.com/seandavi/bioc-edge/blob/main/systemd/bioc-reconcile.service) | bioc-edge | weekly, Sun 04:00 | Checksum drift check: does R2 match the local mirror | GitHub issue |
+| [`bioc-logpush-check`](https://github.com/seandavi/bioc-edge/blob/main/systemd/bioc-logpush-check.service) | bioc-edge | daily 07:15 | Alert if yesterday's Logpush access-log delivery to GCS is missing | GitHub issue |
+| [`biocintel-refresh`](https://github.com/seandavi/bioc-intelligence/blob/main/systemd/biocintel-refresh.service) | bioc-intelligence | monthly, 1st 06:00 UTC | Enrichment pipeline: extract → link → enrich → marts → publish | ntfy |
+
+Private repos with timers are not listed.
+
+## Workflows
+
+Public repos matching `bioc`, active workflows only, grouped by role.
+Dynamic workflows GitHub injects (Pages deploy, Copilot) are excluded.
+
+{{< include ci-inventory.md >}}
