@@ -27,6 +27,8 @@ website:
         text: Roadmap
       - href: install.qmd
         text: Install from the New Site
+      - href: mirror-how-to.qmd
+        text: Running a Mirror
       - section: The new system
         contents:
           - href: cache.qmd
