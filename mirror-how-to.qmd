@@ -1,0 +1,204 @@
+---
+title: "Running a Bioconductor mirror"
+---
+
+This replaces the rsync-over-SSH instructions at
+`bioconductor.org/about/mirrors/mirror-how-to/`. Those instructions depend on
+`master.bioconductor.org`, which the [decommission plan](decommission-plan.qmd) retires. The
+new site has no rsync server. Instead it publishes a **manifest**: a list of every object in
+the package repositories, with sizes and MD5s, that any HTTP client can sync from.
+
+**No credentials, no sign-up form, no SSH key.** Fetch the manifest, fetch the files, recreate
+the symlinks, serve the tree.
+
+::: {.callout-warning}
+## Read this before running any sync command
+`packages/release/` and `packages/devel/` are **not directories on the new site**. They are
+symlinks resolved per request, and object storage has no symlinks. A sync scoped to
+`packages/release/` sees an empty listing, not an error. With `rclone sync` or
+`aws s3 sync --delete`, an empty remote means **your entire existing mirror is deleted to
+match it.** Always sync from the manifest, always `copy` rather than `sync`, and always
+dry-run first and check the object count.
+:::
+
+## What changed
+
+| | Old | New |
+|---|---|---|
+| Source | `bioc-rsync@master.bioconductor.org` over SSH | `https://bioconductor.org/api/v1/manifest/` over HTTPS |
+| Access | SSH key, requested by form | none |
+| Tool | `rsync -zrtlv --delete` | `rclone copy --files-from`, or `wget -i` |
+| Symlinks | created by hand: `release` and `devel` | ~150, listed in the manifest index, recreated by script |
+| Current version numbers | in the rsync module names | in `index.json`, read every run |
+| Cadence | release monthly-ish, devel at most weekly | unchanged |
+
+Until the cutover, substitute `https://bioc-dev.cancerdatasci.org` for
+`https://bioconductor.org` in every command below. The content is byte-identical to
+production, synced hourly and checksum-verified weekly.
+
+## The manifest
+
+| Endpoint | Contents |
+|---|---|
+| `GET /api/v1/manifest/index.json` | which numeric versions `release` and `devel` point at, the symlink map, per-manifest object counts, generation timestamp |
+| `GET /api/v1/manifest/<version>/<repo>.tsv.gz` | `path` · `size` · `md5`, one object per line, tab-separated |
+
+Repos are `bioc`, `data-annotation`, `data-experiment`, `workflows` and `books`, for the
+current release and devel only. Older releases are not published; ask if you need them.
+
+The MD5 is a real MD5 of the object, not a composite ETag. An empty third column means no
+usable hash exists for that object and it should be checked by size alone. Today that column
+is populated for every object.
+
+## Choosing scope
+
+Decide explicitly rather than mirroring everything.
+
+| | Notes |
+|---|---|
+| `bioc` (`src/contrib`, `bin/windows`, `bin/macosx/*`) | Every mirror needs source. Binaries are comparable in size; skip if your users build from source. |
+| `data-annotation`, `data-experiment` | Large, changes rarely. |
+| `workflows`, `books` | Small. |
+| Releases before the current one | Not in the manifest. |
+| The historical archive (4.66 TB) | Not in the manifest. Never carried by any mirror. |
+
+Release and devel together are roughly 320 GB.
+
+## Procedure
+
+Set two variables once; everything below uses them.
+
+```sh
+BASE=https://bioconductor.org        # bioc-dev.cancerdatasci.org until cutover
+DEST=/srv/bioc                       # served as the site root
+```
+
+### 1. Fetch the index and resolve the versions
+
+```sh
+curl -fsSL "$BASE/api/v1/manifest/index.json" -o index.json
+RELEASE=$(jq -r .versions.release index.json)
+DEVEL=$(jq -r .versions.devel index.json)
+```
+
+Do this on every run. At a release roll the numbers change, and nothing else will tell you.
+
+### 2. Fetch the manifests you want
+
+```sh
+: > files.txt
+for v in $RELEASE $DEVEL; do
+  for repo in bioc data-annotation data-experiment workflows books; do
+    curl -fsSL "$BASE/api/v1/manifest/$v/$repo.tsv.gz" | gunzip >> manifest.tsv
+  done
+done
+test -s manifest.tsv || { echo "empty manifest, aborting" >&2; exit 1; }
+cut -f1 manifest.tsv > files.txt
+wc -l files.txt
+```
+
+The emptiness check is not optional. A truncated manifest must stop you rather than produce
+a quietly empty sync.
+
+### 3. Copy the files
+
+```sh
+rclone copy :http:/ "$DEST" --http-url "$BASE" \
+  --files-from files.txt --no-traverse --transfers 8 --checkers 16
+```
+
+`copy`, never `sync`. Removal is step 5, done by hand. Without rclone:
+
+```sh
+wget -q -i files.txt -x -nH -B "$BASE/" -P "$DEST"
+```
+
+### 4. Recreate the symlinks
+
+This step has no equivalent in the rsync world and fails **silently** when skipped: browse
+URLs keep working while `install.packages()` returns 404.
+
+```sh
+jq -r '.symlinks | to_entries[] | "\(.key)\t\(.value)"' index.json |
+  while IFS=$'\t' read -r link target; do
+    case "$link" in packages/*) ;; *) continue ;; esac
+    mkdir -p "$(dirname "$DEST/$link")"
+    ln -sfn "$target" "$DEST/$link"
+  done
+```
+
+Most of the ~150 links are not `release` and `devel`. They are R-version aliases inside
+`contrib/`, for example `packages/3.23/bioc/bin/windows/contrib/4.7 -> 4.6`, which is how one
+build serves two R versions.
+
+### 5. Remove what left the manifest
+
+```sh
+(cd "$DEST" && find . -type f -printf '%P\n') | sort > have.txt
+sort files.txt > want.txt
+comm -23 have.txt want.txt > gone.txt
+wc -l gone.txt
+# review gone.txt, then:
+# (cd "$DEST" && xargs -a gone.txt rm -f)
+```
+
+Deliberately manual. A release roll legitimately removes tens of thousands of files, and that
+should be a decision, not something cron does at 3am.
+
+### 6. Verify
+
+```sh
+# sizes and hashes against the manifest
+awk -F'\t' -v d="$DEST" '{ print $3 "  " d "/" $1 }' manifest.tsv |
+  awk '$1 != ""' | md5sum -c --quiet
+
+# the check that matters
+Rscript -e "ap <- available.packages(repos='file://$DEST/packages/$RELEASE/bioc'); cat(nrow(ap), 'packages\n')"
+```
+
+If `available.packages()` returns rows, the layout and metadata are right. If a package then
+installs from under `contrib/`, the symlinks are right too.
+
+## Serving
+
+Apache and nginx serve the tree as-is. Two things to get right:
+
+- **Follow symlinks.** Apache needs `Options +FollowSymLinks` on the directory, or every
+  `release/` URL returns 403.
+- **Do not copy `.htaccess` from the old origin.** It redirects old-release traffic out to
+  the archive, which would send your users away from your own mirror.
+
+Content types come from your server's `mime.types`, so extensionless files such as
+`PACKAGES` and `VIEWS` behave as they always have.
+
+Users point at your mirror exactly as before:
+
+```r
+options(BioC_mirror = "https://mirror.example.org")
+BiocManager::install("GEOquery")
+```
+
+## Cadence and release rolls
+
+Release once or twice a month, devel at most weekly, as before. Re-read `index.json` on every
+run and pin nothing. After a release roll, expect step 5 to list the whole previous devel
+tree; that is correct.
+
+## Migrating an existing rsync mirror
+
+Keep both running for one release cycle. Point the new procedure at the same `$DEST` you
+already serve. Step 3 copies only what differs, step 4 replaces the symlinks you made by
+hand, and step 5 shows you the difference between the rsync tree and the manifest before you
+delete anything. Confirm with the Bioconductor team when you have switched, so the rsync
+account can be closed on your say-so rather than on log silence.
+
+## Listing your mirror
+
+The mirrors page and `chooseBioCmirror()` are still the registry. That process has not
+changed; the request form on the [mirrors page](https://www.bioconductor.org/about/mirrors/)
+still applies.
+
+## Source
+
+The generator and the reasoning behind the design, including why read-only storage
+credentials and a custom client were rejected, live in the serving repo's `MIRRORS.md`.
