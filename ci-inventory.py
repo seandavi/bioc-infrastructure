@@ -7,13 +7,11 @@ Grouping and per-repo roles are the only hand-maintained part: GROUPS below."""
 import base64, json, re, subprocess, sys
 
 OWNER = "seandavi"
-# ponytail: hand-kept group map; a repo not listed lands in "Other".
+# ponytail: hand-kept group map; a repo not listed here is not on the page.
 GROUPS = {
     "New system pipeline": ["bioc-manifest", "bioc-build", "bioc-registry",
                             "bioc-edge", "bioc-website", "bioc-infrastructure"],
-    "Platform services": ["bioc-intelligence", "bioc-r-universe-build-db"],
-    "Packages, images, books": ["BiocPkgTools", "refinebioc", "RBiocBook", "BiocBuildDB",
-                                "BiocActions", "bioconductor_docker"],
+    "Platform services": ["bioc-intelligence"],
 }
 TRIGGERS = ("schedule", "push", "pull_request", "workflow_dispatch", "workflow_call",
             "workflow_run", "repository_dispatch", "release")
@@ -47,7 +45,7 @@ repos = {r["name"]: r for r in gh("users/%s/repos?per_page=200&type=public" % OW
 group_of = {r: g for g, rs in GROUPS.items() for r in rs}
 rows = {}
 for name, meta in sorted(repos.items(), key=lambda kv: kv[0].lower()):
-    if not re.search("bioc", name, re.I):
+    if name not in group_of:
         continue
     try:
         wfs = gh(f"repos/{OWNER}/{name}/actions/workflows")["workflows"]
@@ -67,10 +65,10 @@ for name, meta in sorted(repos.items(), key=lambda kv: kv[0].lower()):
         out.append(f"| [`{fname}`]({base}/blob/main/{w['path']}) "
                    f"| [![]({base}/actions/workflows/{fname}/badge.svg)]({base}/actions/workflows/{fname}) "
                    f"| {triggers(yml)} | {desc.replace('|', '/')} |")
-    rows.setdefault(group_of.get(name, "Other"), []).append((name, meta.get("description") or "", out))
+    rows.setdefault(group_of[name], []).append((name, meta.get("description") or "", out))
 
 with open("ci-inventory.md", "w") as f:
-    for group in list(GROUPS) + ["Other"]:
+    for group in GROUPS:
         if group not in rows:
             continue
         f.write(f"## {group}\n\n")

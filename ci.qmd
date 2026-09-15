@@ -56,7 +56,8 @@ Private repos with timers are not listed.
 
 ## Workflows
 
-Public repos matching `bioc`, active workflows only, grouped by role.
-Dynamic workflows GitHub injects (Pages deploy, Copilot) are excluded.
+The repos that make up the new system and its platform services, active
+workflows only. Dynamic workflows GitHub injects (Pages deploy, Copilot) are
+excluded; which repos appear is the `GROUPS` map in the script.
 
 {{< include ci-inventory.md >}}
