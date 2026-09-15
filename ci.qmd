@@ -15,19 +15,32 @@ hand-written.
 
 ```{mermaid}
 flowchart LR
-  U[r-universe<br/>software packages] -- observed --> R[(bioc-registry<br/>/repo)]
+  subgraph RU[r-universe, upstream, no badges here]
+    G[git.bioconductor.org<br/>maintainer push] --> CR[control-room<br/>hourly cron 41 * * * *]
+    CR --> SY[sync<br/>bioc · bioc-release monorepos]
+    SY --> BU[workflows/build.yml<br/>build + check]
+    BU --> API[r-universe API<br/>bioc · bioc-release]
+  end
+  API -- poll every 15 min --> OB[(observations<br/>R2 obs/…)]
+  OB --> GT{evaluate<br/>the gate}
+  GT --> R[(propagated index<br/>/repo)]
   R --> F[freshness<br/>serves?]
   R --> I[install<br/>installs?]
+  subgraph X[Experimental: standalone build path]
+    M[bioc-manifest<br/>validate] --> D[bioc-build<br/>dispatch → build-package → build.yml]
+  end
+  D -. attested tarballs .-> P[publish] -.-> GT
   W[bioc-website<br/>site] -- static site --> R2[(R2)]
   S[systemd bioc-sync<br/>bioconductor.org → R2] --> R2
   R2 --> E[bioc-edge worker]
   E --> H[health] & PA[parity] & L[bioc-website<br/>links]
-  subgraph X[Experimental: standalone build path]
-    M[bioc-manifest<br/>validate] --> D[bioc-build<br/>dispatch → build-package → build.yml]
-  end
-  D -. attested tarballs .-> P[bioc-registry<br/>publish] -.-> R
 ```
-Reading a red badge:
+
+The r-universe components are not ours and have no badge on this page. A
+stalled r-universe shows up here as **freshness** red on "latest observation
+under 36 hours", since the registry polls its API and nothing else changes when
+r-universe stops. bioc-build's `build.yml` is a pinned verbatim copy of
+r-universe's, so the two build boxes run the same engine.Reading a red badge:
 
 - **publish** red: the bioc-build → registry ingest broke. Experimental path; software packages from r-universe are unaffected.
 - **freshness** red, publish green: the Worker is down, the observer stalled, or the served index is inconsistent (the #34 invariant).
