@@ -15,23 +15,21 @@ hand-written.
 
 ```{mermaid}
 flowchart LR
-  M[bioc-manifest<br/>validate] --> B
-  subgraph B[bioc-build]
-    D[dispatch] --> BP[build-package] --> BW[build.yml<br/>r-universe copy]
-  end
-  B -- attested tarballs --> P[bioc-registry<br/>publish]
-  P --> R[(registry /repo)]
+  U[r-universe<br/>software packages] -- observed --> R[(bioc-registry<br/>/repo)]
   R --> F[freshness<br/>serves?]
   R --> I[install<br/>installs?]
   W[bioc-website<br/>site] -- static site --> R2[(R2)]
   S[systemd bioc-sync<br/>bioconductor.org → R2] --> R2
   R2 --> E[bioc-edge worker]
   E --> H[health] & PA[parity] & L[bioc-website<br/>links]
+  subgraph X[Experimental: standalone build path]
+    M[bioc-manifest<br/>validate] --> D[bioc-build<br/>dispatch → build-package → build.yml]
+  end
+  D -. attested tarballs .-> P[bioc-registry<br/>publish] -.-> R
 ```
-
 Reading a red badge:
 
-- **publish** red: the build → registry ingest broke; nothing new lands until fixed.
+- **publish** red: the bioc-build → registry ingest broke. Experimental path; software packages from r-universe are unaffected.
 - **freshness** red, publish green: the Worker is down, the observer stalled, or the served index is inconsistent (the #34 invariant).
 - **install** red, freshness green: what the registry serves does not install. Since [#47](https://github.com/seandavi/bioc-registry/issues/47) the canary runs in the r-universe build image, so this is no longer "the runner lacks a system library".
 - **health** or **parity** red: the served site, not the data plane. Parity compares bioc-dev against production path by path.
