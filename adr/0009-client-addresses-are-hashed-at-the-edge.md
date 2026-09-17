@@ -1,6 +1,6 @@
 # 0009 — Client addresses are hashed at the edge, not de-identified downstream
 
-- **Status:** Accepted
+- **Status:** Superseded by [0012](0012-client-addresses-are-stored-raw-and-hashed-in-views.md) — never deployed; every delivered record is `v: 1`
 - **Date:** 2026-08-18
 
 ## Context

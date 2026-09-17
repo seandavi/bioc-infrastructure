@@ -100,8 +100,9 @@ is the safe default.
 **5. Request logs — serving to statistics.** The Worker emits one structured record per
 request in the same field vocabulary as the CloudFront logs it replaces, shipped to object
 storage and queried from BigQuery, so both eras are one query rather than a migration
-project. Client addresses are hashed at the edge and never leave it
-([ADR 0009](adr/0009-client-addresses-are-hashed-at-the-edge.html)).
+project. The record keeps the raw client address; de-identification is a view, and
+nothing published carries the address
+([ADR 0012](adr/0012-client-addresses-are-stored-raw-and-hashed-in-views.html)).
 
 ## Where this stands
 
