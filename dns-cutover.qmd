@@ -1,6 +1,6 @@
 ---
 title: "DNS Inventory & Cutover Runbook"
-date: 2026-09-11
+date: 2026-09-17
 ---
 
 ::: {.callout-note}
@@ -13,6 +13,10 @@ verification, rollback)" from the [roadmap](roadmap.qmd). Not yet walked with th
 team — treat every status and finding below as the reviewer's read, not a decision.
 Probes were run from the open internet with no VPN/internal access, so "no response"
 below means *not reachable from outside*, not necessarily dead.
+
+Updated 2026-09-17: the apex mechanism is settled — the zone's nameservers move to
+Cloudflare — and the [migration plan](#migration-plan) below was added. The plan is a
+proposal; no step in it has been executed.
 :::
 
 ## What M1 actually changes
@@ -36,21 +40,110 @@ resources (CloudFront, ELB, S3, another record in the same zone, etc.). They can
 target an arbitrary external host like `bioc-dev.cancerdatasci.org`, and a plain CNAME
 isn't legal at a zone apex per the DNS spec. `www.bioconductor.org` doesn't have this
 problem — it's not the apex, so it can become a normal CNAME to the new edge once the
-zone is ready. The apex needs one of:
+zone is ready. **Decision (2026-09-17): move the zone's nameservers to Cloudflare.**
+Cloudflare flattens a CNAME at the apex, so the apex can target the Worker directly,
+and AWS leaves the DNS path entirely. The domain *registration* stays at AWS; only the
+nameservers change.
 
-1. **Move the zone's nameservers to Cloudflare.** Every other record in this inventory
-   gets recreated there too. Gets AWS out of DNS entirely; touches everything below in
-   one change.
-2. **A thin AWS CloudFront distribution as pass-through**, origin set to
-   `bioc-dev.cancerdatasci.org`, with the existing Route53 Alias repointed at it instead
-   of the current distribution. No data moves — the 4TB already lives in R2 behind the
-   Worker, this is only a proxy hop — but it keeps a (cheap) sliver of AWS in the request
-   path indefinitely, and adds a cache-miss origin-fetch charge (~$0.02/GB) on top of
-   viewer egress for every request CloudFront can't serve from cache.
+Rejected: a thin CloudFront distribution as a pass-through, origin set to
+`bioc-dev.cancerdatasci.org`, with the Route53 Alias repointed at it. It moves no
+records, but keeps AWS in the request path indefinitely and adds a cache-miss
+origin-fetch charge (~$0.02/GB) on top of viewer egress.
 
-Neither is committed. Current bandwidth/request numbers (needed to size option 2's
-egress cost, and to size the load test in the M1 acceptance criteria) haven't been
-pulled yet.
+## Migration plan {#migration-plan}
+
+Two separately reversible steps. **Step one** moves the zone to Cloudflare as an exact
+copy, apex still resolving to today's CloudFront distribution — users see nothing, and
+anything that breaks is a mis-copied record. **Step two**, later, repoints the apex
+and `www` at the new edge — one record each, rolled back by editing them back.
+
+### 0. A dedicated Cloudflare account, first
+
+The Worker, R2 buckets and dev hostname currently live in a personal account shared
+with unrelated domains. Recommended: create a Bioconductor-owned account *before* the
+zone is added anywhere, because a Worker custom domain must be in the same account as
+the Worker, and moving a live zone later means a second nameserver change on the
+production domain plus a data copy under load.
+
+Why separate: Workers and R2 permissions are account-wide (a Bioconductor co-admin
+would otherwise hold rights over unrelated infrastructure, and vice versa); billing,
+grants and sponsorships attach to an account; and a project account with 2–3 super
+administrators survives any one person leaving.
+
+It is a redeploy, not a rebuild — everything is declared in `wrangler.jsonc`:
+
+| Piece | Effort | Notes |
+|---|---|---|
+| Workers, cron triggers, Workflows (`bioc-site`, `bioc-registry`, `bioc-prop`) | minutes | Redeploy with the new account ID; code unchanged |
+| Secrets, API tokens | ~1 hour | Do not transfer; re-set, and reissue CI tokens |
+| R2 buckets `bioc-site`, `bioc-prop` | ~1 day, mostly waiting | No cross-account bucket move exists; copy with Super Slurper or rclone. R2 egress is free, so the cost is write operations — driven by object count, which hasn't been pulled |
+| Producers writing to R2 | 1–2 hours | The S3 endpoint embeds the account ID; every sync job needs a new endpoint and keys |
+| Analytics Engine dataset `bioc_site_requests_v3` | not movable | History restarts; retention is ~3 months and dev traffic has little value |
+| Logpush job | minutes | Recreate |
+| In-flight Workflow instances | lost | Let them finish, or accept a rerun |
+
+Order: create the account and add a second super administrator → create buckets and
+start the copy → deploy Workers to a preview hostname and run the full-crawl diff →
+repoint producers, then a final sync for anything written since the copy began → add
+the `bioconductor.org` zone there.
+
+If the account move is declined, the minimum hedge is a second super administrator on
+the current account and keeping everything in config, as now.
+
+### 1. Prepare the zone copy (no user-visible change)
+
+1. **Export from Route53 itself**, not from the review spreadsheet — the spreadsheet is
+   already stale (the live apex carries a TXT value `acevhogcbpv6dssaq15fbe1ek8` it
+   doesn't list).
+2. **Hand-create the Alias records.** They don't survive a zone-file export: the apex
+   (as a flattened CNAME to `d3hzwifbu1gvt4.cloudfront.net`), `www`, and `testweb`.
+3. **Import everything DNS-only — nothing proxied.** `git` serves SSH and `rabbitmq` is
+   a message broker, so proxying breaks both; the GitHub Pages and Netlify CNAMEs need
+   unproxied records to renew certificates; several builder records hold private
+   addresses that can't be proxied at all.
+4. **Keep the three ACM validation CNAMEs.** Without them CloudFront's certificate
+   stops renewing, and CloudFront is the rollback target.
+5. **Copy mail records byte for byte** — MX, SPF, `_dmarc` (`p=reject`), every DKIM
+   selector, the `_amazonses` verification TXTs. A mistake here drops mail silently.
+6. **Lower the NS record TTL in Route53** (currently 172800 s) at least two days ahead.
+7. **Diff every record** between Route53 and Cloudflare's assigned nameservers
+   (`dig @<cf-ns>` vs `dig @<aws-ns>`, every name and type). Cut over on an empty diff.
+
+Do the agreed deletions before or after the move, never during. Deleting first makes
+the diff smaller; records tagged "delete end of 2026" get copied across for now.
+
+### 2. Change the nameservers
+
+- Change the nameservers at the AWS registrar. **Do not transfer the registration** —
+  a transfer adds a lock period and buys no safety.
+- DNSSEC is off today (no DS record published), so there is no signing hazard. Enable
+  it on Cloudflare after things settle, not during.
+- Leave the Route53 zone untouched for at least two weeks.
+- Freeze record changes in that window, or make each change in both places.
+
+**Rollback:** revert the nameservers at the registrar. Works only while the Route53
+zone is still correct — hence the freeze.
+
+### 3. Flip the site (M1 proper)
+
+- Attach the Worker to a spare hostname in the new zone first and run
+  `cutover-diff.sh` against it — this catches anywhere the Worker assumes the dev
+  hostname.
+- **HTTP behaviour differs today:** production answers `http://` with a 301 to HTTPS;
+  the new edge answers 200 over plain HTTP. Pick one deliberately — older R clients
+  still request plain HTTP.
+- Point the apex and `www` at the Worker. Keep CloudFront and `master` running until M2
+  retires them.
+
+**Rollback:** edit the two records back to CloudFront. Minutes.
+
+### Found along the way — fix separately, not during the move
+
+- The spreadsheet lists a TXT record on a literal `@.bioconductor.org` label carrying
+  `v=spf1 include:spf.forwardemail.net -all`. It doesn't resolve publicly — a
+  data-entry mistake for the apex. The SPF actually in force at the apex is
+  `v=spf1 a mx include:_spf.mlsend.com ?all`: neutral, and omitting forwardemail.
+- The apex TXT value `acevhogcbpv6dssaq15fbe1ek8` has no recorded owner.
 
 ## Full inventory, with detail links
 
@@ -343,9 +436,14 @@ independently.
 
 ## Open questions for the core team
 
-- Apex mechanism: thin CloudFront proxy (stays partly on AWS, ~$0.02/GB origin-fetch on
-  cache misses) vs. full nameserver migration to Cloudflare (touches everything above in
-  one move). Needs current bandwidth/request numbers to cost out properly.
+- ~~Apex mechanism~~ — settled 2026-09-17: nameserver migration to Cloudflare, see the
+  [migration plan](#migration-plan).
+- Dedicated Bioconductor Cloudflare account: agree, and name the super administrators
+  and the billing owner.
+- R2 object count for `bioc-site` and `bioc-prop` — sizes the account-move copy (time
+  and write-operation cost).
+- Plain-HTTP behaviour on the new edge: redirect to HTTPS like production, or serve 200?
+- Which SPF record is intended at the apex, and who owns the unlisted apex TXT value?
 - `new.bioconductor.org` mirrors `master.bioconductor.org` exactly (same IP, same
   content) — leftover alias or intentional?
 - `slack.bioconductor.org` serves a generic template unrelated to its name — check what
