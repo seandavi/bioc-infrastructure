@@ -36,6 +36,8 @@ website:
         contents:
           - href: dns-cutover.qmd
             text: DNS Inventory &amp; Cutover
+          - href: cloudflare-account-migration.qmd
+            text: Cloudflare Account Migration
           - href: cache.qmd
             text: Edge Cache
           - href: astro-site-build.qmd
