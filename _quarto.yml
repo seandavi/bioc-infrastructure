@@ -20,7 +20,7 @@ website:
       - href: roadmap.qmd
         text: Roadmap
       - href: install.qmd
-        text: Install from the New Site
+        text: Installing Packages
   sidebar:
     style: docked
     contents:
@@ -29,7 +29,7 @@ website:
       - href: roadmap.qmd
         text: Roadmap
       - href: install.qmd
-        text: Install from the New Site
+        text: Installing Packages
       - href: mirror-how-to.qmd
         text: Running a Mirror
       - href: ci.qmd

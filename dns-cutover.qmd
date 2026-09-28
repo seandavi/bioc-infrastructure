@@ -4,7 +4,7 @@ date: 2026-09-17
 ---
 
 ::: {.callout-note}
-## Status: draft, unreviewed
+## Status: executed 2026-09-28; findings not yet reviewed
 Built from a Route53 hosted-zone export for `bioconductor.org` (166 records, reviewed
 2026-09) plus a direct HTTPS probe of every resolvable hostname in it — not just the
 DNS target, but what each one actually serves today. Satisfies the M1 tasks "decide
@@ -19,10 +19,14 @@ Cloudflare — and the [migration plan](#migration-plan) below was added.
 
 Updated 2026-09-28: **steps 1 and 2 are done.** The zone was copied to Cloudflare and
 verified. The registrar's nameservers were switched to Cloudflare the same afternoon;
-the .org delegation showed the Cloudflare pair by 17:32 UTC. The site is still served
-by CloudFront, so nothing user-visible changed. **Record freeze until 2026-10-12:**
-change nothing in either zone, or make every change identically in both. Step 3 (the
-site flip) is next, and has its own rollback.
+the .org delegation showed the Cloudflare pair by 17:32 UTC.
+
+Updated 2026-09-28, evening: **step 3 is done.** The apex and `www` records were switched to
+Proxied at about 20:09 UTC, and `bioconductor.org` has been served by the new edge since.
+CloudFront stays in place behind the unchanged CNAMEs as the rollback target. **Record
+freeze until 2026-10-12:** change no DNS record in either zone, or make every change
+identically in both. Proxy status, zone settings and firewall rules exist only in
+Cloudflare, so they're exempt.
 :::
 
 ## What M1 actually changes
@@ -91,9 +95,11 @@ account is deferred; see [Cloudflare account migration](cloudflare-account-migra
 | ~17:00–17:30 | Registrar nameservers changed to `brynne`/`will.ns.cloudflare.com` |
 | 17:29 | Cloudflare zone **Active** (`activated_on` 17:29:00); Universal certificate active shortly after |
 | 17:32 | .org delegation shows only the Cloudflare pair; no DS. A trace from the root resolves via Cloudflare. Route53 vs Cloudflare still 0 differences. Site 200 via CloudFront (apex, `www`); MX/DMARC served by Cloudflare; `git` SSH, `blog.` (Pages), `bioc2026.` (Netlify), `support.` all OK. 1.1.1.1, 8.8.8.8 and 9.9.9.9 still had the AWS NS cached, as expected |
-
 | 18:14 | 8.8.8.8 on the Cloudflare nameservers |
 | 18:44 | 9.9.9.9 on the Cloudflare nameservers: all three public resolvers moved. Both diffs still 0, services unchanged. Watch ended |
+| ~20:09 | **Step 3:** apex and `www` switched to Proxied. First Worker access records: apex 20:08:57, `www` 20:10:18 |
+| 22:34 | Firewall rule blocking a crawler loop on `/talks/` from two networks ([bioc-edge#32](https://github.com/seandavi/bioc-edge/issues/32)) |
+| 22:35 | Browser Cache TTL 4 h → "Respect existing headers" ([bioc-edge#38](https://github.com/seandavi/bioc-edge/issues/38)) |
 
 Still to confirm by hand: a real mail round trip (forwardemail in/out, one Brevo send).
 The 28-day pending deadline no longer applies; the zone is Active.
