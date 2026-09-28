@@ -8,3 +8,4 @@ _site/
 ._*
 .DS_Store
 ci-inventory.md
+dns/verify.log

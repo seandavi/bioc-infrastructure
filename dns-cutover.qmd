@@ -15,8 +15,12 @@ Probes were run from the open internet with no VPN/internal access, so "no respo
 below means *not reachable from outside*, not necessarily dead.
 
 Updated 2026-09-17: the apex mechanism is settled — the zone's nameservers move to
-Cloudflare — and the [migration plan](#migration-plan) below was added. The plan is a
-proposal; no step in it has been executed.
+Cloudflare — and the [migration plan](#migration-plan) below was added.
+
+Updated 2026-09-28: **step 1 is done.** The zone exists in Cloudflare, pending, as a
+verified exact copy of Route53. Nothing user-visible has changed. Steps 2 and 3 below
+are written as runbooks, each with its own rollback. The nameservers must change by
+**2026-10-26**, or Cloudflare deletes the pending zone.
 :::
 
 ## What M1 actually changes
@@ -55,95 +59,245 @@ origin-fetch charge (~$0.02/GB) on top of viewer egress.
 Two separately reversible steps. **Step one** moves the zone to Cloudflare as an exact
 copy, apex still resolving to today's CloudFront distribution — users see nothing, and
 anything that breaks is a mis-copied record. **Step two**, later, repoints the apex
-and `www` at the new edge — one record each, rolled back by editing them back.
+and `www` at the new edge — flipped and rolled back by one proxy toggle per record.
 
-### 0. A dedicated Cloudflare account, first
+The zone lives in the **current Cloudflare account** (the one that already holds the
+`bioc-site` Worker, Workers Paid and R2 Paid). Moving to a dedicated Bioconductor
+account is deferred; see [Cloudflare account migration](cloudflare-account-migration.qmd).
 
-The Worker, R2 buckets and dev hostname currently live in a personal account shared
-with unrelated domains. Recommended: create a Bioconductor-owned account *before* the
-zone is added anywhere, because a Worker custom domain must be in the same account as
-the Worker, and moving a live zone later means a second nameserver change on the
-production domain plus a data copy under load.
+### Where things stand (2026-09-28)
 
-Why separate: Workers and R2 permissions are account-wide (a Bioconductor co-admin
-would otherwise hold rights over unrelated infrastructure, and vice versa); billing,
-grants and sponsorships attach to an account; and a project account with 2–3 super
-administrators survives any one person leaving.
+| | |
+|---|---|
+| Cloudflare account | `55bf7202fe14474e57a300f56a652f64` |
+| Zone ID | `8346d8f51aa2490ebf0124f40c2f3cd0` |
+| Zone status / plan | **Pending** (nameservers not yet changed) / Free |
+| Assigned nameservers | `brynne.ns.cloudflare.com`, `will.ns.cloudflare.com` |
+| Records | 149, all **DNS only** (grey cloud), TTLs matching Route53 |
+| Diff vs Route53 | empty on both Cloudflare nameservers (`dns/verify-zone.sh`) |
+| Bot Preference Sync | off (it would rewrite `robots.txt` once proxied) |
+| Registrar | Route53 Domains in AWS account 555219204010; auto-renew on, transfer lock on, expires 2026-11-19; DNSSEC not configured, no DS record |
 
-It is a redeploy, not a rebuild — everything is declared in `wrangler.jsonc`:
+::: {.callout-warning}
+## Deadline: switch nameservers by 2026-10-26
+Cloudflare deletes a Free-plan zone that stays **Pending** for 28 days. This one was
+created 2026-09-28 15:22 UTC. If it lapses nothing breaks — Route53 is still
+authoritative — but the zone must be re-added and re-imported (below), and Cloudflare
+will likely assign different nameservers.
+:::
 
-| Piece | Effort | Notes |
-|---|---|---|
-| Workers, cron triggers, Workflows (`bioc-site`, `bioc-registry`, `bioc-prop`) | minutes | Redeploy with the new account ID; code unchanged |
-| Secrets, API tokens | ~1 hour | Do not transfer; re-set, and reissue CI tokens |
-| R2 buckets `bioc-site`, `bioc-prop` | ~1 day, mostly waiting | No cross-account bucket move exists; copy with Super Slurper or rclone. R2 egress is free, so the cost is write operations — driven by object count, which hasn't been pulled |
-| Producers writing to R2 | 1–2 hours | The S3 endpoint embeds the account ID; every sync job needs a new endpoint and keys |
-| Analytics Engine dataset `bioc_site_requests_v3` | not movable | History restarts; retention is ~3 months and dev traffic has little value |
-| Logpush job | minutes | Recreate |
-| In-flight Workflow instances | lost | Let them finish, or accept a rerun |
+How the copy was made, so it can be redone:
 
-Order: create the account and add a second super administrator → create buckets and
-start the copy → deploy Workers to a preview hostname and run the full-crawl diff →
-repoint producers, then a final sync for anything written since the copy began → add
-the `bioconductor.org` zone there.
+- `dns/route53-index.txt` — every record's name, type and TTL, read from the Route53
+  console (152 records; Route53 allows no zone transfer and the available AWS role has
+  no CloudShell).
+- `dns/export-zone.sh` — asks Route53's own nameserver for every value in the index and
+  writes `dns/bioconductor.org.zone`. `dns/bioconductor.org.cloudflare-import.zone` is
+  the same minus the two records that were added by hand (below).
+- Imported through the dashboard's zone-file upload. **That upload marks every A and
+  CNAME record Proxied with TTL Auto** — all 110 were reset to DNS-only with their
+  Route53 TTLs through the API. Any re-import must do the same.
+- `dns/verify-zone.sh` — compares every record between two nameservers; exit status is
+  the number of differences.
 
-If the account move is declined, the minimum hedge is a second super administrator on
-the current account and keeping everything in config, as now.
+Deliberate differences from Route53:
 
-### 1. Prepare the zone copy (no user-visible change)
-
-1. **Export from Route53 itself**, not from the review spreadsheet — the spreadsheet is
-   already stale (the live apex carries a TXT value `acevhogcbpv6dssaq15fbe1ek8` it
-   doesn't list).
-2. **Hand-create the Alias records.** They don't survive a zone-file export: the apex
-   (as a flattened CNAME to `d3hzwifbu1gvt4.cloudfront.net`), `www`, and `testweb`.
-3. **Import everything DNS-only — nothing proxied.** `git` serves SSH and `rabbitmq` is
-   a message broker, so proxying breaks both; the GitHub Pages and Netlify CNAMEs need
-   unproxied records to renew certificates; several builder records hold private
-   addresses that can't be proxied at all.
-4. **Keep the three ACM validation CNAMEs.** Without them CloudFront's certificate
-   stops renewing, and CloudFront is the rollback target.
-5. **Copy mail records byte for byte** — MX, SPF, `_dmarc` (`p=reject`), every DKIM
-   selector, the `_amazonses` verification TXTs. A mistake here drops mail silently.
-6. **Lower the NS record TTL in Route53** (currently 172800 s) at least two days ahead.
-7. **Diff every record** between Route53 and Cloudflare's assigned nameservers
-   (`dig @<cf-ns>` vs `dig @<aws-ns>`, every name and type). Cut over on an empty diff.
-
-Do the agreed deletions before or after the move, never during. Deleting first makes
-the diff smaller; records tagged "delete end of 2026" get copied across for now.
+| Record | Route53 | Cloudflare | Why |
+|---|---|---|---|
+| apex `bioconductor.org` | Alias A → `d3hzwifbu1gvt4.cloudfront.net` | CNAME (flattened) → same, DNS only, TTL 300 | Aliases are Route53-only |
+| `www` | Alias A → apex | CNAME → `bioconductor.org` | same |
+| `testweb` | Alias → `d3h1507zzd6849.cloudfront.net` | **not copied** | That distribution no longer exists; Route53 already answers nothing |
+| `bbr`, `*.bbr` | weighted: 200 → 149.165.153.78, 0 → 104.45.191.146 (AKS fallback) with health checks | single A → 149.165.153.78 | Failover needs Cloudflare Load Balancing; both are delete candidates |
+| TXT on a literal `@.bioconductor.org` label | present | **not copied** | Cloudflare rejects the name; it's a data-entry error, the real SPF is at the apex |
+| NS, SOA | AWS | Cloudflare's own | expected |
 
 ### 2. Change the nameservers
 
-- Change the nameservers at the AWS registrar. **Do not transfer the registration** —
-  a transfer adds a lock period and buys no safety.
-- DNSSEC is off today (no DS record published), so there is no signing hazard. Enable
-  it on Cloudflare after things settle, not during.
-- Leave the Route53 zone untouched for at least two weeks.
-- Freeze record changes in that window, or make each change in both places.
+#### 2a. Lower the Route53 NS TTL — at least 2 days before 2b
 
-**Rollback:** revert the nameservers at the registrar. Works only while the Route53
-zone is still correct — hence the freeze.
+Route53's own NS record carries a TTL of **172800 s (2 days)**. Resolvers that trust
+the child zone's NS record can keep asking Route53 for up to two days after the switch,
+and — more important — keep asking *Cloudflare* for that long after a rollback. The
+.org parent's copy is already 3600 s. Bring the child's down to match.
+
+This changes no answers, only how long they are cached. It is safe to do any time.
+
+In the AWS console (account 555219204010, the NIH DNS role):
+
+1. Open **Route 53 → Hosted zones**
+   (<https://us-east-1.console.aws.amazon.com/route53/v2/hostedzones>).
+2. Click **bioconductor.org** (hosted zone ID `Z2LMJH3A2CQNZZ`).
+3. On the **Records** tab, tick the checkbox of the row with
+   **Record name** `bioconductor.org` and **Type** `NS`. It is the third row. Tick
+   only that one row.
+4. Click **Edit record** in the details panel on the right.
+5. Leave **Record name** empty and **Record type** `NS`. **Do not touch the Value box.**
+   It must still list exactly these four lines:
+   ```
+   ns-1784.awsdns-31.co.uk.
+   ns-1459.awsdns-54.org.
+   ns-876.awsdns-45.net.
+   ns-91.awsdns-11.com.
+   ```
+6. In **TTL (seconds)**, replace `172800` with `3600`.
+7. Click **Save**. The banner reads that the record was updated; the change status
+   goes from PENDING to INSYNC within about a minute.
+8. Check from a terminal — the second column must read `3600`:
+   ```sh
+   dig +norec +noall +answer @ns-1784.awsdns-31.co.uk bioconductor.org NS
+   ```
+9. Note the time. Step 2b can start **48 hours later** (when the last 172800-second
+   cache entries have expired).
+
+Equivalent with the AWS CLI, for anyone with a profile in that account:
+
+```sh
+aws route53 change-resource-record-sets --hosted-zone-id Z2LMJH3A2CQNZZ \
+  --change-batch '{"Changes":[{"Action":"UPSERT","ResourceRecordSet":{
+    "Name":"bioconductor.org.","Type":"NS","TTL":3600,"ResourceRecords":[
+      {"Value":"ns-1784.awsdns-31.co.uk."},{"Value":"ns-1459.awsdns-54.org."},
+      {"Value":"ns-876.awsdns-45.net."},{"Value":"ns-91.awsdns-11.com."}]}}]}'
+```
+
+**Undo:** the same edit with `172800`. Nothing else in the zone needs a TTL change:
+apex and `www` are already 300 s in the Cloudflare copy.
+
+From here until two weeks after 2b: **record freeze.** Any change to the zone is made in
+both Route53 and Cloudflare, or not at all — the rollback depends on Route53 being
+right.
+
+#### 2b. Switch
+
+1. Re-verify on the day. The zone must not have drifted since the copy:
+   ```sh
+   ./dns/verify-zone.sh | tail -1        # must print "== 0 differing record(s)"
+   B=will.ns.cloudflare.com ./dns/verify-zone.sh | tail -1
+   ```
+   Also confirm the Route53 console still says **Records (152)**. The script only
+   checks names in the index, so a record added in Route53 since 2026-09-28 shows up
+   as a count mismatch, not a diff — add it to Cloudflare and the index first.
+2. Copy the two nameservers from the Cloudflare dashboard (**bioconductor.org →
+   Overview**). Copy them; do not type them.
+3. AWS console → **Route 53 → Registered domains → bioconductor.org → Actions → Edit
+   name servers**. Replace the four `awsdns` entries with `brynne.ns.cloudflare.com`
+   and `will.ns.cloudflare.com` (only those two). **Save.** Do not transfer the
+   registration, and do not turn on DNSSEC.
+4. Watch the parent:
+   ```sh
+   dig +short NS bioconductor.org @$(dig +short NS org. | head -1)
+   ```
+   It shows the Cloudflare pair within minutes. Then click **Check nameservers now**
+   on the Cloudflare Overview page. The zone turns **Active**, and Cloudflare sends an
+   email, within minutes to a few hours.
+5. Post-checks once Active:
+   - `A=1.1.1.1 ./dns/verify-zone.sh` and `A=8.8.8.8 ./dns/verify-zone.sh` — the
+     public view against Cloudflare, expect 0.
+   - `curl -sI https://bioconductor.org/ | grep -i via` still shows CloudFront.
+   - Send a message to and from a `@bioconductor.org` address (forwardemail), and
+     check a Brevo send.
+   - `ssh -T git@git.bioconductor.org` still reaches gitolite.
+   - Spot-check a GitHub Pages site (`blog.`) and a Netlify one (`bioc2026.`).
+
+**Rollback:** Registered domains → bioconductor.org → Actions → Edit name servers →
+put back exactly:
+
+```
+ns-1784.awsdns-31.co.uk
+ns-1459.awsdns-54.org
+ns-876.awsdns-45.net
+ns-91.awsdns-11.com
+```
+
+Most resolvers move back within the parent's 1 hour. Cloudflare's own NS records carry
+86400 s, so a few resolvers keep asking Cloudflare for up to a day. That is harmless
+**only if the Cloudflare zone keeps serving the same data**, so on rollback, leave the
+Cloudflare zone in place and unchanged for at least two days before deleting or
+editing it.
+
+**Afterwards:** leave the Route53 hosted zone untouched for at least two weeks (it's
+the rollback target), then lift the freeze. Enable DNSSEC in Cloudflare only after
+that, as its own change.
 
 ### 3. Flip the site (M1 proper)
 
-- Attach the Worker to a spare hostname in the new zone first and run
-  `cutover-diff.sh` against it — this catches anywhere the Worker assumes the dev
-  hostname.
-- **HTTP behaviour differs today:** production answers `http://` with a 301 to HTTPS;
-  the new edge answers 200 over plain HTTP. Pick one deliberately — older R clients
-  still request plain HTTP.
-- Point the apex and `www` at the Worker. Keep CloudFront and `master` running until M2
-  retires them.
+**Mechanism: a Workers route plus the proxy toggle**, not a Workers Custom Domain.
 
-**Rollback:** edit the two records back to CloudFront. Minutes.
+- A route (`bioconductor.org/*` → `bioc-site`) only intercepts traffic on *proxied*
+  records. It can be deployed days ahead and sits inert while apex and `www` are DNS
+  only.
+- The flip is switching those two records to **Proxied**. The rollback is switching them
+  back to **DNS only**. At that point traffic goes straight to CloudFront again,
+  because the CNAME to the CloudFront distribution never changed. That's two clicks,
+  with no deploy and no record deletion.
+- A Custom Domain needs the existing record deleted, then recreates and owns it
+  itself. The rollback target would be gone and would have to be retyped under
+  pressure.
+- The routes go in `worker/wrangler.jsonc` in bioc-cloudflare, not the dashboard.
+  `wrangler deploy` replaces a Worker's routes with the config's, so a dashboard-only
+  route disappears on the next deploy.
+
+Before the flip:
+
+1. **Edge certificate.** After the zone goes Active: **SSL/TLS → Edge Certificates**
+   must show the Universal certificate (`bioconductor.org`, `*.bioconductor.org`) as
+   **Active**. Proxying before it is Active serves TLS errors. Set **SSL/TLS mode** to
+   **Full (strict)**; CloudFront holds a valid certificate for the names, so any
+   request the Worker passes to origin still verifies.
+2. **Logging** ([ADR 0003](adr/0003-request-logging-after-the-cloudflare-cutover.md)):
+   the Worker's Logpush job is delivering, and a record-count alert exists. Once
+   traffic moves, CloudFront logs stop accruing.
+3. **Plain HTTP.** Decide whether to turn **Always Use HTTPS** on (it matches
+   production's 301). It only affects proxied names.
+4. **Rehearse on a spare name.** Add `next.bioconductor.org` CNAME → `bioconductor.org`,
+   Proxied, plus a route `next.bioconductor.org/*`. Run `cutover-diff.sh`
+   (bioc-cloudflare) against it. This catches any place the Worker assumes the dev
+   hostname.
+5. **Deploy the routes** (inert until proxied). In `worker/wrangler.jsonc`:
+   ```jsonc
+   "routes": [
+     { "pattern": "bioc-dev.cancerdatasci.org", "custom_domain": true },
+     { "pattern": "bioconductor.org/*",     "zone_name": "bioconductor.org" },
+     { "pattern": "www.bioconductor.org/*", "zone_name": "bioconductor.org" }
+   ]
+   ```
+   Confirm under **Workers Routes** in the zone that both appear.
+
+Flip: **DNS → Records**. On the `bioconductor.org` CNAME, click **Edit**, switch
+**Proxy status** on, and **Save**. Repeat for `www`.
+
+Verify:
+- `curl -sI https://bioconductor.org/` and `https://www.bioconductor.org/` show
+  `server: cloudflare` and no `via: … cloudfront`.
+- Run `cutover-diff.sh` against production.
+- Watch Workers → bioc-site → Metrics for errors, and the Logpush destination for
+  records.
+
+**Rollback:** the same two records, **Proxy status** off, then Save. Resolvers holding
+Cloudflare's addresses expire within 300 s. Leave the routes deployed; they are inert
+again. Keep CloudFront and `master` running until M2 retires them.
 
 ### Found along the way — fix separately, not during the move
 
 - The spreadsheet lists a TXT record on a literal `@.bioconductor.org` label carrying
-  `v=spf1 include:spf.forwardemail.net -all`. It doesn't resolve publicly — a
-  data-entry mistake for the apex. The SPF actually in force at the apex is
-  `v=spf1 a mx include:_spf.mlsend.com ?all`: neutral, and omitting forwardemail.
+  `v=spf1 include:spf.forwardemail.net -all`. It is a data-entry mistake for the apex.
+  Route53 serves it at that literal name, and Cloudflare refuses the name.
+  **The apex has no SPF record at all** (checked 2026-09-28). Its TXT records are only
+  `acevhogcbpv6dssaq15fbe1ek8`, a Brevo code and a forwardemail verification, and the
+  `include:_spf.mlsend.com` SPF seen in the 2026-09 review is gone. With `_dmarc` at
+  `p=reject`, mail from the domain now depends on DKIM alignment alone. Add a real
+  apex SPF (forwardemail + Brevo + SES) as its own change, in both zones during the
+  freeze.
 - The apex TXT value `acevhogcbpv6dssaq15fbe1ek8` has no recorded owner.
+- `testweb` is an Alias to a CloudFront distribution that no longer exists — delete it
+  from Route53.
+- `bbr`/`*.bbr` still carry a Route53 health-checked failover to an AKS address.
+  Delete them, along with the health checks (which bill monthly).
+- Since the 2026-09 review, several delete candidates are already gone (`tokay*`,
+  `merida*`, `malbec*`, `machv2`, `celaya2`, `monitor`, `docbuilder`, `kjohnson1`,
+  `meet`). New since then: `autoconfig`/`autodiscover` (forwardemail), `status`,
+  `testgalaxy`, `eurobioc2027`, the Brevo DKIM selectors. Many A-record targets also
+  moved (e.g. `workshop` is now 149.165.152.155). The per-host detail below predates
+  this and is not re-probed.
 
 ## Full inventory, with detail links
 
@@ -438,8 +592,9 @@ independently.
 
 - ~~Apex mechanism~~ — settled 2026-09-17: nameserver migration to Cloudflare, see the
   [migration plan](#migration-plan).
-- Dedicated Bioconductor Cloudflare account: agree, and name the super administrators
-  and the billing owner.
+- Dedicated Bioconductor Cloudflare account: deferred until after the cutover; see
+  [Cloudflare account migration](cloudflare-account-migration.qmd). Still needs super
+  administrators and a billing owner named.
 - R2 object count for `bioc-site` and `bioc-prop` — sizes the account-move copy (time
   and write-operation cost).
 - Plain-HTTP behaviour on the new edge: redirect to HTTPS like production, or serve 200?

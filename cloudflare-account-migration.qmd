@@ -1,0 +1,152 @@
+---
+title: "Cloudflare Account Migration"
+date: 2026-09-28
+---
+
+::: {.callout-note}
+## Status: plan, deferred
+The `bioconductor.org` zone went into the **current** Cloudflare account (the personal
+account `55bf7202…`, which already holds the `bioc-site` Worker, Workers Paid and R2 Paid)
+so the DNS cutover did not wait on an account move. See the
+[DNS cutover runbook](dns-cutover.qmd#migration-plan). This page is the plan for moving
+everything to a dedicated Bioconductor account **after** the cutover has settled. It has
+not been rehearsed, and items marked *verify* have not been confirmed against Cloudflare.
+:::
+
+## Why move
+
+The Worker, R2 buckets, dev hostname and now the production zone share an account with
+unrelated personal domains.
+
+- **Permissions are account-wide.** Workers and R2 rights can't be scoped to one
+  project, so a Bioconductor co-admin would hold rights over unrelated infrastructure,
+  and the reverse.
+- **Billing, grants and sponsorships attach to an account.** Bioconductor's bill should
+  not be one person's card.
+- **Bus factor.** A project account with 2–3 super administrators survives any one
+  person leaving. A personal account doesn't.
+
+## What it costs to do later instead of first
+
+Doing it after the cutover means a **second nameserver change on the live production
+domain**. A zone can't be handed between accounts. It's added fresh to the new
+account, which assigns different nameservers, and the registrar is repointed. That is
+the price of not blocking the cutover. It's manageable because the zone is small, fully
+scripted, and the procedure below keeps both accounts serving identical answers
+throughout.
+
+## Inventory — what moves, and how
+
+It's a redeploy, not a rebuild. Everything except data is declared in `wrangler.jsonc`.
+
+| Piece | Effort | Notes |
+|---|---|---|
+| Workers, cron triggers, Workflows (`bioc-site`, `bioc-registry`, `bioc-prop`) | minutes | Redeploy with the new `account_id`; code unchanged |
+| Secrets, API tokens | ~1 hour | Nothing transfers. Re-set every secret, reissue CI tokens, update GitHub Actions secrets |
+| R2 buckets `bioc-site`, `bioc-prop` | ~1 day, mostly waiting | No cross-account move. Copy with Super Slurper or rclone. Egress is free; cost is write operations, driven by object count (not yet pulled) |
+| Producers writing to R2 | 1–2 hours | The S3 endpoint embeds the account ID. Every sync job needs the new endpoint and keys |
+| Analytics Engine dataset `bioc_site_requests_v3` | not movable | History restarts (retention is ~3 months anyway) |
+| Logpush job (request log, [ADR 0003](adr/0003-request-logging-after-the-cloudflare-cutover.md)) | minutes | Recreate. **Overlap old and new jobs** so no window goes unlogged; Logpush cannot backfill |
+| In-flight Workflow instances | lost | Let them finish, or accept a rerun |
+| `bioconductor.org` zone | ~1 hour + a registrar change | Below |
+| Zone settings (SSL mode, Always Use HTTPS, Bot Preference Sync off, cache rules…) | ~1 hour | Not copied. List them from the old zone first |
+| Edge certificate | automatic, but see the gap below | Issued fresh for the new zone |
+
+## Procedure
+
+### A. Prepare the new account (no user impact)
+
+1. Create the account under a Bioconductor-owned address. Add at least two more super
+   administrators, and set the billing owner and payment method.
+2. Subscribe **Workers Paid** and **R2** on it.
+3. Create the R2 buckets and start the copy. Record object counts on both sides.
+4. Deploy the Workers to the new account with a **temporary hostname** only (a
+   `workers.dev` name, or a spare domain). Re-set secrets. Run the full-crawl
+   `cutover-diff.sh` against it.
+5. Repoint producers to write to **both** accounts' buckets, or to the new one plus a
+   final re-sync before the switch. Both Workers must serve the same bytes during the
+   overlap in step C.
+
+### B. Build the zone in the new account (no user impact)
+
+1. Export the live zone from the **old** Cloudflare account:
+   **DNS → Records → Import and Export → Export**, or
+   `GET /zones/<id>/dns_records/export`. Cloudflare is now the source of truth, not
+   Route53. Also save the record list as JSON through the API, because the BIND export
+   does not carry each record's **proxied** flag.
+2. Add `bioconductor.org` to the new account and choose the zone-file upload. It gets
+   its own pending nameserver pair.
+3. **Reset proxy status record by record** from the JSON. The dashboard upload marks
+   every A/CNAME as Proxied (seen on 2026-09-28). Only the records that are proxied in the
+   old zone should be proxied here (after the site flip: apex and `www`).
+4. Recreate zone settings from the list above, and the Worker routes for
+   `bioconductor.org/*` and `www.bioconductor.org/*` in the new account's
+   `wrangler.jsonc` (inert until the zone is Active).
+5. Diff the two Cloudflare zones with the repo's script:
+   ```sh
+   A=<old-cf-ns> B=<new-cf-ns> ./dns/verify-zone.sh
+   ```
+   Refresh `dns/route53-index.txt` from the old zone's export first if records changed
+   since the Route53 copy.
+6. The new zone is pending, so the 28-day clock runs (Free plan). Do C within that window.
+
+### The certificate gap
+
+A pending zone has no active edge certificate. At the moment of the switch, resolvers
+that reach the new zone for a **proxied** name (apex, `www`) are served by a zone
+whose Universal certificate isn't issued yet. That means TLS errors until it is,
+usually minutes and occasionally longer. Two ways to close the gap:
+
+- **Pre-issue.** Order an Advanced Certificate for `bioconductor.org` and
+  `*.bioconductor.org` in the new zone with **TXT** validation, then add the TXT
+  challenge records to the *old* (live) zone so it validates before the switch.
+  *Verify* that Advanced Certificate Manager allows this on a pending zone and what it
+  costs. It is a paid add-on.
+- **Drop to grey for the switch.** If CloudFront is still running (before M2 retires
+  it), set apex and `www` back to DNS only in the old zone for the switch window. The
+  site is then served by CloudFront (the rollback target of the site flip). Re-proxy in
+  the new zone once its certificate shows Active. This is free, but only available
+  while CloudFront exists. **If the account move happens after M2, the pre-issue route
+  is the only one.**
+
+### C. Switch nameservers
+
+1. Lower nothing: Cloudflare's NS TTL is fixed at 86400 s, and the .org parent's is
+   3600 s.
+2. Freeze record changes in both Cloudflare zones, or make each change in both.
+3. Registrar (Route53 Domains, AWS account 555219204010): **Registered domains →
+   bioconductor.org → Actions → Edit name servers** → replace the old Cloudflare pair
+   with the new pair. Copy, don't type.
+4. Cloudflare (new account) → **Overview → Re-check now**. Wait for Active and the
+   certificate.
+5. The old zone turns **Moved** (Cloudflare: deleted after 7 days in that state). It
+   keeps answering for resolvers that cached the old delegation, for up to a day.
+   **Keep the old Worker, routes, buckets and Logpush running for at least 2 days**, so
+   those stragglers get the same site and are still logged.
+6. Post-checks: `verify-zone.sh` against the public resolvers, `curl -sI` apex and `www`,
+   mail to and from the domain, `ssh git@git.bioconductor.org`, `cutover-diff.sh`, and
+   Logpush records arriving in the new destination.
+
+**Rollback** (within the 7-day Moved window): put the old Cloudflare pair back at the
+registrar, then **Re-check now** in the old account. *Verify* that a Moved zone
+re-activates in place rather than needing a re-add. If it doesn't, the rollback is
+re-adding it and re-importing from the saved export, which would mean new nameservers
+again. Don't let the old zone reach Deleted until the new one has run clean for a week.
+
+### D. Clean up (after a clean week)
+
+- Remove the zone from the old account, then the Workers, routes, buckets, tokens and
+  Logpush job there.
+- Retire the dev hostname `bioc-dev.cancerdatasci.org`, or recreate it under a
+  Bioconductor-owned name.
+- Update [ADR 0003](adr/0003-request-logging-after-the-cloudflare-cutover.md)'s delivery
+  details and any docs that name the old account ID.
+
+## Open questions
+
+- Who owns the new account and who are the super administrators? Who pays?
+- R2 object counts for `bioc-site` and `bioc-prop`, to size the copy.
+- Is the move done before or after M2 retires CloudFront? That decides how the
+  certificate gap is closed.
+- Is there a sponsorship route (e.g. Cloudflare's open-source program) that should be
+  applied for on the new account before any paid add-ons?
