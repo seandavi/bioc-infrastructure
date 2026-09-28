@@ -124,9 +124,12 @@ Two figures appear across these pages and they are not competing estimates of th
 - **~$5,000/month** is the AWS estate being *retired* — CloudFront, the S3 bucket, and the
   master and staging webservers — before counting the builder hardware or the staff time to
   keep three operating systems patched.
-- **~$80/month** is the Cloudflare stack *replacing* it, dominated by R2 storage. R2 charges
-  no egress fees, which matters disproportionately for a package repository, where serving
-  tarballs to the world is precisely what a CDN bills most aggressively for.
+- **~$80/month** is the *storage* for the Cloudflare stack replacing it (5.1 TB in R2). R2
+  charges no egress fees, which matters disproportionately for a package repository, where
+  serving tarballs to the world is precisely what a CDN bills most aggressively for.
+  Per-request charges come on top; estimated from production traffic on 2026-09-28, the
+  whole stack is a couple of hundred dollars a month
+  ([details](improvements.qmd#costs-about-5000-a-month-down-to-a-couple-of-hundred)).
 
 ### Known weak points
 
