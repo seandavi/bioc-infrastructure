@@ -1,11 +1,12 @@
 ---
 title: "Cache behavior at the edge"
+date: 2026-09-28
 ---
 
-Every page on `bioc-dev.cancerdatasci.org` is served from Cloudflare's edge cache, and
-**freshness is purge-based rather than expiry-based**: objects are cached at the edge
-effectively forever, and the hourly sync purges exactly the URLs it changed. Nothing falls
-out of cache on its own.
+`bioconductor.org` is served from Cloudflare's edge cache, and **freshness is purge-based
+rather than expiry-based**: objects are cached at the edge effectively forever, and the
+hourly sync purges exactly the URLs it changed, on every hostname the Worker serves. Nothing
+falls out of cache on its own. (404s are the one exception; see below.)
 
 That is the right trade for a site whose content only changes when something publishes it —
 unchanged pages are served from the edge indefinitely, and no request pays for revalidating
@@ -17,7 +18,7 @@ This page is how to tell which case you are in, and what to do about it.
 ## Is this page cached?
 
 ```sh
-curl -sI https://bioc-dev.cancerdatasci.org/ \
+curl -sI https://bioconductor.org/ \
   | grep -iE 'cf-cache-status|^age|cache-control|x-bioc-build'
 ```
 
@@ -34,7 +35,7 @@ x-bioc-build: da4ead8f9c7e22c332edfc009faba354d2bd94c6
 |---|---|
 | `cf-cache-status` | Where the response came from. `HIT` = the edge, never reached storage. `MISS` = fetched from R2 and cached on the way past. Also `EXPIRED`, `REVALIDATED`, and `DYNAMIC` (not cacheable). |
 | `age` | Seconds this object has been in the edge cache. `21390` is about six hours. |
-| `cache-control` | `max-age=300` is the browser's five minutes; `s-maxage=31536000` is the edge's one year. The asymmetry is the purge-based model in one line. |
+| `cache-control` | `max-age=300` is the browser's five minutes (30 seconds for `PACKAGES`/`VIEWS`, which R reads on every install); `s-maxage=31536000` is the edge's one year. The asymmetry is the purge-based model in one line. The zone's Browser Cache TTL is set to respect these headers. |
 | `x-bioc-build` | The commit that produced this page. **This is the header that actually answers "am I looking at something stale?"** |
 
 ## Query strings do not bust the cache
@@ -43,7 +44,7 @@ The reflex — append `?x=1` and re-request — does not work here. The Worker n
 cache key, so a query string returns the same cached object:
 
 ```
-$ curl -sI 'https://bioc-dev.cancerdatasci.org/?cachebust=12345' | grep -iE 'cf-cache-status|^age'
+$ curl -sI 'https://bioconductor.org/?cachebust=12345' | grep -iE 'cf-cache-status|^age'
 cf-cache-status: HIT
 age: 21390
 ```
@@ -54,7 +55,7 @@ one. Anyone debugging a stale page this way will conclude the cache is fine when
 **Use `x-bioc-build` instead.** Compare the sha it reports against the build you expect:
 
 ```sh
-curl -sI https://bioc-dev.cancerdatasci.org/<path> | grep x-bioc-build
+curl -sI https://bioconductor.org/<path> | grep x-bioc-build
 ```
 
 If it names an older commit than the one you just published, the edge is stale and needs a
@@ -73,7 +74,30 @@ a scheduled rebuild of an unchanged commit needs its own key so it cannot overwr
 immutable build published when that commit merged. Same commit, different build id.
 :::
 
+## What is cached, and under which key
+
+The edge cache is keyed by the storage object a request resolves to, not by the URL, so
+`/help/`, `/help` and `/help/index.html` share one entry, and `release` resolves to its
+numbered version first.
+
+- **Pages from the new site build** are keyed by the build's commit, so publishing a new
+  build moves every page to new keys without a purge.
+- **Package files and other mirror-only content** (tarballs, `PACKAGES*`, `VIEWS`,
+  binaries, `checkResults/`, `config.yaml`, and the same inside the archive of old
+  releases) are cached under their plain key, which is exactly what the sync purges when a
+  package changes.
+- **Legacy HTML the build doesn't have yet** is served from storage every time, uncached.
+  A cached copy could hide the page once a later build adds it. This is the one class of
+  request that still reads storage on every hit, and it shrinks as the build covers more.
+- **404s** are cached for ten minutes (`s-maxage=600`), keyed by path and the current build
+  commit. A new build clears them at once; a file published by the sync can 404 for up to
+  ten minutes at a location that asked for it just before. That's the price of not paying
+  several storage reads for every repeated probe.
+
 ## URLs that are never cached
+
+`/packages/stats/` is passed through to the legacy stats service uncached
+(`cf-cache-status: DYNAMIC`) until [M2](roadmap.qmd) replaces it.
 
 Preview and staging paths are served `no-cache` and carry no `cf-cache-status` at all:
 
@@ -95,18 +119,19 @@ scripts rather than copied, because both spend the same account-wide rate budget
 ```sh
 . ./cf-purge.sh                    # needs CLOUDFLARE_API_TOKEN in the environment
 
-zone_id=$(cf_zone_id cancerdatasci.org)
-cf_purge_urls "$zone_id" \
-  https://bioc-dev.cancerdatasci.org/ \
-  https://bioc-dev.cancerdatasci.org/packages/release/bioc/html/limma.html
+cf_purge_keys packages/3.23/bioc/html/limma.html   # every served host, every zone
 ```
 
 Confirm it worked by re-requesting: expect `cf-cache-status: MISS` and `age: 0`.
 
-To discard the entire edge cache:
+`cf_purge_keys` takes storage keys (so `3.23`, not `release`) and purges them on every host
+in `PURGE_TARGETS`: `bioconductor.org`, `www.`, `next.` and the dev host. The edge keeps a
+separate copy per hostname, so purging one host leaves the others stale.
+
+To discard the entire edge cache of one zone:
 
 ```sh
-cf_purge_everything "$zone_id"
+cf_purge_everything "$(cf_zone_id bioconductor.org)"
 ```
 
 Everything is re-fetched from R2 on next request. That is affordable here — static objects,
@@ -132,13 +157,10 @@ The budget is per **account**, not per zone, so a manual purge while a sync is r
 from the same bucket and can starve it.
 :::
 
-## After cutover
-
-The scripts default to the `cancerdatasci.org` zone. Serving the same content from a
-`bioconductor.org` zone means passing `ZONE=` explicitly — the purge helpers take the zone
-name and resolve it to an id at call time, so nothing else changes.
-
 ---
 
-*Header values on this page are point-in-time measurements from 2026-08-20 against
-`bioc-dev.cancerdatasci.org`. The mechanism is stable; the numbers are illustrative.*
+*The example headers are a measurement from 2026-08-20 on the dev host
+(`bioc-dev.cancerdatasci.org`), which serves the same Worker. The mechanism is stable; the
+numbers are illustrative. The "what is cached" rules are as of 2026-09-28
+([bioc-edge#35](https://github.com/seandavi/bioc-edge/issues/35),
+[#38](https://github.com/seandavi/bioc-edge/issues/38)).*

@@ -34,26 +34,26 @@ contributable, tested, and watched. Mostly done 2026-08-21.
 
 ## M1 — Production cutover ([#2](https://github.com/seandavi/bioc-infrastructure/issues/2))
 
-`bioconductor.org` DNS moves to the new edge. The serving replacement is functionally
-complete at `bioc-dev.cancerdatasci.org`; what remains is verification, sign-off, and a
-reversible flip.
+`bioconductor.org` DNS moves to the new edge. **Flipped 2026-09-28** (nameservers in the
+afternoon, the site at ~20:09 UTC; [runbook and log](dns-cutover.qmd)); now in the week of
+monitoring, with the rollback still one toggle away.
 
 **Acceptance criteria**
 
 - [ ] Full-crawl cutover diff against production: zero unexplained differences
-- [ ] `BiocManager::install()` acceptance passes for release + devel against the new host
+- [x] `BiocManager::install()` acceptance passes for release + devel against the new host (3.23 and 3.24 against `bioconductor.org`, after the flip)
 - [ ] Load test under the course-materials access pattern; hit ratio acceptable
 - [ ] Rollback rehearsed and written up as a runbook page here; low-TTL plan for week one
 - [ ] Logging continuity: gap-alerted records, both eras queryable as one
 - [ ] Upstream security findings resolved with the Bioconductor core team
 - [ ] Core team sign-off; window scheduled
-- [ ] DNS flipped; a clean week of monitoring
+- [ ] DNS flipped (done 2026-09-28); a clean week of monitoring
 
 **Tasks**
 
 - [ ] Re-run `cutover-diff.sh` full crawl; triage every diff
 - [ ] Load test and record numbers
-- [ ] Cutover runbook page (DNS, verification, rollback)
+- [x] Cutover runbook page (DNS, verification, rollback): [DNS runbook](dns-cutover.qmd)
 - [ ] Decide `www.` / `secure.` and satellite hostnames
 - [ ] Walk the security findings with the core team; schedule
 - [ ] Flip, monitor, keep the rollback lever warm

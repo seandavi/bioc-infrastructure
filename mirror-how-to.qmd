@@ -32,10 +32,6 @@ dry-run first and check the object count.
 | Current version numbers | in the rsync module names | in `index.json`, read every run |
 | Cadence | release monthly-ish, devel at most weekly | unchanged |
 
-Until the cutover, substitute `https://bioc-dev.cancerdatasci.org` for
-`https://bioconductor.org` in every command below. The content is byte-identical to
-production, synced hourly and checksum-verified weekly.
-
 ## The manifest
 
 | Endpoint | Contents |
@@ -69,7 +65,7 @@ Release and devel together are roughly 320 GB.
 Set two variables once; everything below uses them.
 
 ```sh
-BASE=https://bioconductor.org        # bioc-dev.cancerdatasci.org until cutover
+BASE=https://bioconductor.org
 DEST=/srv/bioc                       # served as the site root
 ```
 

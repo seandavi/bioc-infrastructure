@@ -8,14 +8,17 @@ written down anywhere a newcomer — or a future maintainer — could find in on
 
 ## TL;DR
 
-The replacement estate is four repos that meet at **data contracts rather than shared
-machines**, which is why each can proceed — or be replaced — without stopping the others.
+**Since 2026-09-28, bioconductor.org is served by the new stack.** The replacement estate is
+a set of repos that meet at **data contracts rather than shared machines**, which is why each
+can proceed — or be replaced — without stopping the others.
 
 | Repo | What it is | Retires | Status |
 |---|---|---|---|
 | [bioc-registry](https://github.com/seandavi/bioc-registry) | The data plane: an r-universe observer plus the propagation gate that decides *which build is fit to publish and what is true about a package*, exposed as an installable repository and a Parquet archive | The three builders and the legacy build system | [![freshness](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml/badge.svg)](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml) |
 | [bioc-website](https://github.com/seandavi/bioc-website) | The builder: a Python pipeline and an Astro static build that render package truth into ~93,000 pages, published immutably by CI | The master and staging webservers | [![site](https://github.com/seandavi/bioc-website/actions/workflows/site.yml/badge.svg)](https://github.com/seandavi/bioc-website/actions/workflows/site.yml) |
-| [bioc-edge](https://github.com/seandavi/bioc-edge) | The serving side: a Cloudflare Worker and the R2 mirror behind `bioc-dev.cancerdatasci.org`, owner of the route table that decides *what is served where* | CloudFront, the S3 bucket, the Open Storage Network buckets | [![health](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml/badge.svg)](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml) |
+| [bioc-edge](https://github.com/seandavi/bioc-edge) | The serving side: a Cloudflare Worker and the R2 mirror behind `bioconductor.org`, owner of the route table that decides *what is served where* | CloudFront, the S3 bucket, the Open Storage Network buckets | [![health](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml/badge.svg)](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml) |
+| [bioc-traffic](https://github.com/seandavi/bioc-traffic) | Everything downstream of the request logs: traffic classification, and from it download statistics and a public traffic dashboard | The legacy download-stats pipelines | In progress |
+| [bioc-build](https://github.com/seandavi/bioc-build) and [bioc-manifest](https://github.com/seandavi/bioc-manifest) | The standalone build system for the packages r-universe doesn't build, and the reviewed manifest that authorizes what it builds ([ADR 0010](adr/0010-two-new-repos-for-the-build-system-and-the-manifest-name.html)) | The legacy build machines, for data and workflow packages | Proof of concept |
 | [bioc-infrastructure](https://github.com/seandavi/bioc-infrastructure) | This documentation site | Nothing. It is the map. | [![docs](https://github.com/seandavi/bioc-infrastructure/actions/workflows/docs.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/docs.yml) |
 
 The status badges are daily black-box probes of the live system, not just test suites —
@@ -23,19 +26,12 @@ red means something is actually down or stale. Where this is all going, mileston
 milestone: **the [roadmap](roadmap.qmd)**.
 
 ::: {.callout-tip}
-## Try it now
+## Live since 2026-09-28
 
-The replacement site is live at **`bioc-dev.cancerdatasci.org`** — identical content,
-verified against production — and two lines of R point your installs at it:
-
-```r
-options(BioC_mirror = "https://bioc-dev.cancerdatasci.org")
-BiocManager::install("GEOquery")
-```
-
-See **[Installing packages from the new site](install.qmd)** for verification, persistence,
-and what to expect. Real usage, and reports of anything that behaves differently, are the
-most useful validation we can get.
+`bioconductor.org` itself is served by the new stack, so there is nothing to configure:
+`BiocManager::install()` works as it always has. If anything behaves differently from how it
+used to, that's a bug we want to hear about. What has changed, with numbers:
+**[What the new site has changed](improvements.qmd)**.
 :::
 
 ### Where to file issues {#where-to-file-issues}
@@ -44,8 +40,8 @@ most useful validation we can get.
   [bioc-website issues](https://github.com/seandavi/bioc-website/issues)
 - **A package is missing, stale, or its build/check data looks wrong** →
   [bioc-registry issues](https://github.com/seandavi/bioc-registry/issues)
-- **Serving problems** (failed installs against `bioc-dev`, slow or missing files, stale
-  cache — see [Edge cache](cache.qmd) first) →
+- **Serving problems** (failed installs, slow or missing files, stale cache — see
+  [Edge cache](cache.qmd) first) →
   [bioc-edge issues](https://github.com/seandavi/bioc-edge/issues)
 - **Cross-cutting questions, doc corrections, or anything you can't place** →
   [bioc-infrastructure issues](https://github.com/seandavi/bioc-infrastructure/issues), or
@@ -98,17 +94,18 @@ in reverse. No deploy, no rebuild. An empty table means the mirror serves everyt
 is the safe default.
 
 **5. Request logs — serving to statistics.** The Worker emits one structured record per
-request in the same field vocabulary as the CloudFront logs it replaces, shipped to object
-storage and queried from BigQuery, so both eras are one query rather than a migration
-project. The record keeps the raw client address; de-identification is a view, and
+request in the same field vocabulary as the CloudFront logs it replaces, delivered by
+Logpush to Google Cloud Storage, so both eras can be one query rather than a migration
+project. Analysis lives in [bioc-traffic](https://github.com/seandavi/bioc-traffic). The record keeps the raw client address; de-identification is a view, and
 nothing published carries the address
 ([ADR 0012](adr/0012-client-addresses-are-stored-raw-and-hashed-in-views.html)).
 
 ## Where this stands
 
-The serving replacement is functionally complete and running at
-`bioc-dev.cancerdatasci.org`: the mirror is verified drift-free, logging and its gap alerting
-are live, and the remaining step is the production cutover decision. Package landing pages
+The serving replacement took over `bioconductor.org` on 2026-09-28: nameservers moved to
+Cloudflare in the afternoon and the site followed that evening
+([DNS runbook](dns-cutover.qmd)). The legacy servers still run behind it, and still produce
+the content it mirrors, until [milestone M2](roadmap.qmd) retires them. Package landing pages
 rebuild from primary sources for 35 releases, measured against the legacy build rather than
 assumed to match. The build-system track is earlier — r-universe covers software packages;
 where annotation, experiment, and workflow packages get built is the open workstream, and the
@@ -152,7 +149,9 @@ The pages fall into two kinds, and the sidebar separates them:
 
 - **The new system** — pages that describe the replacement estate and should still be true,
   with only numbers to refresh, once the transition completes:
-  [Installing packages](install.qmd), the [edge cache](cache.qmd), the
+  [what it has changed](improvements.qmd), [installing packages](install.qmd),
+  [running a mirror](mirror-how-to.qmd), the [DNS runbook](dns-cutover.qmd), the
+  [edge cache](cache.qmd), the
   [site build](astro-site-build.qmd), the [propagation gate](propagation-gate.qmd), and the
   r-universe half of the build estate: its [size limits](r-universe-size-limits.qmd) and the
   [data-package size audit](data-packages-in-r-universe.qmd) behind the standalone build
