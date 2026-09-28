@@ -34,6 +34,8 @@ website:
         text: CI &amp; Scheduled Jobs
       - section: The new system
         contents:
+          - href: improvements.qmd
+            text: What the New Site Has Changed
           - href: dns-cutover.qmd
             text: DNS Inventory &amp; Cutover
           - href: cloudflare-account-migration.qmd

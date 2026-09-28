@@ -1,0 +1,136 @@
+---
+title: "What the new site has changed"
+date: 2026-09-28
+---
+
+::: {.callout-note}
+## A running record
+These are the stories of what moving bioconductor.org onto the new stack has made better, and
+what it has made possible that wasn't before. Each one says how far along it is. Some are
+done and measured, some are measured but not yet realized, and some are just started. Where a
+number is a projection rather than a measurement, it says so. New stories go at the top.
+:::
+
+## Watching the logs caught a crawler eating three quarters of the site
+
+*Status: fixed and deployed 2026-09-28. The traffic reduction is measured over the first
+minutes; the 24–48 hour confirmation is tracked in
+[bioc-edge#32](https://github.com/seandavi/bioc-edge/issues/32).*
+
+bioconductor.org moved onto the new edge on the afternoon of 2026-09-28. Within the hour we
+were reading the request logs, which the new edge writes one structured record per request,
+and one thing stood out immediately. In the first 19 minutes, 84,414 of 112,632 requests (75%)
+came from a single crawler. It ran on two cloud-hosting networks in Singapore, spread across
+1,130 addresses, and rotated three Mac Chrome user agents so it looked like ordinary browsers.
+
+It was requesting paths like `/talks/2016/BioC2016/ConcurrentWorkshops1/Sauteraud/2016/...`,
+up to 294 characters long, and the reason is a loop we were feeding. The old site redirects
+anything under `/talks` to the course-materials index, and the new edge copied that rule.
+The index has 392 relative links, such as `2022/CSAMA/`. The crawler resolved them against
+the address it had asked for instead of the page it landed on, so every redirect produced 392
+new `/talks/...` addresses, each of which redirected back to the same index. The redirect
+never helped a person either. It discarded the rest of the path, so an old link to a talk
+landed on a list of every talk, and in the logs nobody but the crawler asked for `/talks`.
+
+We removed the rule, so those paths now return 404, and wrote the general policy down as
+[ADR 0013](adr/0013-redirects-land-on-content-or-they-go.html): keep redirects that land a
+reader on the page they wanted, keep anything package clients depend on, and drop catch-alls
+to index pages. In the first minutes after the change, the crawler's fetches of the
+course-materials page went from 41,873 to zero and its request rate fell from about 8,300 to
+about 3,400 a minute. What remains is the crawler working through addresses it had already
+queued, and since a 404 page adds nothing new, that should run dry on its own.
+
+The old site almost certainly had the same crawler, since production has the identical rule.
+We couldn't see it: the old logs fed statistics jobs, and nobody was reading them request by
+request. The same afternoon's logs turned up two smaller problems, which were fixed the same
+day. 774 requests for old links with a doubled slash (`/packages//release/...`) got a 404
+where the old server quietly served the page. A download resuming past the end of a file got
+an error instead of the right "nothing left to send" answer.
+
+If the crawler traffic does drain as expected, that is somewhere between 6 and 12 million
+fewer requests a day, depending on which stretch of the first hour you take as its normal
+rate, and about three quarters of the edge's request and log volume. Those figures are
+projected from minutes of data. The full-day comparison will replace them.
+
+## Costs: about $5,000 a month down to about $80
+
+*Status: projected. The Cloudflare side is running now; the AWS side retires at
+[milestone M2](roadmap.qmd), so today we pay for both.*
+
+The legacy estate costs about $5,000 a month in AWS: CloudFront, the S3 bucket, and the master
+and staging web servers. That is before the builder hardware and the staff time to keep three
+operating systems patched. The Cloudflare stack replacing it is about $80 a month, most of it
+R2 storage for the archive. The difference is mostly egress. A package repository's job is
+sending tarballs to the world, which is exactly what a CDN usually bills for most, and R2
+doesn't charge for it. The [overview](index.qmd#two-costs-not-one) has the breakdown.
+
+## Faster, smaller downloads, with one regression we are fixing
+
+*Status: measured 2026-09-28 from one well-connected host in Denver. The regression is
+[bioc-edge#35](https://github.com/seandavi/bioc-edge/issues/35).*
+
+The old site answers only over HTTP/1.1. The July 2026
+[performance audit](https://github.com/seandavi/bioc-infrastructure/blob/main/audit/review/perf-a11y.md)
+measured an 11-second first paint on the homepage over a slow mobile connection, mostly from
+fetching dozens of small files one after another over a handful of connections. The new edge
+speaks HTTP/2 and compresses everything it serves, including the repository indexes that
+every `install.packages()` call reads, which the old site sends uncompressed. `PACKAGES` for
+the software repository goes over the wire as 236 KB instead of 944 KB, and `VIEWS` as 1.2 MB
+instead of 5.3 MB, about a quarter of the size each time. That matters most for exactly the
+people the audit worried about: users on slow or metered connections.
+
+The same measurement found a regression, and it belongs here too. Package files, meaning
+tarballs, `PACKAGES` and `VIEWS`, are currently never served from the edge cache. A rule that
+protects newly built pages from stale copies ended up covering the whole site, so every
+package download goes back to storage. From Denver, `PACKAGES` takes about 690 ms instead of
+CloudFront's 27. The cause is understood and the fix is small, and this section will be
+updated with the numbers after it ships. HTML pages, which are cached, are also somewhat
+slower from the same host (about 77 ms against 20). That gap is smaller and not yet
+investigated.
+
+## Download statistics that can tell people from bots
+
+*Status: in progress. The logs are being collected now; the classification is
+[bioc-traffic#5](https://github.com/seandavi/bioc-traffic/issues/5), and generating the
+published statistics from it is
+[bioc-registry#26](https://github.com/seandavi/bioc-registry/issues/26).*
+
+Bioconductor's download statistics have never filtered bots. The legacy code has a list of
+known crawlers and build-node addresses, and the checks that use them are commented out; the
+newer system never reads the user agent at all. The
+[download statistics page](download-stats.qmd) shows what that costs. In August and September
+2025, downloads roughly quadrupled while the number of distinct clients didn't move: CI and
+container builds reinstalling the same base packages. Those two months are still inflated in
+every published table and in the ranking behind each package's `Rank`. Separately, a quarter
+of June 2026 went missing from the published series without anyone noticing.
+
+The new edge keeps every request, with the fields needed to tell traffic apart: network,
+Cloudflare's label for verified bots, and fingerprints of the client's connection. The
+crawler above is a good example of why that matters. Its user agents claim to be browsers, so
+a user-agent filter would have counted it as people; its network and connection fingerprint
+give it away. The plan is a classification we build and maintain ourselves, with versioned
+rules so history can be recomputed when they change, and statistics generated from it as
+static files. Web usage and package usage are reported separately, rather than as one
+number that mixes people, installs and crawlers.
+
+## The build system migration has a path forward
+
+*Status: early. A working proof of concept in
+[bioc-build](https://github.com/seandavi/bioc-build), with a handful of successful builds as
+of early September 2026.*
+
+The move off the legacy build machines stalled on one gap: r-universe builds Bioconductor's
+software packages, but not the experiment-data and workflow packages. Some are far bigger than
+its size limit, and until something else builds them, the old machines can't be turned off.
+We [measured that corpus](data-packages-in-r-universe.qmd) instead of guessing at it. It is
+434 experiment-data packages totalling 28 GiB, with 67 of them holding three quarters of the
+bytes, and 25 workflow packages that together fit in 319 MiB. The data almost never change:
+across the last release bump, 425 of 433 experiment packages shipped a tarball whose size moved
+by less than 1%.
+
+bioc-build is a build pipeline on GitHub Actions that starts from a pinned copy of
+r-universe's own workflow and diverges only where it has to: a configurable size limit,
+packages authorized by a reviewed manifest, and dependencies resolved from the new registry.
+Staying that close to r-universe means a package both systems build should produce the same
+artifact and the same check result, which is what makes a comparison possible. It is early,
+but the part that was stuck now has a route.
