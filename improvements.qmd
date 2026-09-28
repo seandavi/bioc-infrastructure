@@ -52,22 +52,34 @@ fewer requests a day, depending on which stretch of the first hour you take as i
 rate, and about three quarters of the edge's request and log volume. Those figures are
 projected from minutes of data. The full-day comparison will replace them.
 
-## Costs: about $5,000 a month down to about $80
+## Costs: about $5,000 a month down to a couple of hundred
 
-*Status: projected. The Cloudflare side is running now; the AWS side retires at
-[milestone M2](roadmap.qmd), so today we pay for both.*
+*Status: projected, and re-estimated 2026-09-28 from the first hours of production traffic.
+The Cloudflare side is running now; the AWS side retires at [milestone M2](roadmap.qmd), so
+today we pay for both. Prices are Cloudflare's published list prices, not a bill.*
 
 The legacy estate costs about $5,000 a month in AWS: CloudFront, the S3 bucket, and the master
 and staging web servers. That is before the builder hardware and the staff time to keep three
-operating systems patched. The Cloudflare stack replacing it is about $80 a month, most of it
-R2 storage for the archive. The difference is mostly egress. A package repository's job is
+operating systems patched. The difference is mostly egress. A package repository's job is
 sending tarballs to the world, which is exactly what a CDN usually bills for most, and R2
-doesn't charge for it. The [overview](index.qmd#two-costs-not-one) has the breakdown.
+doesn't charge for it.
 
-## Faster, smaller downloads, with one regression we are fixing
+We used to quote about $80 a month for the replacement. That is the storage alone: the bucket
+holds 5.1 TB in 4.2 million objects, about $77 a month. Serving traffic adds per-request
+charges on top, and the first hours in production let us estimate them from real numbers
+instead of guessing. At today's rate of about 6.8 million requests a day, with the crawler
+from the story above still working through its queue, the whole stack comes to roughly $500
+a month. Most of that is R2 reads, about 800 million a month, and the crawler causes most of
+those: its 404s each cost a few storage lookups. Without the crawler it is roughly $240 a
+month. Caching 404s, which are now the largest source of storage reads, should bring it to
+around $170, still falling as the edge caches fill. So the honest figure is a couple of
+hundred dollars a month, not $80, against $5,000. The [overview](index.qmd#two-costs-not-one)
+has the AWS breakdown.
 
-*Status: measured 2026-09-28 from one well-connected host in Denver. The regression is
-[bioc-edge#35](https://github.com/seandavi/bioc-edge/issues/35).*
+## Faster, smaller downloads, and a regression we caught
+
+*Status: measured 2026-09-28 from one well-connected host in Denver, before and after fixing
+the regression described below.*
 
 The old site answers only over HTTP/1.1. The July 2026
 [performance audit](https://github.com/seandavi/bioc-infrastructure/blob/main/audit/review/perf-a11y.md)
@@ -79,14 +91,17 @@ the software repository goes over the wire as 236 KB instead of 944 KB, and `VIE
 instead of 5.3 MB, about a quarter of the size each time. That matters most for exactly the
 people the audit worried about: users on slow or metered connections.
 
-The same measurement found a regression, and it belongs here too. Package files, meaning
-tarballs, `PACKAGES` and `VIEWS`, are currently never served from the edge cache. A rule that
-protects newly built pages from stale copies ended up covering the whole site, so every
-package download goes back to storage. From Denver, `PACKAGES` takes about 690 ms instead of
-CloudFront's 27. The cause is understood and the fix is small, and this section will be
-updated with the numbers after it ships. HTML pages, which are cached, are also somewhat
-slower from the same host (about 77 ms against 20). That gap is smaller and not yet
-investigated.
+The same measurement found a regression, and it's fixed. Package files (tarballs,
+`PACKAGES`, `VIEWS`, `config.yaml`) were never being served from the edge cache: a rule that
+protects newly built pages from stale copies had ended up covering the whole site, so every
+package download went back to storage.
+[bioc-edge#35](https://github.com/seandavi/bioc-edge/issues/35) narrowed the rule to what a
+build could actually own, and those files now come from the edge cache, still expiring as
+soon as a package changes. From Denver, `PACKAGES` went from 447 to 85 ms, `VIEWS` from 550 to
+205 ms, a tarball from 227 to 72 ms and `config.yaml`, which BiocManager reads on every call,
+from 232 to 58 ms. CloudFront is still faster from this one host, by 30 to 50 ms. About a
+third of that is network distance from this particular machine, and the rest is time spent in
+the Worker on every request, cached or not. That gap is the next thing to look at.
 
 ## Download statistics that can tell people from bots
 
