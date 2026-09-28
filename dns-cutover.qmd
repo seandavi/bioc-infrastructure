@@ -73,7 +73,7 @@ account is deferred; see [Cloudflare account migration](cloudflare-account-migra
 |---|---|
 | Cloudflare account | `55bf7202fe14474e57a300f56a652f64` |
 | Zone ID | `8346d8f51aa2490ebf0124f40c2f3cd0` |
-| Zone status / plan | Delegated to Cloudflare since ~17:30 UTC 2026-09-28; confirm **Active** in the dashboard / Free |
+| Zone status / plan | **Active** since 17:29:00 UTC 2026-09-28; Universal edge certificate active / Free |
 | Assigned nameservers | `brynne.ns.cloudflare.com`, `will.ns.cloudflare.com` |
 | Records | 149, all **DNS only** (grey cloud), TTLs matching Route53 |
 | Diff vs Route53 | empty on both Cloudflare nameservers (`dns/verify-zone.sh`) |
@@ -89,12 +89,14 @@ account is deferred; see [Cloudflare account migration](cloudflare-account-migra
 | 15:49 | Route53 NS TTL lowered 172800 → 3600 (#24) |
 | 15:59 | Pre-switch check: 0 differences on both Cloudflare nameservers |
 | ~17:00–17:30 | Registrar nameservers changed to `brynne`/`will.ns.cloudflare.com` |
+| 17:29 | Cloudflare zone **Active** (`activated_on` 17:29:00); Universal certificate active shortly after |
 | 17:32 | .org delegation shows only the Cloudflare pair; no DS. A trace from the root resolves via Cloudflare. Route53 vs Cloudflare still 0 differences. Site 200 via CloudFront (apex, `www`); MX/DMARC served by Cloudflare; `git` SSH, `blog.` (Pages), `bioc2026.` (Netlify), `support.` all OK. 1.1.1.1, 8.8.8.8 and 9.9.9.9 still had the AWS NS cached, as expected |
 
-Still to confirm by hand: zone **Active** in the Cloudflare dashboard, and a real mail
-round trip (forwardemail in/out, one Brevo send).
+| 18:14 | 8.8.8.8 on the Cloudflare nameservers |
+| 18:44 | 9.9.9.9 on the Cloudflare nameservers: all three public resolvers moved. Both diffs still 0, services unchanged. Watch ended |
 
-The 28-day pending deadline (2026-10-26) no longer applies once the zone is Active.
+Still to confirm by hand: a real mail round trip (forwardemail in/out, one Brevo send).
+The 28-day pending deadline no longer applies; the zone is Active.
 
 How the copy was made, so it can be redone:
 
