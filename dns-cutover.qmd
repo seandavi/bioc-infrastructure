@@ -17,10 +17,12 @@ below means *not reachable from outside*, not necessarily dead.
 Updated 2026-09-17: the apex mechanism is settled — the zone's nameservers move to
 Cloudflare — and the [migration plan](#migration-plan) below was added.
 
-Updated 2026-09-28: **step 1 is done.** The zone exists in Cloudflare, pending, as a
-verified exact copy of Route53. Nothing user-visible has changed. Steps 2 and 3 below
-are written as runbooks, each with its own rollback. The nameservers must change by
-**2026-10-26**, or Cloudflare deletes the pending zone.
+Updated 2026-09-28: **steps 1 and 2 are done.** The zone was copied to Cloudflare and
+verified. The registrar's nameservers were switched to Cloudflare the same afternoon;
+the .org delegation showed the Cloudflare pair by 17:32 UTC. The site is still served
+by CloudFront, so nothing user-visible changed. **Record freeze until 2026-10-12:**
+change nothing in either zone, or make every change identically in both. Step 3 (the
+site flip) is next, and has its own rollback.
 :::
 
 ## What M1 actually changes
@@ -65,26 +67,34 @@ The zone lives in the **current Cloudflare account** (the one that already holds
 `bioc-site` Worker, Workers Paid and R2 Paid). Moving to a dedicated Bioconductor
 account is deferred; see [Cloudflare account migration](cloudflare-account-migration.qmd).
 
-### Where things stand (2026-09-28)
+### Where things stand (2026-09-28, after the switch)
 
 | | |
 |---|---|
 | Cloudflare account | `55bf7202fe14474e57a300f56a652f64` |
 | Zone ID | `8346d8f51aa2490ebf0124f40c2f3cd0` |
-| Zone status / plan | **Pending** (nameservers not yet changed) / Free |
+| Zone status / plan | Delegated to Cloudflare since ~17:30 UTC 2026-09-28; confirm **Active** in the dashboard / Free |
 | Assigned nameservers | `brynne.ns.cloudflare.com`, `will.ns.cloudflare.com` |
 | Records | 149, all **DNS only** (grey cloud), TTLs matching Route53 |
 | Diff vs Route53 | empty on both Cloudflare nameservers (`dns/verify-zone.sh`) |
 | Bot Preference Sync | off (it would rewrite `robots.txt` once proxied) |
 | Registrar | Route53 Domains in AWS account 555219204010; auto-renew on, transfer lock on, expires 2026-11-19; DNSSEC not configured, no DS record |
+| Route53 hosted zone | Unchanged, NS TTL 3600 (lowered 15:49 UTC 2026-09-28). Rollback target: **leave untouched until 2026-10-12** |
 
-::: {.callout-warning}
-## Deadline: switch nameservers by 2026-10-26
-Cloudflare deletes a Free-plan zone that stays **Pending** for 28 days. This one was
-created 2026-09-28 15:22 UTC. If it lapses nothing breaks — Route53 is still
-authoritative — but the zone must be re-added and re-imported (below), and Cloudflare
-will likely assign different nameservers.
-:::
+### Switch log (2026-09-28)
+
+| UTC | |
+|---|---|
+| 15:22 | Zone created in Cloudflare; records imported, reset to DNS only, verified |
+| 15:49 | Route53 NS TTL lowered 172800 → 3600 (#24) |
+| 15:59 | Pre-switch check: 0 differences on both Cloudflare nameservers |
+| ~17:00–17:30 | Registrar nameservers changed to `brynne`/`will.ns.cloudflare.com` |
+| 17:32 | .org delegation shows only the Cloudflare pair; no DS. A trace from the root resolves via Cloudflare. Route53 vs Cloudflare still 0 differences. Site 200 via CloudFront (apex, `www`); MX/DMARC served by Cloudflare; `git` SSH, `blog.` (Pages), `bioc2026.` (Netlify), `support.` all OK. 1.1.1.1, 8.8.8.8 and 9.9.9.9 still had the AWS NS cached, as expected |
+
+Still to confirm by hand: zone **Active** in the Cloudflare dashboard, and a real mail
+round trip (forwardemail in/out, one Brevo send).
+
+The 28-day pending deadline (2026-10-26) no longer applies once the zone is Active.
 
 How the copy was made, so it can be redone:
 
