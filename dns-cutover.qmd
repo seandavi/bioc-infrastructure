@@ -115,10 +115,28 @@ Deliberate differences from Route53:
 
 #### 2a. Lower the Route53 NS TTL — at least 2 days before 2b
 
-Route53's own NS record carries a TTL of **172800 s (2 days)**. Resolvers that trust
-the child zone's NS record can keep asking Route53 for up to two days after the switch,
-and — more important — keep asking *Cloudflare* for that long after a rollback. The
-.org parent's copy is already 3600 s. Bring the child's down to match.
+After a nameserver change, a resolver keeps using the old nameservers until its cached
+NS record expires. There are two copies of that record: the .org registry's (3600 s,
+not ours to change) and the one the *old* provider serves itself, which some resolvers
+prefer. So each direction's tail is set by the provider being left:
+
+| Direction | TTLs that matter | Worst-case tail |
+|---|---|---|
+| Switch to Cloudflare (2b) | .org 1 h; **Route53 NS** — 172800 s today, 3600 s after this step | 2 days → 1 hour |
+| Roll back to Route53 | .org 1 h; **Cloudflare NS**, 86400 s | 1 day, whatever we do here |
+
+**This step shortens the switch, not a rollback.** Cloudflare's NS TTL is adjustable
+only as part of Foundation DNS (Enterprise), so on this zone it is fixed at a day.
+The step is still worth doing for two reasons:
+
+- It shrinks the window in which Route53 and Cloudflare must both be kept correct.
+- It makes a *second* attempt after a rollback clean. Resolvers that re-fetch Route53's
+  NS during a rollback cache it for the full TTL, so without this step the retry starts
+  a fresh 2-day tail.
+
+A TTL is a ceiling, not a wait. Each resolver's clock started at its last fetch, many
+follow the parent's 1 hour, and some cap long TTLs. So most traffic moves within about
+an hour either way, and the worst-case figures describe the last stragglers.
 
 This changes no answers, only how long they are cached. It is safe to do any time.
 
@@ -146,8 +164,9 @@ In the AWS console (account 555219204010, the NIH DNS role):
    ```sh
    dig +norec +noall +answer @ns-1784.awsdns-31.co.uk bioconductor.org NS
    ```
-9. Note the time. Step 2b can start **48 hours later** (when the last 172800-second
-   cache entries have expired).
+9. Note the time. Step 2b should start **48 hours later**, when the last
+   172800-second cache entries have expired. If it slips, nothing breaks: the switch
+   just has a longer tail, and it doesn't change how fast a rollback is.
 
 Equivalent with the AWS CLI, for anyone with a profile in that account:
 
@@ -209,10 +228,14 @@ ns-91.awsdns-11.com
 ```
 
 Most resolvers move back within the parent's 1 hour. Cloudflare's own NS records carry
-86400 s, so a few resolvers keep asking Cloudflare for up to a day. That is harmless
-**only if the Cloudflare zone keeps serving the same data**, so on rollback, leave the
-Cloudflare zone in place and unchanged for at least two days before deleting or
-editing it.
+86400 s (not adjustable on this plan), so a few resolvers keep asking Cloudflare for up
+to a day. That is harmless **only if the Cloudflare zone keeps serving the same data**.
+On rollback, leave the Cloudflare zone in place and unchanged for at least two days
+before deleting or editing it.
+
+Only roll back the nameservers when Cloudflare's DNS *service* is the problem. A wrong
+or missing record is faster to fix in Cloudflare itself (records carry 300 s TTLs),
+and every resolver sees the fix, including the ones a rollback would leave behind.
 
 **Afterwards:** leave the Route53 hosted zone untouched for at least two weeks (it's
 the rollback target), then lift the freeze. Enable DNSSEC in Cloudflare only after
