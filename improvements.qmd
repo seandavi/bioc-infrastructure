@@ -13,9 +13,10 @@ number is a projection rather than a measurement, it says so. New stories go at 
 
 ## Watching the logs caught a crawler eating three quarters of the site
 
-*Status: fixed and deployed 2026-09-28. The traffic reduction is measured over the first
-minutes; the 24–48 hour confirmation is tracked in
-[bioc-edge#32](https://github.com/seandavi/bioc-edge/issues/32).*
+*Status: fixed 2026-09-28, the same evening: the loop broken at 20:58 UTC, the rest of the
+crawler blocked at the edge at 22:34 UTC
+([bioc-edge#32](https://github.com/seandavi/bioc-edge/issues/32)). The daily savings are
+still projected from minutes of data.*
 
 bioconductor.org moved onto the new edge on the afternoon of 2026-09-28. Within the hour we
 were reading the request logs, which the new edge writes one structured record per request,
@@ -37,8 +38,21 @@ We removed the rule, so those paths now return 404, and wrote the general policy
 reader on the page they wanted, keep anything package clients depend on, and drop catch-alls
 to index pages. In the first minutes after the change, the crawler's fetches of the
 course-materials page went from 41,873 to zero and its request rate fell from about 8,300 to
-about 3,400 a minute. What remains is the crawler working through addresses it had already
-queued, and since a 404 page adds nothing new, that should run dry on its own.
+about 3,400 a minute. What remained was the crawler working through addresses it had
+already queued, and we expected that to run dry, since a 404 page gives it nothing new.
+
+It didn't. The loop had given the crawler an enormous queue, and it kept working through it at
+about 3,700 requests a minute, still well over half of everything the site received. Worse,
+each of those 404s now cost the edge a few storage lookups, where the redirects had cost
+none. Caching 404s helped every other client but not this one, because every address it asked
+for was new. So we added one firewall rule in Cloudflare, scoped as narrowly as we could make
+it: requests from those two networks, and only for paths under `/talks/`, are blocked before
+they reach our code. The site has nothing under `/talks/`, so no real content can be caught by
+it, and the same networks' other requests still get through. It blocked 7,500 requests in its
+first few minutes. The crawler's traffic reaching the site went from 5,000 to 8,000 requests a
+minute to between none and fifteen, and blocked requests cost us nothing: no compute, no
+storage reads, no log volume. Without request-level logs we would have seen a busy site, not
+one crawler, and blocking whole cloud networks to stop it would have caught real users too.
 
 The old site almost certainly had the same crawler, since production has the identical rule.
 We couldn't see it: the old logs fed statistics jobs, and nobody was reading them request by
@@ -47,10 +61,10 @@ day. 774 requests for old links with a doubled slash (`/packages//release/...`) 
 where the old server quietly served the page. A download resuming past the end of a file got
 an error instead of the right "nothing left to send" answer.
 
-If the crawler traffic does drain as expected, that is somewhere between 6 and 12 million
-fewer requests a day, depending on which stretch of the first hour you take as its normal
-rate, and about three quarters of the edge's request and log volume. Those figures are
-projected from minutes of data. The full-day comparison will replace them.
+Taken together, that is somewhere between 5 and 12 million fewer requests a day, depending
+on which stretch of the first evening you take as the crawler's normal rate: well over half of
+the edge's request and log volume. Those figures are projected from minutes of data, and a
+full day's comparison will replace them.
 
 ## Costs: about $5,000 a month down to a couple of hundred
 
