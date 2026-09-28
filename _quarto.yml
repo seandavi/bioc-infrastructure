@@ -1,6 +1,8 @@
 project:
   type: website
   output-dir: _site
+  # Replaces the generated llms.txt with the hand-written one; builds llms-full.txt.
+  post-render: ./llms-post-render.sh
   # This repo is public, so there is no render-list boundary to maintain:
   # everything here is published, including the ADRs. See adr/0001.
   render:

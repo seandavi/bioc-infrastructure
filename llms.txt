@@ -1,0 +1,76 @@
+# Bioconductor Infrastructure
+
+> How bioconductor.org is built, served and being replaced, and the decisions behind it. Since 2026-09-28, bioconductor.org is served by a Cloudflare Worker in front of an R2 copy of the full repository; the legacy AWS estate (CloudFront, S3, the master and staging servers, the BBS build machines) still runs behind it and is being retired milestone by milestone.
+
+Scope: the web site, the package repositories and how they are served, the build and propagation path for packages, request logs and download statistics, and the migration between the old and new systems. Not covered here: ExperimentHub/AnnotationHub, package development guidance (see contributions.bioconductor.org), project governance, or the support site.
+
+Pages are either **current** (describe the running system; refreshed when it changes) or **historical** (dated snapshots of the legacy estate and the transition, kept as a record and not updated). Every page carries its date; prefer current pages, and treat numbers as point-in-time measurements. Decisions are recorded as ADRs, including ones later reversed.
+
+Each link below is the page's Markdown version; the HTML page is the same path with `.html`. Everything in one file: [llms-full.txt](https://seandavi.github.io/bioc-infrastructure/llms-full.txt).
+
+## Common questions
+
+- How do I install packages, and did anything change for users? → [Installing packages](https://seandavi.github.io/bioc-infrastructure/install.llms.md)
+- What is the overall architecture, which repo does what, and what does it cost? → [Overview](https://seandavi.github.io/bioc-infrastructure/index.llms.md)
+- What has the new site improved, with numbers? → [What the new site has changed](https://seandavi.github.io/bioc-infrastructure/improvements.llms.md)
+- What is done and what is left? → [Roadmap](https://seandavi.github.io/bioc-infrastructure/roadmap.llms.md)
+- Why is a page or package file stale, and how is the cache purged? → [Edge cache](https://seandavi.github.io/bioc-infrastructure/cache.llms.md)
+- How did the DNS and site cutover happen, and how is it rolled back? → [DNS inventory and cutover runbook](https://seandavi.github.io/bioc-infrastructure/dns-cutover.llms.md)
+- How do I run a mirror of the repositories? → [Running a mirror](https://seandavi.github.io/bioc-infrastructure/mirror-how-to.llms.md)
+- How does a package build become an installable package? → [Propagation gate](https://seandavi.github.io/bioc-infrastructure/propagation-gate.llms.md), then for the old system [Legacy propagation](https://seandavi.github.io/bioc-infrastructure/legacy-propagation.llms.md)
+- Where are packages built, and why not only on r-universe? → [Builder transition](https://seandavi.github.io/bioc-infrastructure/builder-transition.llms.md), [r-universe size limits](https://seandavi.github.io/bioc-infrastructure/r-universe-size-limits.llms.md), [Data packages in r-universe](https://seandavi.github.io/bioc-infrastructure/data-packages-in-r-universe.llms.md)
+- How are download statistics computed, and can they be trusted? → [Download stats](https://seandavi.github.io/bioc-infrastructure/download-stats.llms.md), [ADR 0004](https://seandavi.github.io/bioc-infrastructure/adr/0004-download-statistics-are-generated-static-files.llms.md)
+- What is logged about requests, and how are client addresses handled? → [ADR 0003](https://seandavi.github.io/bioc-infrastructure/adr/0003-request-logging-after-the-cloudflare-cutover.llms.md), [ADR 0012](https://seandavi.github.io/bioc-infrastructure/adr/0012-client-addresses-are-stored-raw-and-hashed-in-views.llms.md)
+- What ran on the legacy servers, and what does retiring them involve? → [Current state (legacy)](https://seandavi.github.io/bioc-infrastructure/current-state.llms.md), [Decommission plan](https://seandavi.github.io/bioc-infrastructure/decommission-plan.llms.md)
+
+## Current: the running system
+
+- [Overview](https://seandavi.github.io/bioc-infrastructure/index.llms.md): the repos that make up the new estate, the data contracts between them, costs, and known weak points. Start here.
+- [What the new site has changed](https://seandavi.github.io/bioc-infrastructure/improvements.llms.md): measured improvements and regressions since the cutover (costs, performance, a crawler found in the logs, download statistics, the build system), each with its status.
+- [Roadmap](https://seandavi.github.io/bioc-infrastructure/roadmap.llms.md): milestones M0 (readiness) to M3 (search and redesigns), acceptance criteria and status.
+- [Installing packages](https://seandavi.github.io/bioc-infrastructure/install.llms.md): nothing to configure since the cutover; how to confirm a request was served by the new stack.
+- [Running a mirror](https://seandavi.github.io/bioc-infrastructure/mirror-how-to.llms.md): syncing the repositories over HTTPS from the published manifest, with no credentials.
+- [Edge cache](https://seandavi.github.io/bioc-infrastructure/cache.llms.md): purge-based freshness, what is cached under which key, how to diagnose a stale page and purge it.
+- [DNS inventory and cutover runbook](https://seandavi.github.io/bioc-infrastructure/dns-cutover.llms.md): every record in the bioconductor.org zone, the move to Cloudflare, the switch log, the record freeze and rollback.
+- [Cloudflare account migration](https://seandavi.github.io/bioc-infrastructure/cloudflare-account-migration.llms.md): the deferred plan to move the zone and Workers into a dedicated Bioconductor account.
+- [Building the site from primary sources](https://seandavi.github.io/bioc-infrastructure/astro-site-build.llms.md): the static Astro build, what it reproduces and what is still missing.
+- [Propagation gate](https://seandavi.github.io/bioc-infrastructure/propagation-gate.llms.md): the rule that decides which r-universe builds bioc-registry publishes.
+- [r-universe size limits](https://seandavi.github.io/bioc-infrastructure/r-universe-size-limits.llms.md): where r-universe's package size limits live and what they mean for Bioconductor.
+- [Data packages in r-universe](https://seandavi.github.io/bioc-infrastructure/data-packages-in-r-universe.llms.md): a size audit of the experiment-data and workflow packages, which motivates the separate bioc-build system.
+- [CI and scheduled jobs](https://seandavi.github.io/bioc-infrastructure/ci.llms.md): every workflow and timer across the repos, and what a red badge means.
+
+## Historical: the legacy estate and the transition
+
+- [Current state (legacy)](https://seandavi.github.io/bioc-infrastructure/current-state.llms.md): what ran on the staging and master servers as of 2026-08.
+- [Legacy propagation and push hooks](https://seandavi.github.io/bioc-infrastructure/legacy-propagation.llms.md): how packages moved from build to repository in the BBS era.
+- [Builder transition](https://seandavi.github.io/bioc-infrastructure/builder-transition.llms.md): the three concurrent build tracks (r-universe, container binaries, BBS) as of 2026-08.
+- [VIEWS and r-universe](https://seandavi.github.io/bioc-infrastructure/views-and-r-universe.llms.md): what r-universe can and cannot replace in the VIEWS metadata.
+- [Reproducing the package pages](https://seandavi.github.io/bioc-infrastructure/reproducing-package-pages.llms.md): rebuilding package landing pages from primary sources, measured against the legacy build.
+- [Download stats](https://seandavi.github.io/bioc-infrastructure/download-stats.llms.md): the two legacy statistics pipelines, their definitions and known errors (no bot filtering, missing and inflated months).
+- [R2 migration](https://seandavi.github.io/bioc-infrastructure/r2-migration.llms.md): moving the repository and archive into R2.
+- [Decommission plan](https://seandavi.github.io/bioc-infrastructure/decommission-plan.llms.md): what retiring the legacy hosts requires.
+
+## Decisions (ADRs)
+
+- [0001](https://seandavi.github.io/bioc-infrastructure/adr/0001-public-docs-site-with-a-publication-boundary.llms.md): the docs site is public, with a publication boundary. Superseded by 0008.
+- [0002](https://seandavi.github.io/bioc-infrastructure/adr/0002-mirror-access-logs-unfiltered.llms.md): mirror access logs unfiltered; interpret them in views.
+- [0003](https://seandavi.github.io/bioc-infrastructure/adr/0003-request-logging-after-the-cloudflare-cutover.llms.md): request logging after the cutover: one structured record per request, delivered by Logpush.
+- [0004](https://seandavi.github.io/bioc-infrastructure/adr/0004-download-statistics-are-generated-static-files.llms.md): download statistics are generated static files, not a live service.
+- [0005](https://seandavi.github.io/bioc-infrastructure/adr/0005-completeness-is-measured-by-origin-not-page-type.llms.md): migration completeness is measured by where content comes from, not by page type.
+- [0006](https://seandavi.github.io/bioc-infrastructure/adr/0006-old-releases-and-their-checkresults-are-archival.llms.md): releases other than current release and devel, and their checkResults, are archival.
+- [0007](https://seandavi.github.io/bioc-infrastructure/adr/0007-cloudflare-workflows-for-the-release-roll-guard.llms.md): Cloudflare Workflows carries the human-approval gate for the release roll.
+- [0008](https://seandavi.github.io/bioc-infrastructure/adr/0008-three-repos-and-a-strangler-migration.llms.md): repos split by audience; migrate by strangling the old site behind the Worker.
+- [0009](https://seandavi.github.io/bioc-infrastructure/adr/0009-client-addresses-are-hashed-at-the-edge.llms.md): hash client addresses at the edge. Superseded by 0012, never deployed.
+- [0010](https://seandavi.github.io/bioc-infrastructure/adr/0010-two-new-repos-for-the-build-system-and-the-manifest-name.llms.md): two new repos for the build system (bioc-build) and its governance manifest (bioc-manifest).
+- [0011](https://seandavi.github.io/bioc-infrastructure/adr/0011-one-propagation-gate-for-every-producer.llms.md): one propagation gate for every producer.
+- [0012](https://seandavi.github.io/bioc-infrastructure/adr/0012-client-addresses-are-stored-raw-and-hashed-in-views.llms.md): client addresses are stored raw; de-identification is a view.
+- [0013](https://seandavi.github.io/bioc-infrastructure/adr/0013-redirects-land-on-content-or-they-go.llms.md): a redirect lands on the content, or it goes.
+
+## Repositories
+
+- [bioc-edge](https://github.com/seandavi/bioc-edge): the Cloudflare Worker, R2 mirror sync and cache purging.
+- [bioc-registry](https://github.com/seandavi/bioc-registry): the data plane and propagation gate.
+- [bioc-website](https://github.com/seandavi/bioc-website): the static site build.
+- [bioc-traffic](https://github.com/seandavi/bioc-traffic): request-log analytics and traffic classification.
+- [bioc-build](https://github.com/seandavi/bioc-build) and [bioc-manifest](https://github.com/seandavi/bioc-manifest): the standalone build system and its manifest.
+- [bioc-infrastructure](https://github.com/seandavi/bioc-infrastructure): this site; issues here are the migration's ledger.
