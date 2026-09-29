@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question about using a package
+    url: https://support.bioconductor.org
+    about: Usage questions and package-specific problems go to the Bioconductor support site.
+  - name: Security problem
+    url: https://github.com/seandavi/bioc-edge/blob/main/SECURITY.md
+    about: Please don't open a public issue. Report it privately as described here.
+  - name: Wording or content of a page on bioconductor.org
+    url: https://github.com/Bioconductor/bioconductor.org/issues
+    about: The site's prose still lives in the legacy site's repository until it's imported.
