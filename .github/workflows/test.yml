@@ -1,0 +1,14 @@
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  mirror-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: mirror-sync.sh against a local fake site
+        run: ./test-mirror-sync.sh

@@ -8,6 +8,9 @@ project:
   render:
     - "*.qmd"
     - "adr/*.md"
+  # Served for mirror operators to download (mirror-how-to.qmd).
+  resources:
+    - mirror-sync.sh
 
 website:
   site-url: "https://seandavi.github.io/bioc-infrastructure/"
