@@ -115,7 +115,12 @@ source version. Classifying every one of the 363 against those rules (`binwhy.py
 The two bugs have one cause: the gate decides a package's binaries once, when its version is
 first published, and never looks again at that version. So 137 binaries that the registry's
 own rules would admit today are missing
-([bioc-registry#50](https://github.com/seandavi/bioc-registry/issues/50)). *Blocking*: re-evaluate the binaries of each
+([bioc-registry#50](https://github.com/seandavi/bioc-registry/issues/50)). **Fixed and
+backfilled** in [bioc-registry#51](https://github.com/seandavi/bioc-registry/pull/51):
+re-running the comparison, the missing binaries fell from 363 to 222, the bug rows from 137
+to 8, and the seed-refresh row by 12. None of the 8 left has an r-universe binary to add
+(a macOS Intel build failed or doesn't exist, or the binary hasn't been built yet for a
+version published an hour earlier). Was *blocking*: re-evaluate the binaries of each
 published version on every r-universe wave, adding any whose platform now passes (the source
 and the version stay as they are).
 
@@ -180,11 +185,11 @@ Each step names its rollback. Nothing moves to the next step until its tests pas
   repository, CRAN and the Bioconductor data repositories (finding 2).
 - Binaries: re-evaluate the binaries of each published version on every wave, so a platform
   that passes later, or a binary built after the source was published, is added (finding 4:
-  137 binaries; [bioc-registry#50](https://github.com/seandavi/bioc-registry/issues/50)).
+  137 binaries; [bioc-registry#50](https://github.com/seandavi/bioc-registry/issues/50)). Done.
 - Repository type: route bioc-build output into data and workflow repositories, never the
   software index (finding 6).
 - Seeds: refresh a seed's binaries when `bioconductor.org`'s catch up to the seeded version
-  (finding 4: 12 binaries; also bioc-registry#50). Whether to re-seed newer *versions* from BBS is a decision
+  (finding 4: 12 binaries; also bioc-registry#50). Done. Whether to re-seed newer *versions* from BBS is a decision
   (finding 3).
 
 **1. Build the materializer, writing to a staging prefix.** It writes the full software tree
