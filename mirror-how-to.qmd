@@ -60,100 +60,73 @@ Decide explicitly rather than mirroring everything.
 
 Release and devel together are roughly 320 GB.
 
-## Procedure
+## Running the sync
 
-Set two variables once; everything below uses them.
-
-```sh
-BASE=https://bioconductor.org
-DEST=/srv/bioc                       # served as the site root
-```
-
-### 1. Fetch the index and resolve the versions
+One script does the whole job and is safe to run from cron:
+[`mirror-sync.sh`](mirror-sync.sh). It needs `bash`, `curl`, `jq`, `gzip`, `md5sum` and
+`flock`. `Rscript` is optional; if present, the script ends by checking the result with
+`available.packages()`.
 
 ```sh
-curl -fsSL "$BASE/api/v1/manifest/index.json" -o index.json
-RELEASE=$(jq -r .versions.release index.json)
-DEVEL=$(jq -r .versions.devel index.json)
+curl -fsSLO https://seandavi.github.io/bioc-infrastructure/mirror-sync.sh
+chmod +x mirror-sync.sh
+DEST=/srv/bioc ./mirror-sync.sh          # DEST is the directory you serve as the site root
 ```
 
-Do this on every run. At a release roll the numbers change, and nothing else will tell you.
-
-### 2. Fetch the manifests you want
+From cron, daily is plenty:
 
 ```sh
-: > files.txt
-for v in $RELEASE $DEVEL; do
-  for repo in bioc data-annotation data-experiment workflows books; do
-    curl -fsSL "$BASE/api/v1/manifest/$v/$repo.tsv.gz" | gunzip >> manifest.tsv
-  done
-done
-test -s manifest.tsv || { echo "empty manifest, aborting" >&2; exit 1; }
-cut -f1 manifest.tsv > files.txt
-wc -l files.txt
+17 3 * * *  DEST=/srv/bioc /usr/local/bin/mirror-sync.sh >> /var/log/bioc-mirror-sync.log 2>&1
 ```
 
-The emptiness check is not optional. A truncated manifest must stop you rather than produce
-a quietly empty sync.
+### What it does
 
-### 3. Copy the files
+1. **Reads `index.json`** for the current release and devel versions, every run. Nothing is
+   pinned: at a release roll the script follows the new numbers by itself.
+2. **Fetches the manifests and checks they're complete.** Each manifest's line count must
+   equal the object count `index.json` publishes for it. A partial download stops the run
+   before anything on disk changes.
+3. **Downloads what's new or changed**, judged by presence, size and the manifest's MD5.
+   Each file lands as a `.part` file, is checked against its MD5, then moved into place, so
+   your server never serves a half-written file. A failed download stops the run before any
+   removal.
+4. **Recreates the symlinks** (`release`, `devel` and the R-version aliases inside
+   `contrib/`). Skipping this fails silently: pages keep working while `install.packages()`
+   returns 404.
+5. **Removes files that left the manifest**, only inside the directories it manages:
+   `packages/<version>/<repo>/` for the repos you carry. Your own pages and any older
+   releases you keep are never touched.
+6. **Checks that R can read the repository** through the `release` link.
+
+### Settings
+
+| Variable | Default | |
+|---|---|---|
+| `DEST` | (required) | Directory you serve as the site root. |
+| `REPOS` | `bioc data-annotation data-experiment workflows books` | Which repositories to carry (see [Choosing scope](#choosing-scope)). |
+| `MAX_REMOVE` | `0.10` | Remove files automatically only while they're at most this fraction of the mirror. |
+| `CONFIRM_REMOVE` | unset | Set to `1` to carry out a removal that exceeded `MAX_REMOVE`. |
+| `JOBS` | `8` | Parallel downloads. |
+| `STATE` | `~/.local/state/bioc-mirror-sync` | The script's state: last manifest, versions, lock. Use one per `DEST`. |
+
+### Exit status and release rolls
+
+| Status | Meaning |
+|---|---|
+| `0` | Done. |
+| `1` | Something failed (message on stderr). Nothing was removed; rerun to retry. |
+| `3` | Removal held: more files left the manifest than `MAX_REMOVE` allows. |
+
+Routine churn is well under the limit and is removed automatically. A release roll retires
+a whole version, far more than 10% of the mirror, so the run downloads the new version,
+moves the symlinks, and then stops with status `3` instead of deleting. Your mirror keeps
+serving throughout. Review the list in `$STATE/remove.txt`, then:
 
 ```sh
-rclone copy :http:/ "$DEST" --http-url "$BASE" \
-  --files-from files.txt --no-traverse --transfers 8 --checkers 16
+DEST=/srv/bioc CONFIRM_REMOVE=1 ./mirror-sync.sh
 ```
 
-`copy`, never `sync`. Removal is step 5, done by hand. Without rclone:
-
-```sh
-wget -q -i files.txt -x -nH -B "$BASE/" -P "$DEST"
-```
-
-### 4. Recreate the symlinks
-
-This step has no equivalent in the rsync world and fails **silently** when skipped: browse
-URLs keep working while `install.packages()` returns 404.
-
-```sh
-jq -r '.symlinks | to_entries[] | "\(.key)\t\(.value)"' index.json |
-  while IFS=$'\t' read -r link target; do
-    case "$link" in packages/*) ;; *) continue ;; esac
-    mkdir -p "$(dirname "$DEST/$link")"
-    ln -sfn "$target" "$DEST/$link"
-  done
-```
-
-Most of the ~150 links are not `release` and `devel`. They are R-version aliases inside
-`contrib/`, for example `packages/3.23/bioc/bin/windows/contrib/4.7 -> 4.6`, which is how one
-build serves two R versions.
-
-### 5. Remove what left the manifest
-
-```sh
-(cd "$DEST" && find . -type f -printf '%P\n') | sort > have.txt
-sort files.txt > want.txt
-comm -23 have.txt want.txt > gone.txt
-wc -l gone.txt
-# review gone.txt, then:
-# (cd "$DEST" && xargs -a gone.txt rm -f)
-```
-
-Deliberately manual. A release roll legitimately removes tens of thousands of files, and that
-should be a decision, not something cron does at 3am.
-
-### 6. Verify
-
-```sh
-# sizes and hashes against the manifest
-awk -F'\t' -v d="$DEST" '{ print $3 "  " d "/" $1 }' manifest.tsv |
-  awk '$1 != ""' | md5sum -c --quiet
-
-# the check that matters
-Rscript -e "ap <- available.packages(repos='file://$DEST/packages/$RELEASE/bioc'); cat(nrow(ap), 'packages\n')"
-```
-
-If `available.packages()` returns rows, the layout and metadata are right. If a package then
-installs from under `contrib/`, the symlinks are right too.
+Runs that overlap (a slow run still going when cron starts the next) are refused by a lock.
 
 ## Serving
 
@@ -174,18 +147,15 @@ options(BioC_mirror = "https://mirror.example.org")
 BiocManager::install("GEOquery")
 ```
 
-## Cadence and release rolls
-
-Release once or twice a month, devel at most weekly, as before. Re-read `index.json` on every
-run and pin nothing. After a release roll, expect step 5 to list the whole previous devel
-tree; that is correct.
 
 ## Migrating an existing rsync mirror
 
-Keep both running for one release cycle. Point the new procedure at the same `$DEST` you
-already serve. Step 3 copies only what differs, step 4 replaces the symlinks you made by
-hand, and step 5 shows you the difference between the rsync tree and the manifest before you
-delete anything. Confirm with the Bioconductor team when you have switched, so the rsync
+Point the script at the `DEST` you already serve and run it by hand the first time. It
+downloads only what differs and replaces the `release` and `devel` symlinks you made by hand.
+If one of them is a real directory rather than a symlink, the script stops and says so; move
+it aside and rerun. Files the rsync tree has that the manifest doesn't are removed, subject
+to the `MAX_REMOVE` hold, so a first run against an old tree will usually stop with status
+`3` and a list to review. Confirm with the Bioconductor team when you have switched, so the rsync
 account can be closed on your say-so rather than on log silence.
 
 ## Listing your mirror
