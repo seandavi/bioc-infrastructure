@@ -1,0 +1,47 @@
+name: Something's broken on bioconductor.org
+description: A page, download, redirect or file on bioconductor.org doesn't work as expected
+labels: [report]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. bioconductor.org moved to new infrastructure on 2026-09-28, and reports like this are how we find what the move missed.
+        Questions about *using* a package belong on [support.bioconductor.org](https://support.bioconductor.org).
+  - type: input
+    id: url
+    attributes:
+      label: URL
+      description: The address that's broken. If a link on another page led you there, include that page too.
+      placeholder: https://bioconductor.org/packages/release/bioc/html/limma.html
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: For example, "404 instead of the vignette", "download link points to a version that doesn't exist".
+    validations:
+      required: true
+  - type: dropdown
+    id: how
+    attributes:
+      label: How were you accessing it?
+      options:
+        - Web browser
+        - R (BiocManager or install.packages)
+        - Mirror or rsync
+        - Script, API or command-line tool (curl, wget, ...)
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output, error message or screenshot
+      description: Optional. Paste text rather than a screenshot where you can.
+      render: text
+  - type: input
+    id: when
+    attributes:
+      label: When did you notice it?
+      description: Optional. A date and time (with time zone) helps us match your report to server logs.
