@@ -79,20 +79,49 @@ were archived). A user asking for one gets a confusing failure instead of "not a
 *Blocking.* The fix is a gate rule, not a list: don't publish a package whose hard
 dependencies aren't resolvable.
 
-**3. Frozen seeded packages.** 153 release and 124 devel entries were seeded once from
-Bioconductor's own builds for packages that fail in r-universe's environment, and seeds never
-update. Today 3 release and 6 devel seeds are behind `bioconductor.org`, including `biomaRt`,
-`DOSE` and `CNVRanger`; two devel packages propagated by the gate are behind as well
-(`PIPETS` at 1.7.0 against 1.9.0). After a switch, bug-fix releases of those packages would
-stop reaching users. *Blocking*, until either the packages build in r-universe or seeds are
-refreshed while BBS still produces them. Refreshing seeds keeps BBS in the path for those
-packages, so it's a bridge, not an end state.
+**3. Versions that fail in r-universe lag.** 153 release and 124 devel entries were seeded
+once from Bioconductor's own builds for packages that fail in r-universe's environment. A
+seed is replaced only when r-universe builds a newer version that passes the gate. Today 3
+release and 8 devel packages are behind `bioconductor.org`, including `biomaRt`, `DOSE` and
+`CNVRanger`. Asked through the registry's own `POST /gate`, every one of them is blocked
+by a rule, which is what the gate is for: the newer version fails to build in r-universe
+(`biomaRt` 2.69.4, `bedbaser`, `CNVRanger`, `knowYourCG`, `alabaster.vcf`; `SwathXtend`,
+whose 346 MB tarball has no successful build), or it builds but its checks ERROR on every
+platform (`DOSE` 4.7.3, `MsBackendMetaboLights` 1.7.8). `PIPETS` is the same case one step
+removed: r-universe's last successful build is 1.7.0, and its 1.9.0 build failed. BBS
+publishes these versions because they pass in BBS's environment. So this isn't a registry
+bug. It's the gate being stricter than BBS, and after a switch those packages' bug-fix
+releases would wait until they pass in r-universe. *A decision, not a fix*: accept the lag
+(and chase the failures with the maintainers), or bridge by re-seeding from BBS, which keeps
+BBS in the path for those packages.
 
 **4. Missing binaries.** For release, the registry lacks 61 Windows, 49 macOS arm64 and 76
-macOS Intel binaries that `bioconductor.org` serves (devel: 48, 57, 72). The sampled ones are
-r-universe builds, so the registry didn't propagate binaries that exist. Without them, Windows
-and macOS users get a source install, which fails for any package with compiled code on a
-machine without a toolchain. *Blocking.*
+macOS Intel binaries that `bioconductor.org` serves (devel: 48, 57, 72), 363 in all. The
+gate publishes a binary only for a platform whose r-universe check has no ERROR or FAIL on
+the gating R line, and seeds copy a binary only if `bioconductor.org`'s binary matches the
+source version. Classifying every one of the 363 against those rules (`binwhy.py`):
+
+| Cause | Count | Verdict |
+|---|---|---|
+| The platform's check fails in r-universe (e.g. `KEGGREST` on Windows, `BiocParallel` on macOS) | 114 | by design |
+| Not in the source repository at all; `bioconductor.org` serves a binary for a package it no longer lists as source (e.g. `BiRewire`) | 26 | by design |
+| Seed, and `bioconductor.org`'s binary is older than its own source (e.g. Windows `AnnotationForge` 1.53.0 next to source 1.54.0) | 58 | by design |
+| Seed, and `bioconductor.org`'s binary has since caught up (seeds never refresh) | 14 | gap |
+| Withheld when first published; r-universe has rebuilt the same version since, and it now passes (e.g. `ChIPpeakAnno` on macOS, `OGRE` on Windows) | 107 | **bug** |
+| The platform passed, but the binary wasn't built yet when the source was published, and is never added later (e.g. `SparseArray`: published Sept 23, binaries built Sept 24) | 30 | **bug** |
+| Withheld; r-universe has since moved to a newer version that isn't published | 14 | follows finding 3 |
+
+The two bugs have one cause: the gate decides a package's binaries once, when its version is
+first published, and never looks again at that version. So 137 binaries that the registry's
+own rules would admit today are missing. *Blocking*: re-evaluate the binaries of each
+published version on every r-universe wave, adding any whose platform now passes (the source
+and the version stay as they are).
+
+The "by design" rows change what users get: in 88 of the 363, `bioconductor.org` serves a
+binary *older* than its source (BBS keeps the last binary that built). After a switch, a
+Windows or macOS user gets a source install of the current version instead of an older
+binary, which fails for a package with compiled code on a machine without a toolchain. That
+is a policy choice to make explicitly (see decisions).
 
 **5. No `Archive/`.** The registry keeps only the current version. `src/contrib/Archive/` on
 `bioconductor.org` served 886 requests (renv restores and `remotes::install_version`) in the
@@ -147,12 +176,14 @@ Each step names its rollback. Nothing moves to the next step until its tests pas
 
 - Gate rule: a package is published only if its hard dependencies resolve within the
   repository, CRAN and the Bioconductor data repositories (finding 2).
-- Binaries: propagate every r-universe binary that matches the published source version
-  (finding 4).
+- Binaries: re-evaluate the binaries of each published version on every wave, so a platform
+  that passes later, or a binary built after the source was published, is added (finding 4:
+  137 binaries).
 - Repository type: route bioc-build output into data and workflow repositories, never the
   software index (finding 6).
-- Seeds: a decision (finding 3). Either re-seed on a schedule from BBS as a bridge, or
-  accept that those packages lag until they build in r-universe. As of today, 9 seeds lag.
+- Seeds: refresh a seed's binaries when `bioconductor.org`'s catch up to the seeded version
+  (finding 4: 14 binaries). Whether to re-seed newer *versions* from BBS is a decision
+  (finding 3).
 
 **1. Build the materializer, writing to a staging prefix.** It writes the full software tree
 for 3.23 and 3.24 under a prefix the Worker doesn't serve (for example `staging/registry/`),
@@ -189,7 +220,7 @@ materialized state.
 | T1 | Every package in the baseline is present at the same or a newer version | missing or older packages (findings 3, 6) | on every materialize; blocks publishing |
 | T2 | No package whose hard dependencies are unresolvable, beyond the baseline's own | uninstallable packages (finding 2) | on every materialize; blocks |
 | T3 | `PACKAGES`, `.gz` and `.rds` exist in every directory and parse to the same package set | missing index formats (finding 1) | on every materialize; blocks |
-| T4 | For each platform, binaries cover the baseline's binaries at the matching version | Windows/macOS falling back to source (finding 4) | on every materialize; blocks |
+| T4 | Every published package has a binary for each platform its gate verdict passes, at the published version; baseline binaries the registry lacks are reported by cause | binaries the rules allow but that are missing (finding 4) | on every materialize; blocks on the first part |
 | T5 | Every tarball's name matches its DESCRIPTION's `Package` and `Version`, and its hash matches the registry index | corrupt or mislabeled artifacts | on every materialize; blocks |
 | T6 | No data or workflow package in the software index | repository-type mix-up (finding 6) | on every materialize; blocks |
 | T7 | `BiocManager::install()` for release and devel, from source on Linux and from binaries on Windows and macOS, for a fixed sample including packages with compiled code | an install path that parses but doesn't work | CI matrix, daily and before each flip |
@@ -204,7 +235,12 @@ it from publishing a broken tree. T7 already exists in part
 
 ## Decisions needed
 
-- **Seeds** (finding 3): bridge from BBS for now, or let those packages lag?
+- **Lagging versions** (finding 3): accept that versions failing in r-universe wait, or
+  bridge them from BBS for now?
+- **Stale binaries** (finding 4): for a package whose current version fails on a platform,
+  `bioconductor.org` serves an older binary today. After the switch, users on that platform
+  get a source install of the current version. Accept, or also publish the last binary that
+  passed?
 - **Mirror operators** keep syncing from the legacy host, so after the flip they would serve
   BBS builds while `bioconductor.org` serves registry builds. Point them at the manifest-based
   [mirror guide](mirror-how-to.qmd) first, or accept the divergence for a while?
