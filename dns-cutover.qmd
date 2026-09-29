@@ -273,7 +273,7 @@ that, as its own change.
 - A Custom Domain needs the existing record deleted, then recreates and owns it
   itself. The rollback target would be gone and would have to be retyped under
   pressure.
-- The routes go in `worker/wrangler.jsonc` in bioc-cloudflare, not the dashboard.
+- The routes go in `worker/wrangler.jsonc` in bioc-edge (then bioc-cloudflare), not the dashboard.
   `wrangler deploy` replaces a Worker's routes with the config's, so a dashboard-only
   route disappears on the next deploy.
 
@@ -291,7 +291,7 @@ Before the flip:
    production's 301). It only affects proxied names.
 4. **Rehearse on a spare name.** Add `next.bioconductor.org` CNAME → `bioconductor.org`,
    Proxied, plus a route `next.bioconductor.org/*`. Run `cutover-diff.sh`
-   (bioc-cloudflare) against it. This catches any place the Worker assumes the dev
+   (bioc-edge; then bioc-cloudflare) against it. This catches any place the Worker assumes the dev
    hostname.
 5. **Deploy the routes** (inert until proxied). In `worker/wrangler.jsonc`:
    ```jsonc

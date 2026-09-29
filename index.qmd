@@ -21,6 +21,8 @@ can proceed — or be replaced — without stopping the others.
 | [bioc-build](https://github.com/seandavi/bioc-build) and [bioc-manifest](https://github.com/seandavi/bioc-manifest) | The standalone build system for the packages r-universe doesn't build, and the reviewed manifest that authorizes what it builds ([ADR 0010](adr/0010-two-new-repos-for-the-build-system-and-the-manifest-name.html)) | The legacy build machines, for data and workflow packages | Proof of concept |
 | [bioc-infrastructure](https://github.com/seandavi/bioc-infrastructure) | This documentation site | Nothing. It is the map. | [![docs](https://github.com/seandavi/bioc-infrastructure/actions/workflows/docs.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/docs.yml) |
 
+Two prototypes are archived (read-only) since 2026-09-29: [bioc-cloudflare](https://github.com/seandavi/bioc-cloudflare), whose history continues in bioc-edge, and [bioc-origin](https://github.com/seandavi/bioc-origin). Older pages and ADRs link to their issues, which remain readable; a mention of bioc-cloudflare as where code lives means bioc-edge today.
+
 The status badges are daily black-box probes of the live system, not just test suites —
 red means something is actually down or stale. Where this is all going, milestone by
 milestone: **the [roadmap](roadmap.qmd)**.
