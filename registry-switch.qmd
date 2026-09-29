@@ -1,0 +1,213 @@
+---
+title: "Serving software packages from the registry"
+date: 2026-09-28
+---
+
+::: {.callout-note}
+## Status: proposed, nothing started
+A plan for making `bioconductor.org`'s software repositories come from
+[bioc-registry](https://github.com/seandavi/bioc-registry), which is built from r-universe,
+instead of from the legacy build system (BBS). Every step and every test below cites the
+measurement that makes it necessary. Measurements are from 2026-09-28 and are reproducible
+with the scripts in
+[`evidence/registry-switch/`](https://github.com/seandavi/bioc-infrastructure/tree/main/evidence/registry-switch).
+Tracked in [bioc-infrastructure#35](https://github.com/seandavi/bioc-infrastructure/issues/35).
+:::
+
+## Where software packages come from today
+
+`bioconductor.org` is served by the new edge, but its package repositories are still an
+hourly mirror of the legacy docroot. The Worker serves `/packages/...` from R2, which the
+edge's sync job fills from that docroot. It never reads from the registry.
+
+| On `bioconductor.org` | Sample | Built by |
+|---|---|---|
+| Release (3.23) source tarballs | 20 of 20 | BBS (packaged by `biocbuild`) |
+| Devel (3.24) source tarballs | 10 of 10 | BBS (`biocbuild`) |
+| Release Windows binaries | 15 of 15 | r-universe (carry r-universe's `RemoteSha`) |
+| Release macOS binary (limma) | 1 | r-universe |
+
+So Windows and macOS users already install r-universe builds, reaching `bioconductor.org`
+through the core team's propagation, which only publishes an r-universe build whose version
+and commit match what the BBS host `nebbiolo1` built ([legacy propagation](legacy-propagation.qmd)).
+Anyone installing from source (Linux, most CI, containers) gets BBS tarballs.
+
+Separately, the registry already runs a complete r-universe-built repository, gated by its own
+[propagation gate](propagation-gate.qmd), at
+`https://bioc-registry.seandavi.workers.dev/repo/{bioc-release,bioc}`. Nothing on
+`bioconductor.org` uses it yet. Switching `bioconductor.org` to it is the step that takes BBS
+out of the path for software packages.
+
+## What the switch covers
+
+| Path under `/packages/<ver>/bioc/` | After the switch | Why |
+|---|---|---|
+| `src/contrib/` tarballs and `PACKAGES`, `.gz`, `.rds` | registry | the install path |
+| `bin/windows/…`, `bin/macosx/…` binaries and their indexes | registry | the install path |
+| `VIEWS` | registry | read by BiocManager-adjacent tools and the site build |
+| `src/contrib/Archive/` | stays on the mirror at first | old versions; the registry keeps none (see finding 5) |
+| `vignettes/`, `news/`, `manuals/`, `licenses/`, `citations/`, `readmes/` | stays on the mirror | produced by BBS; the registry doesn't produce them |
+| `html/` | unchanged (the site build) | |
+
+Only the current release (3.23) and devel (3.24). Older releases are archival
+([ADR 0006](adr/0006-old-releases-and-their-checkresults-are-archival.html)) and stay as they
+are; they are 77% of package traffic, so most installs are unaffected either way. Annotation,
+experiment and workflow repositories stay on the mirror until
+[bioc-build](https://github.com/seandavi/bioc-build) covers them.
+
+## Findings: what would regress if we switched today
+
+Compared file by file, the registry and `bioconductor.org` agree on almost everything: for
+release, 2,374 of 2,384 source packages at the same version. The differences below are the
+ones that matter. Request counts are from about 70 minutes of post-cutover access logs, with
+a blocked crawler excluded.
+
+**1. No `PACKAGES.rds`.** The registry serves `PACKAGES` and `PACKAGES.gz` but answers 404 for
+`PACKAGES.rds`, for source and every binary directory. It's the index R asks for first, and
+the most requested: 2,784 requests against about 220 for `.gz` and plain `PACKAGES`. R falls
+back to the next format, so installs keep working, but every repository lookup pays an extra
+round trip. *Blocking.*
+
+**2. Packages that can't be installed.** The registry serves 6 release and 13 devel packages
+that `bioconductor.org` doesn't, such as `Ularcirc`, `SNPhood`, `progeny` and `sparrow`. They
+are still in Bioconductor's manifest and in r-universe, but a hard dependency was removed from
+Bioconductor (`decoupleR`, `BiocSet`, `Organism.dplyr`, `BPRMeth`), so BBS stopped propagating
+them. Checked with `tools::package_dependencies` over the repository plus CRAN and the data
+repositories, the registry adds 4 release and 7 devel packages whose hard dependencies can't
+be resolved, on top of `bioconductor.org`'s own (9 release, 2 devel, all CRAN packages that
+were archived). A user asking for one gets a confusing failure instead of "not available".
+*Blocking.* The fix is a gate rule, not a list: don't publish a package whose hard
+dependencies aren't resolvable.
+
+**3. Frozen seeded packages.** 153 release and 124 devel entries were seeded once from
+Bioconductor's own builds for packages that fail in r-universe's environment, and seeds never
+update. Today 3 release and 6 devel seeds are behind `bioconductor.org`, including `biomaRt`,
+`DOSE` and `CNVRanger`; two devel packages propagated by the gate are behind as well
+(`PIPETS` at 1.7.0 against 1.9.0). After a switch, bug-fix releases of those packages would
+stop reaching users. *Blocking*, until either the packages build in r-universe or seeds are
+refreshed while BBS still produces them. Refreshing seeds keeps BBS in the path for those
+packages, so it's a bridge, not an end state.
+
+**4. Missing binaries.** For release, the registry lacks 61 Windows, 49 macOS arm64 and 76
+macOS Intel binaries that `bioconductor.org` serves (devel: 48, 57, 72). The sampled ones are
+r-universe builds, so the registry didn't propagate binaries that exist. Without them, Windows
+and macOS users get a source install, which fails for any package with compiled code on a
+machine without a toolchain. *Blocking.*
+
+**5. No `Archive/`.** The registry keeps only the current version. `src/contrib/Archive/` on
+`bioconductor.org` served 886 requests (renv restores and `remotes::install_version`) in the
+sample. At first it stays on the mirror; once BBS stops producing it, superseded registry
+tarballs have to be archived by whatever writes the repository. *Blocking for detaching BBS,
+not for the switch.*
+
+**6. Data and workflow packages in the software repository.** The registry has two
+universes, `bioc` and `bioc-release`, and bioc-build publishes into them, so `msdata`
+(experiment data), `rnaseqDTU` (a workflow) and `ARRmData` appear in the software `PACKAGES`.
+*Blocking.* They belong in `data/experiment` and `workflows`.
+
+**7. Missing index fields.** `PACKAGES` lacks `MD5sum`, `Archs`, `License_is_FOSS` and
+`License_restricts_use`; `VIEWS` lacks those plus `dependencyCount`, `Rfiles`, `hasNEWS`,
+`organism`, `PackageStatus` and others. No consumer of `MD5sum` is confirmed. Writing the
+indexes with R's `tools::write_PACKAGES()` from the actual tarballs produces the `PACKAGES`
+fields for free. *Not blocking*; the `VIEWS` fields are checked against the site build.
+
+**8. Same version, different build.** For 33 release packages both sides have the same
+version but different contents: `bioconductor.org` declares `R (>= 4.6)`, the registry
+`R (>= 4.5)`. The maintainer changed DESCRIPTION without a version bump, and the registry
+kept the first build of that version, as its gate intends. Installing on R 4.6 is unaffected.
+*Expected; the tests must allow it.*
+
+**9. The registry is not built to serve at edge speed.** Its indexes are generated per
+request with `cache-control: no-store` and take 250–550 ms; `bioconductor.org` serves the
+same files from the edge cache in about 60–85 ms. The index changes a few times a day for
+release and about ten times a day for devel. This decides the mechanism below.
+
+## Mechanism: write the registry's repository into the edge's storage
+
+Two ways to serve it:
+
+- **Proxy**: the Worker forwards `/packages/3.2x/bioc/src/…` to the registry at request
+  time. Every index request would take the registry's latency or need a new caching and purge
+  scheme, and `bioconductor.org` installs would depend on the registry Worker being up.
+- **Materialize** (recommended): a job writes the registry's repository into the same R2
+  keys the mirror writes today (`packages/3.24/bioc/src/contrib/…`), generating
+  `PACKAGES`, `.gz` and `.rds` with `tools::write_PACKAGES()` from the tarballs, and purges
+  the changed keys with the existing `cf_purge_keys`. The Worker, its cache rules, 404
+  caching, logs, and the mirror manifest need no change. The hourly sync stops writing those
+  paths (an `rsync-filter` exclusion), and turning that exclusion off again is the rollback.
+
+This follows the rule the estate already has: producers publish into storage, and the edge
+decides what to serve ([contract 3 on the overview](index.qmd#the-contracts)).
+
+## Plan
+
+Each step names its rollback. Nothing moves to the next step until its tests pass.
+
+**0. Fix the blocking gaps in the registry.**
+
+- Gate rule: a package is published only if its hard dependencies resolve within the
+  repository, CRAN and the Bioconductor data repositories (finding 2).
+- Binaries: propagate every r-universe binary that matches the published source version
+  (finding 4).
+- Repository type: route bioc-build output into data and workflow repositories, never the
+  software index (finding 6).
+- Seeds: a decision (finding 3). Either re-seed on a schedule from BBS as a bridge, or
+  accept that those packages lag until they build in r-universe. As of today, 9 seeds lag.
+
+**1. Build the materializer, writing to a staging prefix.** It writes the full software tree
+for 3.23 and 3.24 under a prefix the Worker doesn't serve (for example `staging/registry/`),
+on every registry index change. Rollback: nothing is served from it.
+
+**2. Serve the staging tree on the rehearsal host.** `next.bioconductor.org` gets a route that
+maps `/packages/3.2x/bioc/{src,bin,VIEWS}` to the staging prefix, the same mechanism as the
+strangler route table. Run every test below against `next.` for at least a week of registry
+updates. Rollback: remove the route.
+
+**3. Flip devel (3.24) on `bioconductor.org`.** Devel is 2% of package traffic and its users
+expect movement. The materializer writes the production keys for 3.24; the hourly sync
+excludes them. Watch the logs for 404s and for installs of packages that used to exist. Hold
+for a week. Rollback: remove the exclusion, run the sync, purge.
+
+**4. Flip release (3.23).** Same steps, after devel has been clean for a week. Rollback:
+same.
+
+**5. Archive.** Before BBS stops producing `Archive/`, the materializer moves superseded
+tarballs into `Archive/<pkg>/` (finding 5).
+
+After step 4, BBS is out of the install path for software packages, except for any seeds
+that are still bridged (finding 3). The legacy docroot still supplies documentation files
+and older releases until M2 retires it.
+
+## Regression tests
+
+Each test exists because of a finding above. The comparison tests use `bioconductor.org` as
+the baseline while BBS still runs; after the flip their baseline becomes the previous
+materialized state.
+
+| # | Test | Guards against | Runs |
+|---|---|---|---|
+| T1 | Every package in the baseline is present at the same or a newer version | missing or older packages (findings 3, 6) | on every materialize; blocks publishing |
+| T2 | No package whose hard dependencies are unresolvable, beyond the baseline's own | uninstallable packages (finding 2) | on every materialize; blocks |
+| T3 | `PACKAGES`, `.gz` and `.rds` exist in every directory and parse to the same package set | missing index formats (finding 1) | on every materialize; blocks |
+| T4 | For each platform, binaries cover the baseline's binaries at the matching version | Windows/macOS falling back to source (finding 4) | on every materialize; blocks |
+| T5 | Every tarball's name matches its DESCRIPTION's `Package` and `Version`, and its hash matches the registry index | corrupt or mislabeled artifacts | on every materialize; blocks |
+| T6 | No data or workflow package in the software index | repository-type mix-up (finding 6) | on every materialize; blocks |
+| T7 | `BiocManager::install()` for release and devel, from source on Linux and from binaries on Windows and macOS, for a fixed sample including packages with compiled code | an install path that parses but doesn't work | CI matrix, daily and before each flip |
+| T8 | A package's previous version installs from `Archive/` | breaking renv and `install_version` (finding 5) | daily after step 5 |
+| T9 | After a registry propagation, `bioconductor.org` serves the new `PACKAGES` within one materialize cycle | a stale edge cache (s-maxage is a year) | on every materialize |
+| T10 | Same-version differences (finding 8) are reported, not failed | noise that would train everyone to ignore T1 | reported daily |
+
+T1–T6 and T9 are checks on files the materializer just wrote, so they run inside it and stop
+it from publishing a broken tree. T7 already exists in part
+(`test-biocmanager.R` in bioc-edge, which passes for 3.23 and 3.24 against
+`bioconductor.org` today) and needs Windows and macOS runners.
+
+## Decisions needed
+
+- **Seeds** (finding 3): bridge from BBS for now, or let those packages lag?
+- **Mirror operators** keep syncing from the legacy host, so after the flip they would serve
+  BBS builds while `bioconductor.org` serves registry builds. Point them at the manifest-based
+  [mirror guide](mirror-how-to.qmd) first, or accept the divergence for a while?
+- **Documentation files** (`vignettes/` and the rest) stay on BBS's output, so for a package
+  where the two builds differ, its vignette can come from a different build than its tarball.
+  Acceptable until the site build produces them?
