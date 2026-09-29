@@ -106,14 +106,16 @@ source version. Classifying every one of the 363 against those rules (`binwhy.py
 | The platform's check fails in r-universe (e.g. `KEGGREST` on Windows, `BiocParallel` on macOS) | 114 | by design |
 | Not in the source repository at all; `bioconductor.org` serves a binary for a package it no longer lists as source (e.g. `BiRewire`) | 26 | by design |
 | Seed, and `bioconductor.org`'s binary is older than its own source (e.g. Windows `AnnotationForge` 1.53.0 next to source 1.54.0) | 58 | by design |
-| Seed, and `bioconductor.org`'s binary has since caught up (seeds never refresh) | 14 | gap |
+| Seed, and `bioconductor.org`'s binary has since caught up to the seeded version (seeds never refresh) | 12 | gap |
+| Seed whose version lags `bioconductor.org` | 2 | follows finding 3 |
 | Withheld when first published; r-universe has rebuilt the same version since, and it now passes (e.g. `ChIPpeakAnno` on macOS, `OGRE` on Windows) | 107 | **bug** |
 | The platform passed, but the binary wasn't built yet when the source was published, and is never added later (e.g. `SparseArray`: published Sept 23, binaries built Sept 24) | 30 | **bug** |
 | Withheld; r-universe has since moved to a newer version that isn't published | 14 | follows finding 3 |
 
 The two bugs have one cause: the gate decides a package's binaries once, when its version is
 first published, and never looks again at that version. So 137 binaries that the registry's
-own rules would admit today are missing. *Blocking*: re-evaluate the binaries of each
+own rules would admit today are missing
+([bioc-registry#50](https://github.com/seandavi/bioc-registry/issues/50)). *Blocking*: re-evaluate the binaries of each
 published version on every r-universe wave, adding any whose platform now passes (the source
 and the version stay as they are).
 
@@ -178,11 +180,11 @@ Each step names its rollback. Nothing moves to the next step until its tests pas
   repository, CRAN and the Bioconductor data repositories (finding 2).
 - Binaries: re-evaluate the binaries of each published version on every wave, so a platform
   that passes later, or a binary built after the source was published, is added (finding 4:
-  137 binaries).
+  137 binaries; [bioc-registry#50](https://github.com/seandavi/bioc-registry/issues/50)).
 - Repository type: route bioc-build output into data and workflow repositories, never the
   software index (finding 6).
 - Seeds: refresh a seed's binaries when `bioconductor.org`'s catch up to the seeded version
-  (finding 4: 14 binaries). Whether to re-seed newer *versions* from BBS is a decision
+  (finding 4: 12 binaries; also bioc-registry#50). Whether to re-seed newer *versions* from BBS is a decision
   (finding 3).
 
 **1. Build the materializer, writing to a staging prefix.** It writes the full software tree
