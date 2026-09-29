@@ -80,6 +80,7 @@ all retire, and roughly $5,000/month of AWS with them.
 
 - [ ] One-time markdown import of prose into bioc-website
 - [ ] Sync-source retirement plan (what still changes upstream post-cutover, and who publishes it instead)
+- [ ] Software repositories served from bioc-registry instead of the BBS mirror: [plan](registry-switch.qmd), [#35](https://github.com/seandavi/bioc-infrastructure/issues/35)
 - [ ] Build-home decision for annotation/experiment/workflow, with the core team and the r-universe track
 - [ ] Stats surface + continuity decision
 - [ ] Final snapshots per the [decommission plan](decommission-plan.qmd); decommission

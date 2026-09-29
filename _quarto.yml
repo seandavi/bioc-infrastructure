@@ -50,6 +50,8 @@ website:
             text: Astro Site Build
           - href: propagation-gate.qmd
             text: Propagation Gate
+          - href: registry-switch.qmd
+            text: Registry Switch (plan)
           - href: r-universe-size-limits.qmd
             text: r-universe Size Limits
           - href: data-packages-in-r-universe.qmd
