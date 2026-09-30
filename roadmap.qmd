@@ -34,7 +34,7 @@ contributable, tested, and watched. Mostly done 2026-08-21.
 
 ## M1 — Production cutover ([#2](https://github.com/seandavi/bioc-infrastructure/issues/2))
 
-**Done: `bioconductor.org` is served by the new edge since 2026-09-28** (nameservers to
+**Done: `bioconductor.org` has been served by the new edge since 2026-09-28** (nameservers to
 Cloudflare at 17:30 UTC, the site at about 20:09 UTC; [runbook and log](dns-cutover.qmd)).
 What remains is closing out the flip: the week of monitoring ends 2026-10-05, and Route53
 stays the rollback target, with a record freeze, until 2026-10-12. How the system works now
