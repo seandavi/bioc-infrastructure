@@ -5,7 +5,7 @@ date-modified: 2026-09-30
 ---
 
 bioconductor.org's pages are built by
-[bioc-website](https://github.com/seandavi/bioconductor-website): a Python pipeline that
+[bioc-website](https://github.com/seandavi/bioc-website): a Python pipeline that
 fetches data from primary sources into `astro/data/`, and an Astro build that renders it.
 Since the 2026-09-28 cutover the `bioc-site` Worker serves this build first on every path
 and falls back to the mirror (the R2 copy of the legacy site) where the build has no file.
@@ -52,7 +52,7 @@ from the mirror.
 **Rollback.** Set `"build"` in `_routes.json` to an earlier sha instead of `"latest"`, or
 write the earlier sha to `site/latest`. Either reaches every isolate within 60 seconds.
 Earlier builds stay in R2 (12 `site/<sha>/` prefixes on 2026-09-30); there is no retention
-policy yet ([bioc-website#2](https://github.com/seandavi/bioconductor-website/issues/2)).
+policy yet ([bioc-website#2](https://github.com/seandavi/bioc-website/issues/2)).
 
 ### The data snapshot
 
@@ -67,7 +67,7 @@ tar -C astro -cf - data/site data/3.23 data/3.24 public | zstd -T0 -8 \
 ```
 
 The refresh is manual and no one is named to do it; scheduling it is
-[bioc-website#5](https://github.com/seandavi/bioconductor-website/issues/5) (open). The
+[bioc-website#5](https://github.com/seandavi/bioc-website/issues/5) (open). The
 snapshot in use is 30 MB, uploaded 2026-09-29 12:40 UTC. The one before it dated from
 2026-08-13. The full 35-release data, including the 2.5 to 3.22 snapshot that no live source
 can regenerate, is `_ci/site-data-full.tar.zst` (2026-08-13).
@@ -78,7 +78,7 @@ Two things follow from the snapshot:
   the snapshot. Merging it changes nothing served.
 - Package landing pages for 3.23 and 3.24 show the version and download links from the
   repository's own `PACKAGES` indexes as they were when the snapshot was made
-  ([bioc-website#31](https://github.com/seandavi/bioconductor-website/pull/31)). The hourly
+  ([bioc-website#31](https://github.com/seandavi/bioc-website/pull/31)). The hourly
   `bioc-sync` updates the package files themselves; it does not update the landing pages.
 
 `/next/` pages are different: the Astro build fetches bioc-registry's propagation index over
@@ -92,7 +92,7 @@ Every pull request is built the same way and uploaded to `preview/pr-<n>/` in R2
 differ (`preview/pr-<n>/` versus `/_pr/<n>/`). `/_pr/<n>/` also answers on
 bioconductor.org today ([bioc-edge#48](https://github.com/seandavi/bioc-edge/issues/48)).
 Internal links in a preview are root-absolute and leave the preview
-([bioc-website#4](https://github.com/seandavi/bioconductor-website/issues/4)).
+([bioc-website#4](https://github.com/seandavi/bioc-website/issues/4)).
 
 ## Editing content: where, and how long it takes
 
@@ -124,7 +124,7 @@ has no schedule.
 
 Wherever the build renders Bioconductor/bioconductor.org content differently from nanoc, or
 works around something in it, bioc-website records it in
-[`UPSTREAM.md`](https://github.com/seandavi/bioconductor-website/blob/main/UPSTREAM.md), with
+[`UPSTREAM.md`](https://github.com/seandavi/bioc-website/blob/main/UPSTREAM.md), with
 the upstream change that would remove the workaround. Any PR that changes
 `pipeline/content.py` updates that file. It is the list to work through before the prose moves
 into bioc-website.

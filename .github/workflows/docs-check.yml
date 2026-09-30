@@ -1,0 +1,35 @@
+# Weekly stale-content check (docs-check.sh): phrases that only made sense before
+# the 2026-09-28 cutover, retired repo names, and dead external links. Findings go
+# to one open issue labelled docs-review (opened, or commented on if already
+# open); a clean run closes it. Part of #43's detector layer.
+name: docs-check
+
+on:
+  schedule:
+    - cron: "37 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check, and file or close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="docs-check: stale content found"
+          open=$(gh issue list --state open --search "in:title \"$title\"" --json number -q '.[0].number')
+          if out=$(./docs-check.sh); then
+            echo "$out"
+            [ -n "$open" ] && gh issue close "$open" --comment "Clean as of run $GITHUB_RUN_ID."
+            exit 0
+          fi
+          body=$(printf 'Run %s/%s/actions/runs/%s found:\n\n```\n%s\n```\n\nFix the page, or end an intended line with `<!-- docs-check: ok -->`.' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$out")
+          if [ -n "$open" ]; then gh issue comment "$open" --body "$body"
+          else gh issue create --title "$title" --label docs-review --body "$body"; fi
+          echo "$out"

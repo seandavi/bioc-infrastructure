@@ -26,7 +26,7 @@ The core value is unchanged: publication is the default, and redaction is delibe
 The Quarto site under `docs/` is deployed to GitHub Pages by `.github/workflows/docs.yml` on
 every push to `main` that touches `docs/**`. The repository itself is **private**, but Pages
 for it is configured `public: true`, so
-[`https://seandavi.github.io/bioc-cloudflare/`](https://seandavi.github.io/bioc-cloudflare/)
+[`https://seandavi.github.io/bioc-cloudflare/`](https://seandavi.github.io/bioc-cloudflare/) <!-- docs-check: ok -->
 is readable by anyone with the URL, unauthenticated.
 
 That combination is easy to misread as an accident — a private repo whose output leaks. It is
@@ -88,3 +88,5 @@ excludes most of the stakeholders the site exists for. Rejected.
 **Keep a separate public and private docs set.** Two sites, two build paths, and a standing
 question of which one a given fact belongs to. The single-site rule with an explicit boundary
 is less machinery and fails more obviously. Rejected.
+
+*Amended 2026-09-30: the bioc-cloudflare Pages site linked above was deleted on 2026-09-29, when that repository was archived.*
