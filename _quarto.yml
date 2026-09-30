@@ -33,6 +33,8 @@ website:
     contents:
       - href: index.qmd
         text: Overview
+      - href: how-it-works.qmd
+        text: How bioconductor.org Works
       - href: roadmap.qmd
         text: Roadmap
       - href: install.qmd

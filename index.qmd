@@ -14,7 +14,7 @@ can proceed — or be replaced — without stopping the others.
 
 | Repo | What it is | Retires | Status |
 |---|---|---|---|
-| [bioc-registry](https://github.com/seandavi/bioc-registry) | The data plane: an r-universe observer plus the propagation gate that decides *which build is fit to publish and what is true about a package*, exposed as an installable repository and a Parquet archive. It publishes at its own host; bioconductor.org does not serve from it yet ([registry switch](registry-switch.qmd)) | The three builders and the legacy build system | [![freshness](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml/badge.svg)](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml) |
+| [bioc-registry](https://github.com/seandavi/bioc-registry) | The data plane: an r-universe observer plus the propagation gate that decides *which build is fit to publish and what is true about a package*, exposed as an installable repository and a Parquet archive. It publishes at its own host; bioconductor.org does not serve from it yet ([registry switch](registry-switch.qmd)) | Planned: the three builders and the legacy build system. Today bioconductor.org's packages still come from BBS and r-universe through master ([how it works](how-it-works.qmd#publishing)) | [![freshness](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml/badge.svg)](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml) |
 | [bioc-website](https://github.com/seandavi/bioc-website) | The builder: a Python pipeline and an Astro static build that render package truth into ~93,000 pages, published immutably by CI | The master and staging webservers | [![site](https://github.com/seandavi/bioc-website/actions/workflows/site.yml/badge.svg)](https://github.com/seandavi/bioc-website/actions/workflows/site.yml) |
 | [bioc-edge](https://github.com/seandavi/bioc-edge) | The serving side: a Cloudflare Worker and the R2 mirror behind `bioconductor.org`, owner of the route table that decides *what is served where* | CloudFront, the S3 bucket, the Open Storage Network buckets | [![health](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml/badge.svg)](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml) |
 | bioc-traffic (private) | Downstream of the request logs. Today: the daily check that yesterday's logs arrived, and log analysis. Planned: traffic classification (bioc-traffic#5), then download statistics from it. Published statistics still come from the legacy pipelines ([download stats](download-stats.qmd)) | The legacy download-stats pipelines | Not yet producing statistics |
@@ -26,7 +26,8 @@ Two prototypes are archived (read-only) since 2026-09-29: [bioc-cloudflare](http
 The **health** and **freshness** badges are daily probes of the live system, so red means
 something is down or stale. The **site** and **docs** badges are build workflows; red means
 the last build failed. More in [CI & scheduled jobs](ci.qmd). Where this is all going, milestone by
-milestone: **the [roadmap](roadmap.qmd)**.
+milestone: **the [roadmap](roadmap.qmd)**. How a request is answered and how content gets
+published today, with the terms these pages use: **[how bioconductor.org works](how-it-works.qmd)**.
 
 ::: {.callout-tip}
 ## Live since 2026-09-28
@@ -57,15 +58,24 @@ label, are triaged by hand, and are moved to the repo that owns the problem.
 
 ```{mermaid}
 flowchart TB
-  m(["maintainers"]) --> ru["r-universe<br/>builds packages"]
+  bbs["BBS<br/>source tarballs"] --> master["master.bioconductor.org"]
+  ru["r-universe<br/>builds packages"] -- "most binaries" --> master
+  master -- "bioc-sync, hourly" --> mir[("R2: the mirror")]
+  site["bioc-website<br/>static build, CI"] --> b[("R2: site/&lt;sha&gt;")]
+  mir --> wk["bioc-edge Worker<br/>build first, else mirror"]
+  b --> wk
+  wk --> v(["bioconductor.org"])
   ru -- "polled every 15 min" --> reg["bioc-registry<br/>the propagation gate"]
-  reg -. "install.packages()" .-> cran["installable R repository"]
+  reg -. "own workers.dev host" .-> cran["installable R repository"]
   reg -. "DuckDB" .-> pq["Parquet archive"]
-  reg -- "build-time fetch" --> site["bioc-website<br/>static build, CI, ~30 s"]
-  site --> r2[("R2<br/>immutable builds")]
-  r2 --> wk["bioc-edge Worker<br/>owns the route table"]
-  wk --> v(["visitor"])
+  reg -- "build-time fetch, /next/ pages only" --> site
+  reg -. "planned: registry switch" .-> mir
 ```
+
+Solid lines to `bioconductor.org` are the path that serves it today: packages come from
+master through the hourly sync, and the registry is not in that path. Dashed lines are the
+registry's own outputs and the [planned switch](registry-switch.qmd). Detail:
+[how bioconductor.org works](how-it-works.qmd).
 
 The organising principle is one idea applied at two scales: **define where the data comes
 from once, and let every consumer render it.** Inside `bioc-website` that shows up as the
@@ -89,7 +99,8 @@ component render both the legacy-parity pages and the new data-plane-fed pages u
 not whatever r-universe last built.
 
 **3. The R2 object layout — build to serving.** The website's CI writes immutable
-`site/<sha>/` builds, a `site/latest` pointer, and `preview/pr-<n>/` for every pull request.
+`site/<sha>/` builds, a `site/latest` pointer, and `preview/pr-<n>/` for every pull request
+(served at `/_pr/<n>/`).
 The Worker reads them. **The build side publishes; the serving side decides what is served** —
 write access to the website repo never implies the power to change production.
 
@@ -102,7 +113,7 @@ serves any path it has a file for, and the mirror copy in R2 serves the rest.
 **5. Request logs — serving to statistics.** The Worker emits one structured record per
 request in the same field vocabulary as the CloudFront logs it replaces, delivered by
 Logpush to Google Cloud Storage, so both eras can be one query rather than a migration
-project. Analysis lives in [bioc-traffic](https://github.com/seandavi/bioc-traffic). The record keeps the raw client address; de-identification is a view, and
+project. Analysis lives in bioc-traffic (a private repo). The record keeps the raw client address; de-identification is a view, and
 nothing published carries the address
 ([ADR 0012](adr/0012-client-addresses-are-stored-raw-and-hashed-in-views.md)).
 
@@ -112,10 +123,13 @@ The serving replacement took over `bioconductor.org` on 2026-09-28: nameservers 
 Cloudflare in the afternoon and the site followed that evening
 ([DNS runbook](dns-cutover.qmd)). The legacy servers still run behind it, and still produce
 the content it mirrors, until [milestone M2](roadmap.qmd) retires them. Package landing pages
-rebuild from primary sources for 35 releases, measured against the legacy build rather than
-assumed to match. The build-system track is earlier — r-universe covers software packages;
-where annotation, experiment, and workflow packages get built is the open workstream, and the
-last thing standing between the estate and three fewer machines.
+exist for 35 releases: 3.23 and 3.24 are regenerated, and the 33 older releases are a frozen
+snapshot ([ADR 0006](adr/0006-old-releases-and-their-checkresults-are-archival.md),
+[site build](astro-site-build.qmd)). The build-system track is earlier. Software source
+tarballs are still built by BBS and most binaries by r-universe; serving them from the
+registry instead is the [registry switch](registry-switch.qmd). Annotation, experiment-data
+and workflow packages have no replacement builder running yet
+([bioc-build](https://github.com/seandavi/bioc-build) is a proof of concept).
 
 Numbers throughout this site are point-in-time measurements, not live dashboards — **check
 the date on each page** before relying on specifics.
@@ -154,7 +168,7 @@ The pages fall into two kinds, and the sidebar separates them:
 
 - **The new system** — pages that describe the replacement estate and should still be true,
   with only numbers to refresh, once the transition completes:
-  [what it has changed](improvements.qmd), [installing packages](install.qmd),
+  [how bioconductor.org works](how-it-works.qmd), [what it has changed](improvements.qmd), [installing packages](install.qmd),
   [running a mirror](mirror-how-to.qmd), the [DNS runbook](dns-cutover.qmd), the
   [edge cache](cache.qmd), the
   [site build](astro-site-build.qmd), the [propagation gate](propagation-gate.qmd), and the
