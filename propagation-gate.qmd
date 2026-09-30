@@ -1,18 +1,28 @@
 ---
 title: "The propagation gate: what bioc-registry publishes, and why"
 date: 2026-08-04
-date-modified: 2026-09-03
+date-modified: 2026-09-30
 ---
 
-r-universe builds Bioconductor packages continuously. Only some of those builds become what
-[bioc-registry](https://github.com/seandavi/bioc-registry) serves as an installable repository
-and as the data behind the new site's package pages. This page states the rule that decides,
-read from the code that runs it.
+r-universe and bioc-build build Bioconductor packages. Only some of those builds become what
+[bioc-registry](https://github.com/seandavi/bioc-registry) publishes: installable repositories
+at `https://bioc-registry.seandavi.workers.dev/repo/{bioc,bioc-release}`, and the propagation
+index that the [`/next/` preview pages](astro-site-build.qmd) are built from. This page states
+the rule that decides, read from the code that runs it.
+
+::: {.callout-important}
+## This gate does not govern bioconductor.org today
+bioconductor.org's repositories and package pages do not read from bioc-registry. Packages
+reach bioconductor.org through Bioconductor's own propagation (below) and the hourly
+`bioc-sync` from master; its landing pages take versions and download links from the
+repositories' own `PACKAGES` indexes. Switching bioconductor.org's software repositories to
+bioc-registry is a documented plan with open blockers: [Registry switch](registry-switch.qmd).
+:::
 
 ::: {.callout-note}
-## This is the new system's gate
-Bioconductor's production propagation to `bioconductor.org` is a different gate, run in core
-infrastructure next to BBS and known here only from conversation. It is described on
+## Bioconductor's production gate is a different gate
+Bioconductor's production propagation to `bioconductor.org` runs in core infrastructure next
+to BBS and is known here only from conversation. It is described on
 [Propagation in the legacy system](legacy-propagation.qmd), together with the push hooks and
 the measured agreement between r-universe's checks and `nebbiolo1`'s. The two are compared at
 the [end of this page](#relation-to-the-legacy-production-gate).
@@ -20,59 +30,125 @@ the [end of this page](#relation-to-the-legacy-production-gate).
 
 ## The gate, check by check
 
-Everything below is in [`src/index.ts`](https://github.com/seandavi/bioc-registry/blob/c614a8a/src/index.ts#L486-L593)
-(`evaluate`) and [`src/repo.ts`](https://github.com/seandavi/bioc-registry/blob/c614a8a/src/repo.ts#L171-L209)
-(`passingFamilies`, `approveByDeps`) at commit `c614a8a`, 2026-08-29. A package observed from
-r-universe propagates when **all** of the following hold:
+Since [ADR 0011](adr/0011-one-propagation-gate-for-every-producer.md) (2026-09-04) there is one
+decision function, `gate()` in
+[`src/repo.ts`](https://github.com/seandavi/bioc-registry/blob/f10719e/src/repo.ts#L677-L723),
+with three callers and no gating anywhere else:
 
-1. **The build succeeded.** r-universe's `_status` is `success` and the package has at least
-   one check job. `_failure` is not read: a green status on a stale commit is caught by rule 5
-   in practice, because the stale version has already propagated.
-2. **Checks are judged on the gating R version**, resolved at evaluation time from
+| Caller | Producer | Config |
+|---|---|---|
+| `evaluate()` in [`src/index.ts`](https://github.com/seandavi/bioc-registry/blob/f10719e/src/index.ts#L536-L589), on every r-universe wave | r-universe | gating R from `config.yaml`, `replace_seed: false` |
+| `POST /publish` (maintenance key required) | bioc-build | the R version bioc-build's image ships, `replace_seed: true`, plus manifest rules |
+| `POST /gate` (public, read-only) | whatever the caller sends | defaults as for r-universe |
+
+Everything below is read from bioc-registry at commit `f10719e` (main, 2026-09-28). A
+candidate propagates when **every** rule passes. Each decision returns every rule's verdict,
+pass or fail, under these names:
+
+1. **`build-status`**: the producer's build status is `success`. For r-universe that is
+   `_status`; `_failure` is not read. A green status on a stale commit is caught by
+   `version-gate` in practice, because the stale version has already propagated.
+   Before the gate runs, `evaluate()` drops any r-universe package with no source sha256.
+2. **`families`**: at least one platform family passes, judged only on jobs running the
+   gating R version. The gating R is resolved at evaluation time from
    `bioconductor.org/config.yaml` (`r_ver_for_bioc_ver` for the universe's Bioconductor
-   version) and matched against each job's actual R version, not its label. Jobs on other
-   R lines are ignored.
-3. **At least one platform family passes.** Three families are gated: `linux` (the `source`
-   job plus `linux-*` x86_64), `win` (`windows-*` x86_64) and `mac` (`macos-*` arm64). A
-   family passes when it has at least one gating job on the gating R and none of them is
-   `ERROR`, `FAIL` or `FAILURE`. `NOTE` and `WARNING` pass. Everything else gates nothing:
-   `bioc-checks` (BiocCheck), `wasm`, linux arm64, mac x86_64.
-4. **The version is well-formed** (digits separated by `.` or `-`) and a source sha256 exists.
-5. **The version is a strict bump** over the version already in the propagation index. A
-   push without a bump never propagates. A seeded entry (below) counts as the current version
-   for this comparison.
-6. **Hard dependencies this registry publishes are satisfiable.** Every `Depends`, `Imports`
-   and `LinkingTo` entry naming a package that is itself in the propagation index must be
-   present at a version meeting its `>=` or `>` constraint. Dependencies not published here
-   (CRAN, base R, and annotation, experiment and workflow packages until they have a build
-   home) pass untouched. Candidates are approved in waves until a fixpoint, so a package
-   lands as soon as what it waits on does. Blocked candidates are written to
-   `prop/{universe}/blocked/` with the unmet requirement spelled out.
+   version) and matched against each job's actual R version, not its label. Three families
+   are gated ([`passingFamilies`](https://github.com/seandavi/bioc-registry/blob/f10719e/src/repo.ts#L223-L232)):
+   `linux` (the `source` job plus `linux-*` x86_64), `win` (`windows-*` x86_64) and `mac`
+   (`macos-*` arm64). A family passes when it has at least one gating job and none of them is
+   `ERROR`, `FAIL` or `FAILURE`. `NOTE` and `WARNING` pass. Other configs gate nothing:
+   `bioc-checks`, `wasm`, linux arm64, mac x86_64. bioc-build reports one `linux-x86_64` job.
+3. **`bioccheck`**: advisory in every caller today; it always passes and records the
+   verdict. A caller could set it to `blocking`, and then `ERROR`/`FAIL` would block.
+4. **`version-parse`**: the version is digits separated by `.` or `-`.
+5. **`version-gate`**: the version is a strict bump over the one in the propagation index,
+   or the package is new. A push without a bump never propagates. With `replace_seed`
+   (bioc-build only), a build at the same version may also replace a `bioconductor` seed;
+   r-universe must bump.
+6. **`manifest-state`, `manifest-git-url`, `manifest-stream`, `manifest-component`**
+   (bioc-build only): the package's entry in
+   [bioc-manifest](https://github.com/seandavi/bioc-manifest), read at the commit the build
+   recorded, is `active`, names the git URL that was built, lists the build's stream, and has
+   `component` equal to `profile`.
+7. **`deps`**, run last over everything the other rules cleared
+   ([`approveByDeps`](https://github.com/seandavi/bioc-registry/blob/f10719e/src/repo.ts#L600-L641)):
+   every `Depends`, `Imports` and `LinkingTo` entry naming a package that is itself in the
+   propagation index must be present at a version meeting its `>=` or `>` constraint.
+   Dependencies not in the index (CRAN, base R, and annotation, experiment and workflow
+   packages until they have a build home) pass untouched. Candidates are approved in waves
+   until a fixpoint, so a package lands as soon as what it waits on does. A dependency that is
+   in neither the index nor CRAN is not caught; that is
+   [bioc-registry#56](https://github.com/seandavi/bioc-registry/issues/56) (open), and
+   finding 2 on [Registry switch](registry-switch.qmd).
 
-What propagates for an eligible package: the **source tarball always**; **binaries only for
-the families that passed** in rule 3, and only those built at the same version with status
-`success`. `wasm` binaries ride along with no gate of their own. The passing families are
-recorded on the index entry as `archs`, the BiocCheck verdict as `bioccheck`.
+What propagates for an r-universe package that passes: the **source tarball always**;
+**binaries only for the families that passed**, and only those built at the same version with
+status `success`. `wasm` binaries ride along with no gate of their own. The passing families
+are recorded on the index entry as `archs`, the BiocCheck verdict as `bioccheck`.
+
+Every new version that fails (its `version-gate` passed, something else did not) is written
+to `prop/{universe}/blocked/` with its full list of rule verdicts. To ask why a package did
+not propagate, or whether it would, `POST /gate` runs the same function against the live
+index and writes nothing:
+
+```bash
+curl -s -X POST https://bioc-registry.seandavi.workers.dev/gate \
+  -H 'content-type: application/json' \
+  -d '{"universe":"bioc-release","candidates":[{"package":"limma","version":"99.0.0",
+       "jobs":[{"config":"source","r":"4.6.0","check":"OK"}]}]}'
+# 2026-09-30: propagate true, archs ["linux"], gating_r 4.6, "99.0.0 > 3.68.5"
+```
 
 What this gate does **not** check, and the [legacy production gate or the push hooks](legacy-propagation.qmd) do:
 
-- The `nebbiolo1` sha match. The pilot gate has no provenance check of its own.
+- The `nebbiolo1` sha match. The gate has no provenance check for r-universe builds.
+  (bioc-build's sha256 and `gh attestation verify` are checked by its publisher; per ADR 0011
+  they are integrity checks, not gate rules.)
 - The push-hook rules: version parity, `x` and `y` unchanged, the 5 MiB file limit, merge
   markers. It inherits them by trusting that the commit reached `git.bioconductor.org`.
 
-## Two ways into the index
+### Binaries that arrive after publication
 
-About 300 packages build in BBS and fail in r-universe's environment, usually because an
-example reaches a network service the runner cannot. Those are **seeded** from
-Bioconductor's own release repositories so the registry matches what Bioconductor ships.
-Each index entry carries an `origin`: `r-universe` means it passed the gate above and `archs`
-says on which platforms; `bioconductor` means it was seeded, never faced the gate, and has
-empty `archs` and null `bioccheck`. Seeding only fills holes; a seeded package is replaced
-the ordinary way when the maintainer bumps the version and r-universe builds it.
+The gate decides binaries in the wave that first publishes a version, and `version-gate` keeps
+that version out of every later wave. Since bioc-registry#50 (PR #51, merged 2026-09-29
+02:30 UTC), every wave ends with a top-up
+([`topUpBinaries`](https://github.com/seandavi/bioc-registry/blob/f10719e/src/repo.ts#L268-L288),
+[`topUp`](https://github.com/seandavi/bioc-registry/blob/f10719e/src/index.ts#L700-L722)):
+
+- For an r-universe entry, if r-universe now has a successful binary **at the published
+  version** for a family that passed then or passes now on the gating R, it is added. This
+  covers binaries that finish after the source was published and platforms whose check passes
+  on a same-version rebuild.
+- For a seeded entry, Bioconductor's binaries are fetched once they reach the seeded version.
+
+Top-up is additive only: the source, its sha256 and the version never change, a family that
+passed is never withdrawn, and a slot that already has a binary keeps it. Each addition is
+recorded under `prop/{universe}/topup/`. `POST /topup` (maintenance key) runs the same for a
+backfill.
+
+## Three ways into the index
+
+Each index entry carries an `origin`:
+
+| `origin` | How it got there | `bioc` (devel) | `bioc-release` |
+|---|---|--:|--:|
+| `r-universe` (or no field: entries from before the field existed) | passed the gate above; `archs` says on which families | 2,292 | 2,235 |
+| `bioconductor` | **seeded**, never faced the gate; empty `archs`, null `bioccheck` | 124 | 153 |
+| `bioc-build` | passed the gate through `POST /publish` | 2 | 2 |
+
+Counts from the live index, 2026-09-30.
+
+Seeds exist because some packages build in BBS and fail in r-universe's environment, usually
+because an example reaches a network service the runner cannot (about 300 when measured
+2026-08-04; 277 seeded entries today). They are copied from Bioconductor's repository for the
+universe's branch: the devel repository for `bioc`, the release repository for
+`bioc-release` (`seedPlan()` in `src/index.ts`). Seeding only fills holes. A seed is replaced
+by an r-universe build when the maintainer bumps the version, or by a bioc-build build at the
+same version.
 
 ## What r-universe already computes
 
-A common assumption — encouraged by "r-universe doesn't care about `R CMD check`" — is that
+A common assumption, encouraged by "r-universe doesn't care about `R CMD check`", is that
 r-universe skips checking. It does not. It **does not gate** on the result, which is a
 different claim. It runs `R CMD check` on every platform in its matrix, and for Bioconductor
 packages it also runs **BiocCheck**.
@@ -83,8 +159,8 @@ All of it is exposed in the per-package API, e.g.
 | Field | Contents |
 |---|---|
 | `_jobs[]` | one entry per matrix leg: `{job, time, config, r, check, artifact}`. `config` values include `source`, `bioc-checks`, `linux-{devel,release}-{arm64,x86_64}`, `macos-*`, `windows-*`, `wasm-release`. `check` is `OK` / `NOTE` / `WARNING` / `ERROR` / `FAIL`. |
-| `_bioccheck` | BiocCheck summary as counts — `{error, warning, note}`. First-class API field; no download required. |
-| `_commit` | `{id, author, committer, message, time}` — the source commit sha and metadata. |
+| `_bioccheck` | BiocCheck summary as counts: `{error, warning, note}`. First-class API field; no download required. |
+| `_commit` | `{id, author, committer, message, time}`: the source commit sha and metadata. |
 | `_status` | overall deploy status for the package. |
 | `_failure` | present when the **newest** commit failed to produce a source package. |
 | `_buildurl` | the GitHub Actions **run** URL, in `r-universe/{universe}`. |
@@ -95,75 +171,64 @@ Build logs and the full BiocCheck artifact are retrievable without authenticatio
 
 The gate therefore does not need to run checks. It needs to **read** them.
 
-## There is no build notification to subscribe to
-
-The natural design is event-driven: r-universe finishes a build, something fires, the gate
-runs. That is not available.
+## Why the registry polls
 
 r-universe emits **no webhook, no `repository_dispatch`, and no subscribable status
 endpoint**. The feature request for build notifications
-([`r-universe-org/help#101`](https://github.com/r-universe-org/help/issues/101)) has been open
-and uncommented since 2021.
+([`r-universe-org/help#101`](https://github.com/r-universe-org/help/issues/101)) is open with
+no comments (checked 2026-09-30). The one push-style signal, a GitHub commit status on the
+upstream repo (context `r-universe/{universe}/{package}/deploy`), needs the r-universe GitHub
+App installed on that repo; checked against `bioc/limma` on 2026-08-04 at the sha r-universe
+built, there were no statuses.
 
-The one push-style signal it does emit is a **GitHub commit status** on the upstream repo
-(context `r-universe/{universe}/{package}/deploy`), which an `on: status` workflow could catch
-— but only if the r-universe GitHub App is installed on that repo. Checked live against
-`bioc/limma` at the exact sha r-universe built: **zero statuses, no contexts**. That path is
-closed for Bioconductor packages today.
+So the registry polls. Its Worker cron runs every 15 minutes (`*/15 * * * *` in
+`wrangler.jsonc`). Each run fetches `/api/packages` for both universes with a fixed field list
+and hashes the response; a new wave (gate, propagate, top-up) starts only when the hash
+changes. The field list leaves out volatile fields such as `_stars` so the hash stays quiet
+when nothing build-relevant changed. The same cron also captures logs and compacts the
+observation archive.
 
-### So: poll, and don't poll fast
-
-r-universe discovers new commits through its own hourly cron (`41 * * * *`, in
-`r-universe-org/control-room`), which then dispatches per-monorepo sync and build. **Polling
-faster than hourly buys nothing** — it re-reads the same state.
-
-The cheapest useful endpoint (measured against `bioc-release`, 2026-08-04):
-
-```bash
-GET /api/files?type=src&fields=_created,_buildurl,_commit
-# 1.1 MB · 0.27 s · 2,399 NDJSON rows
-```
-
-Each row carries package, version, commit id and time, build time, and the Actions run URL —
-everything a delta needs. Two comparisons for scale: the same universe via `/api/packages`
-with a field list is 6.4 MB / 0.9 s, and **with no field list at all it is ~69 MB**. Always
-pass `fields=`.
-
-Polling `/api/files` this way is the sanctioned pattern — r-universe's own `rebuilds` package
-does exactly this. If a sync is needed ahead of the cron, `PATCH /api/sync` is public,
-unauthenticated, and self-throttles to 60 seconds.
+For scale: r-universe discovers new commits once an hour (`sync.yml` in
+`r-universe-org/control-room`, cron `25 * * * *`, checked 2026-09-30), and rebuilds nightly
+(`rebuilds.yml`, `30 1 * * *`). Measured against `bioc-release` on 2026-08-04, `/api/files`
+with `fields=_created,_buildurl,_commit` was 1.1 MB in 0.27 s; `/api/packages` with a field
+list 6.4 MB in 0.9 s; with no field list about 69 MB. Always pass `fields=`.
+`PATCH /api/sync` is public, unauthenticated, and self-throttles to 60 seconds, if a sync is
+needed ahead of the cron.
 
 ### Two traps in the data
 
 **`_status` can be green on a stale commit.** When the newest commit fails to produce a source
 package, the package keeps its previous successful `_status` and the failure appears separately
 in `_failure`. A gate reading only `_status` will propagate while the current head is broken.
-Read both.
+This gate reads only `_status` and relies on `version-gate` (rule 1 above).
 
 **Key the delta on `_commit.id`, not build time.** 453 release packages were rebuilt in the
-24 hours before measurement, but r-universe also rebuilds on dependency changes, R-version
-changes, a nightly retry cron (`30 1 * * *`), and a reverse-dependency cascade after any
-version change. Most of that churn carries no new source.
+24 hours before the 2026-08-04 measurement, but r-universe also rebuilds on dependency
+changes, R-version changes, the nightly rebuild cron, and a reverse-dependency cascade after
+any version change. Most of that churn carries no new source.
 
 ## Relation to the legacy production gate
 
 | | Legacy production gate | This gate |
 |---|---|---|
-| Feeds | `bioconductor.org/packages/...` (the legacy site and mirrors) | `bioc-registry` (`/repo/...`, the propagation index, the new site's data) |
+| Feeds | `bioconductor.org/packages/...` (the site and its mirrors) | `bioc-registry` (`/repo/...`, the propagation index, the `/next/` pages) |
 | Runs in | Bioconductor core infrastructure, alongside BBS | a Cloudflare Worker |
-| Described from | conversation with a core team member, 2026-08-04, not re-verified since | the code, pinned at commit [`c614a8a`](https://github.com/seandavi/bioc-registry/tree/c614a8a) |
-| Provenance check | source sha must match what `nebbiolo1` built | none: pushes to `git.bioconductor.org` are assumed hook-checked upstream |
-| Check verdict | "the check is clean", all-or-nothing | per platform family; at least one family must pass |
+| Described from | conversation with a core team member, 2026-08-04, not re-verified since | the code, pinned at commit [`f10719e`](https://github.com/seandavi/bioc-registry/tree/f10719e) |
+| Provenance check | source sha must match what `nebbiolo1` built | none for r-universe: pushes to `git.bioconductor.org` are assumed hook-checked upstream |
+| Check verdict | "the check is clean": one all-or-nothing verdict; the source does not say it covers more than one platform | per platform family on the gating R; at least one family must pass |
 | Version rule | version must match `nebbiolo1`'s build | strict bump over the last propagated version |
 | Dependency rule | unknown | hard deps that this registry publishes must be satisfiable |
 | BiocCheck | advisory | advisory, recorded on the index entry |
+| Late binaries | unknown | added by top-up at the same version |
 
 Whether `WARNINGS` counts as clean in the legacy gate is still [undetermined](legacy-propagation.qmd#what-could-not-be-determined);
-this gate answers it explicitly (rule 3: yes).
+this gate answers it explicitly (`families`: yes).
 
 ## Sources
 
-- [`seandavi/bioc-registry`](https://github.com/seandavi/bioc-registry) at `c614a8a` — `src/index.ts` (`evaluate`, `gatingRMinor`), `src/repo.ts` (`passingFamilies`, `approveByDeps`, `verGt`)
-- [`r-universe-org/frontend`](https://github.com/r-universe-org/frontend) — `routes/packages.js`, `routes/universe.js`; [`r-universe-org/workflows`](https://github.com/r-universe-org/workflows) — `build.yml`, `deploy.yml`
-- Live endpoints, 2026-08-04: `bioc-release.r-universe.dev/api/{packages,files}`, `bioc.r-universe.dev/api/packages/limma`
-- Related: [Propagation in the legacy system](legacy-propagation.qmd), [Builder Transition](builder-transition.qmd)
+- [`seandavi/bioc-registry`](https://github.com/seandavi/bioc-registry) at `f10719e`: `src/repo.ts` (`gate`, `passingFamilies`, `approveByDeps`, `topUpBinaries`, `seedBinaryTopUp`, `verGt`), `src/index.ts` (`evaluate`, `gatingRMinor`, `poll`, `topUp`, `seedPlan`, `/gate`), `wrangler.jsonc`
+- [ADR 0011](adr/0011-one-propagation-gate-for-every-producer.md): one propagation gate for every producer
+- [`r-universe-org/frontend`](https://github.com/r-universe-org/frontend): `routes/packages.js`, `routes/universe.js`; [`r-universe-org/workflows`](https://github.com/r-universe-org/workflows): `build.yml`, `deploy.yml`; [`r-universe-org/control-room`](https://github.com/r-universe-org/control-room): `sync.yml`, `rebuilds.yml`
+- Live endpoints: `bioc-release.r-universe.dev/api/{packages,files}`, `bioc.r-universe.dev/api/packages/limma` (2026-08-04); `bioc-registry.seandavi.workers.dev/data/prop/{bioc,bioc-release}/index.json` and `/gate` (2026-09-30)
+- Related: [Propagation in the legacy system](legacy-propagation.qmd), [Registry switch](registry-switch.qmd), [Builder Transition](builder-transition.qmd)
