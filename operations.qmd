@@ -159,7 +159,7 @@ The Route53 zone and CloudFront are kept as the rollback target, and records are
 until 2026-10-12: change no DNS record in either zone, or make the same change in both.
 
 - **The Worker is the problem, DNS is fine:** switch the `bioconductor.org` and `www`
-  records to DNS only in the Cloudflare dashboard. Traffic goes straight to CloudFront and
+  records to DNS only in the Cloudflare dashboard. Traffic goes straight to CloudFront and <!-- docs-check: ok -->
   the legacy servers within 300 s. Steps:
   [flip the site, rollback](dns-cutover.qmd#flip-the-site-m1-proper).
 - **Cloudflare's DNS service is the problem:** put the Route53 nameservers back at the

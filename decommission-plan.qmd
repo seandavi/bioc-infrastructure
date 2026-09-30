@@ -80,7 +80,7 @@ master still exists, but it is not independence: a container build sourced this 
 the moment master goes away. Real independence means pulling checkResults data from the
 build machines directly (or from wherever their push gets redirected), which makes item (3)
 a **blocker** for containerizing (1) independently, not a parallel track.
-See [issue #46](https://github.com/seandavi/bioc-cloudflare/issues/46).
+See bioc-cloudflare issue #46 (a private repository).
 :::
 
 ::: {.callout-tip}

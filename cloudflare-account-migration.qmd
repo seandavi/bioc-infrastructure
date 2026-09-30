@@ -28,7 +28,7 @@ unrelated personal domains.
 
 ## What it costs to do later instead of first
 
-Doing it after the cutover means a **second nameserver change on the live production
+Doing it after the cutover means a **second nameserver change on the live production <!-- docs-check: ok -->
 domain**. A zone can't be handed between accounts. It's added fresh to the new
 account, which assigns different nameservers, and the registrar is repointed. That is
 the price of not blocking the cutover. It's manageable because the zone is small, fully
@@ -103,7 +103,7 @@ usually minutes and occasionally longer. Two ways to close the gap:
   *Verify* that Advanced Certificate Manager allows this on a pending zone and what it
   costs. It is a paid add-on.
 - **Drop to grey for the switch.** If CloudFront is still running (before M2 retires
-  it), set apex and `www` back to DNS only in the old zone for the switch window. The
+  it), set apex and `www` back to DNS only in the old zone for the switch window. The <!-- docs-check: ok -->
   site is then served by CloudFront (the rollback target of the site flip). Re-proxy in
   the new zone once its certificate shows Active. This is free, but only available
   while CloudFront exists. **If the account move happens after M2, the pre-issue route

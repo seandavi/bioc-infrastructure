@@ -142,7 +142,7 @@ flowchart LR
 The sync (`bioc-sync`, bioc-edge) runs hourly with up to 10 minutes of random delay, on
 onclappc02 from a development checkout of bioc-edge. Each run:
 
-1. rsyncs master's docroot into `/data/davsean/bioc-cloudflare/mirror`;
+1. rsyncs master's docroot into `/data/davsean/bioc-cloudflare/mirror`; <!-- docs-check: ok -->
 2. uploads the changed files to R2 and publishes the symlink map;
 3. regenerates the [manifest](mirror-how-to.qmd);
 4. purges the changed objects from the edge cache on all four hosts.
