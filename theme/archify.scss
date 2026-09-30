@@ -30,8 +30,9 @@ main#quarto-document-content {
   margin-top: 1.25rem;
   margin-bottom: 2rem;
 }
+// On phones the panel frame costs too much width: go full-bleed.
 @media (max-width: 767.98px) {
-  main#quarto-document-content { padding: 1.25rem 1rem; border-radius: 0.75rem; }
+  main#quarto-document-content { padding: 1rem 0.25rem; border: 0; border-radius: 0; box-shadow: none; background: transparent; margin-top: 0.5rem; }
 }
 
 // Chrome in mono, like archify's toolbar and labels.
@@ -162,3 +163,25 @@ blockquote {
   padding-left: 1rem;
 }
 .nav-footer { border-top: 1px solid var(--ax-border); font-size: 0.78rem; color: var(--ax-muted); }
+
+// Accessibility fixes from the axe pass (docs review, 2026-09-30).
+// Plain code blocks inherited Bootstrap's black on the dark panel (1.12:1).
+pre, pre code, pre:not(.sourceCode) code { color: var(--ax-text); }
+// Small uppercase labels need the stronger muted tone (was 3.8:1).
+.quarto-title-meta .quarto-title-meta-heading, header #toc-title, nav#TOC #toc-title { color: var(--ax-muted) !important; }
+// Links inside headings kept a lightened link colour (4.4:1).
+main h1 a, main h2 a, main h3 a, main h4 a { color: var(--bs-link-color); }
+// Wide tables scroll inside their own box on small screens instead of widening the page.
+@media (max-width: 767.98px) {
+  main table { display: block; max-width: 100%; overflow-x: auto; }
+}
+// Quarto dims these (meta headings 0.8, h3 0.9), which drops them below 4.5:1.
+.quarto-title-meta .quarto-title-meta-heading, main h3, main h4 { opacity: 1 !important; }
+// Inline code in headings kept Bootstrap's light background in dark mode.
+main :is(h1, h2, h3, h4, h5) code { background: transparent; color: inherit; }
+// Long inline code and bare URLs wrap instead of widening the page on phones.
+// break-word, not anywhere: anywhere also shrinks table columns to single letters.
+main :not(pre) > code { white-space: pre-wrap; overflow-wrap: break-word; }
+main a { overflow-wrap: break-word; }
+// A cell that is just a name (bioc-registry) shouldn't break mid-name.
+main td > a:only-child { white-space: nowrap; }
