@@ -1,13 +1,14 @@
 ---
 title: "Installing packages"
-date: 2026-09-28
+date: 2026-09-30
 ---
 
 Since 2026-09-28, `bioconductor.org` is served by the new stack: a Cloudflare Worker in front
 of a copy of the full repository in R2 (see the [overview](index.qmd) for the design). **There
 is nothing to change on your side.** `BiocManager::install()` reads the same URLs it always
-has, and gets the same packages, tarballs and checksums, because the new stack still mirrors
-the legacy build output hourly and checks it against the source weekly.
+has, and gets the same packages, tarballs and checksums, because the new stack still copies
+the legacy build output from master.bioconductor.org hourly, and a weekly job checksums R2
+against that local copy.
 
 ```r
 BiocManager::install("GEOquery")
@@ -29,15 +30,22 @@ curl -sI https://bioconductor.org/packages/release/bioc/src/contrib/PACKAGES | g
 ## What to expect
 
 - **Same URLs, same content.** Landing pages, vignettes, archives and old releases all live at
-  the addresses they always had.
+  the addresses they always had. Two exceptions: `/talks/` pages return 404
+  ([ADR 0013](adr/0013-redirects-land-on-content-or-they-go.md)), and site search (`/solr`)
+  is not served.
 - **Smaller downloads.** Everything is compressed, including the repository indexes R reads
   on every install: `PACKAGES` goes over the wire at about a quarter of its size.
 - **Package updates appear within about an hour** of being published, as before.
+  "Published" means built by the Bioconductor Build System (BBS) and propagated to
+  master.bioconductor.org, not pushed to git.bioconductor.org. A URL requested just before a
+  file appears can 404 for up to ten minutes more (see [edge cache](cache.qmd)).
 
 ## Reporting problems
 
 An install that fails, a checksum mismatch, a slow or missing file, a page that renders
-wrong: all worth reporting, however small. File a
-[bioc-edge issue](https://github.com/seandavi/bioc-edge/issues) with the R output and, if
-possible, the failing URL, or email Sean Davis
+wrong: all worth reporting, however small. Use one of the bioc-infrastructure issue forms,
+[package install problem](https://github.com/seandavi/bioc-infrastructure/issues/new?template=install-problem.yml)
+or [something's broken on bioconductor.org](https://github.com/seandavi/bioc-infrastructure/issues/new?template=site-problem.yml),
+with the R output and, if possible, the failing URL. Reports are triaged by hand and moved
+to the repo that owns the problem. You can also email Sean Davis
 ([seandavi@gmail.com](mailto:seandavi@gmail.com)).

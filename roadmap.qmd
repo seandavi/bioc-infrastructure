@@ -13,7 +13,6 @@ flowchart LR
   M0["M0 · Operational readiness<br/>hygiene, CI, health checks"] --> M1["M1 · Production cutover<br/>bioconductor.org → new edge"]
   M1 --> M2["M2 · Full disconnect<br/>retire master, staging,<br/>build system, stats"]
   M1 --> M3["M3 · Search + redesigns<br/>prove the PR process"]
-  M2 -.->|"build & stats tracks<br/>can start before M1 lands"| M0
 ```
 
 ## M0 — Operational readiness ([#1](https://github.com/seandavi/bioc-infrastructure/issues/1))
@@ -23,7 +22,7 @@ contributable, tested, and watched. Mostly done 2026-08-21.
 
 **Acceptance criteria**
 
-- [x] Four public repos under the `bioc-*` convention, each with LICENSE, CONTRIBUTING, CODE_OF_CONDUCT
+- [x] Four public repos under the `bioc-*` convention, each with LICENSE, CONTRIBUTING, CODE_OF_CONDUCT (the original four: bioc-website, bioc-edge, bioc-registry, bioc-infrastructure; bioc-build and bioc-manifest, added since, have all three as of 2026-09-30)
 - [x] Histories verified free of credentials and undisclosed findings
 - [x] CI with badges on every repo
 - [x] Daily black-box health checks with status badges — serving ([health](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml)) and data plane ([freshness](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml))
@@ -48,6 +47,12 @@ monitoring, with the rollback still one toggle away.
 - [ ] Upstream security findings resolved with the Bioconductor core team
 - [ ] Core team sign-off; window scheduled
 - [ ] DNS flipped (done 2026-09-28); a clean week of monitoring
+
+Checkboxes here mirror [#2](https://github.com/seandavi/bioc-infrastructure/issues/2).
+Partial progress on open items, as of 2026-09-30: the rollback steps are written in the
+[DNS runbook](dns-cutover.qmd), with Route53 kept as the rollback target until 2026-10-12;
+the daily `bioc-logpush-check` alerts on gaps in log delivery ([CI & scheduled jobs](ci.qmd)),
+but the "both eras queryable as one" half is not checked off.
 
 **Tasks**
 
