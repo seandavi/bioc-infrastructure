@@ -4,11 +4,17 @@ date: 2026-09-28
 ---
 
 ::: {.callout-note}
-## Status: proposed, nothing started
+## Status: proposed; step 0 in progress (updated 2026-09-30)
+Step 0 has two of its four items done: binaries are re-evaluated on every wave and seed
+binaries refresh ([bioc-registry#51](https://github.com/seandavi/bioc-registry/pull/51),
+merged 2026-09-29). The dependency gate rule and keeping bioc-build output out of the
+software index are open. Steps 1–5 have not started, and none of the decisions below is made.
+
 A plan for making `bioconductor.org`'s software repositories come from
 [bioc-registry](https://github.com/seandavi/bioc-registry), which is built from r-universe,
 instead of from the legacy build system (BBS). Every step and every test below cites the
-measurement that makes it necessary. Measurements are from 2026-09-28 and are reproducible
+measurement that makes it necessary. Measurements are from 2026-09-28 unless another date
+is given, and are reproducible
 with the scripts in
 [`evidence/registry-switch/`](https://github.com/seandavi/bioc-infrastructure/tree/main/evidence/registry-switch).
 Tracked in [bioc-infrastructure#35](https://github.com/seandavi/bioc-infrastructure/issues/35).
@@ -50,7 +56,7 @@ out of the path for software packages.
 | `html/` | unchanged (the site build) | |
 
 Only the current release (3.23) and devel (3.24). Older releases are archival
-([ADR 0006](adr/0006-old-releases-and-their-checkresults-are-archival.html)) and stay as they
+([ADR 0006](adr/0006-old-releases-and-their-checkresults-are-archival.md)) and stay as they
 are; they are 77% of package traffic, so most installs are unaffected either way. Annotation,
 experiment and workflow repositories stay on the mirror until
 [bioc-build](https://github.com/seandavi/bioc-build) covers them.
@@ -89,17 +95,20 @@ by a rule, which is what the gate is for: the newer version fails to build in r-
 whose 346 MB tarball has no successful build), or it builds but its checks ERROR on every
 platform (`DOSE` 4.7.3, `MsBackendMetaboLights` 1.7.8). `PIPETS` is the same case one step
 removed: r-universe's last successful build is 1.7.0, and its 1.9.0 build failed. BBS
-publishes these versions because they pass in BBS's environment. So this isn't a registry
-bug. It's the gate being stricter than BBS, and after a switch those packages' bug-fix
+publishes these versions because they pass in BBS's environment. The gate is stricter
+than BBS here, and after a switch those packages' bug-fix
 releases would wait until they pass in r-universe. *A decision, not a fix*: accept the lag
 (and chase the failures with the maintainers), or bridge by re-seeding from BBS, which keeps
 BBS in the path for those packages.
 
-**4. Missing binaries.** For release, the registry lacks 61 Windows, 49 macOS arm64 and 76
+**4. Missing binaries.** These counts compare the registry's repository with
+`bioconductor.org`; `bioconductor.org` itself is not missing these binaries. On 2026-09-28,
+before the fix described below, for release the registry lacked 61 Windows, 49 macOS arm64 and 76
 macOS Intel binaries that `bioconductor.org` serves (devel: 48, 57, 72), 363 in all. The
 gate publishes a binary only for a platform whose r-universe check has no ERROR or FAIL on
 the gating R line, and seeds copy a binary only if `bioconductor.org`'s binary matches the
-source version. Classifying every one of the 363 against those rules (`binwhy.py`):
+source version. Classifying every one of the 363 against those rules (`binwhy.py`,
+2026-09-28):
 
 | Cause | Count | Verdict |
 |---|---|---|
@@ -124,7 +133,8 @@ version published an hour earlier). Was *blocking*: re-evaluate the binaries of 
 published version on every r-universe wave, adding any whose platform now passes (the source
 and the version stay as they are).
 
-The "by design" rows change what users get: in 88 of the 363, `bioconductor.org` serves a
+The "by design" rows change what users get: in 88 of the 363 (2026-09-28; not re-counted
+after the fix), `bioconductor.org` serves a
 binary *older* than its source (BBS keeps the last binary that built). After a switch, a
 Windows or macOS user gets a source install of the current version instead of an older
 binary, which fails for a package with compiled code on a machine without a toolchain. That
@@ -155,7 +165,9 @@ kept the first build of that version, as its gate intends. Installing on R 4.6 i
 
 **9. The registry is not built to serve at edge speed.** Its indexes are generated per
 request with `cache-control: no-store` and take 250–550 ms; `bioconductor.org` serves the
-same files from the edge cache in about 60–85 ms. The index changes a few times a day for
+same files from the edge cache in about 60–85 ms (2026-09-28). Re-measured 2026-09-30 from
+onclappc02 with a new connection per request: 210–240 ms for a cached `PACKAGES` from
+`bioconductor.org`, 440–480 ms from the registry. The index changes a few times a day for
 release and about ten times a day for devel. This decides the mechanism below.
 
 ## Mechanism: write the registry's repository into the edge's storage
@@ -241,6 +253,9 @@ it from publishing a broken tree. T7 already exists in part
 `bioconductor.org` today) and needs Windows and macOS runners.
 
 ## Decisions needed
+
+Neither this page nor [#35](https://github.com/seandavi/bioc-infrastructure/issues/35) names
+who makes these decisions or by when (checked 2026-09-30).
 
 - **Lagging versions** (finding 3): accept that versions failing in r-universe wait, or
   bridge them from BBS for now?

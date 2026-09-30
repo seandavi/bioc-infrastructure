@@ -4,12 +4,13 @@ date: 2026-09-17
 ---
 
 ::: {.callout-note}
-## Status: executed 2026-09-28; findings not yet reviewed
-Built from a Route53 hosted-zone export for `bioconductor.org` (166 records, reviewed
+## Status: executed 2026-09-28; now part of the migration record
+The cutover this page planned is done; see [Outcome](#outcome) below. The rest of the page
+is kept as written on the day, apart from corrections marked as such. Built from a Route53 hosted-zone export for `bioconductor.org` (166 records, reviewed
 2026-09) plus a direct HTTPS probe of every resolvable hostname in it — not just the
-DNS target, but what each one actually serves today. Satisfies the M1 tasks "decide
-`www.`/`secure.` and satellite hostnames" and "cutover runbook page (DNS,
-verification, rollback)" from the [roadmap](roadmap.qmd). Not yet walked with the core
+DNS target, but what each one actually serves today. Satisfies the M1 task "cutover
+runbook page (DNS, verification, rollback)" from the [roadmap](roadmap.qmd). The M1 task
+"decide `www.`/`secure.` and satellite hostnames" is still open. Not yet walked with the core
 team — treat every status and finding below as the reviewer's read, not a decision.
 Probes were run from the open internet with no VPN/internal access, so "no response"
 below means *not reachable from outside*, not necessarily dead.
@@ -28,6 +29,30 @@ freeze until 2026-10-12:** change no DNS record in either zone, or make every ch
 identically in both. Proxy status, zone settings and firewall rules exist only in
 Cloudflare, so they're exempt.
 :::
+
+## Outcome (2026-09-30) {#outcome}
+
+- **Serving.** `bioconductor.org` and `www` have been proxied through Cloudflare to the
+  `bioc-site` Worker since about 20:09 UTC on 2026-09-28, and `next.bioconductor.org` is
+  served by the same Worker. The zone went Active on Cloudflare's nameservers at 17:29 UTC
+  that day, and the .org delegation showed them by 17:32.
+- **Acceptance.** `BiocManager::install()` for 3.23 and 3.24 passed against
+  `bioconductor.org` on 2026-09-28. Measured 2026-09-29, 16:00–18:00 UTC: about 4,400
+  requests a minute, no 5xx responses, 63% served from the edge cache.
+- **Changes after the flip.** A WAF rule blocks AS150436 and AS4229 on `/talks/` (the
+  crawler of 2026-09-28, [bioc-edge#32](https://github.com/seandavi/bioc-edge/issues/32));
+  Browser Cache TTL is "Respect existing headers"
+  ([bioc-edge#38](https://github.com/seandavi/bioc-edge/issues/38)); 404s return the site's
+  404 page since 2026-09-29 ([bioc-edge#52](https://github.com/seandavi/bioc-edge/issues/52)).
+- **Watching.** bioc-edge's daily `health.yml` has probed `bioconductor.org` since
+  2026-09-29, and `parity.yml` compares it with master.
+- **Rollback.** The Route53 zone and CloudFront are unchanged and remain the rollback
+  target; the record freeze runs until 2026-10-12. The rollback steps in
+  [section 3](#flip-the-site-m1-proper) are written down but have not been rehearsed; that
+  M1 item is still open on the [roadmap](roadmap.qmd).
+- **Still open from this page.** The `www.`/`secure.`/satellite hostnames decision, and
+  the [open questions](#open-questions-for-the-core-team) at the end. Account ownership and
+  billing are tracked on [Cloudflare account migration](cloudflare-account-migration.qmd).
 
 ## What M1 actually changes
 
@@ -111,7 +136,8 @@ How the copy was made, so it can be redone:
   no CloudShell).
 - `dns/export-zone.sh` — asks Route53's own nameserver for every value in the index and
   writes `dns/bioconductor.org.zone`. `dns/bioconductor.org.cloudflare-import.zone` is
-  the same minus the two records that were added by hand (below).
+  the same minus three records (corrected 2026-09-30): the apex CNAME, which was added by
+  hand, and the two TXT records on the literal `@` label, which Cloudflare rejects (below).
 - Imported through the dashboard's zone-file upload. **That upload marks every A and
   CNAME record Proxied with TTL Auto** — all 110 were reset to DNS-only with their
   Route53 TTLs through the API. Any re-import must do the same.
@@ -428,11 +454,15 @@ A → `34.192.48.227`. Redirects to the team's hosted Zulip Cloud instance (`com
 
 ### `www.zulip.bioconductor.org` {#dns-www-zulip-bioconductor-org}
 
-A → `34.192.48.227`. No public response. Shares its target IP with `zulip`/`chat`/`git`/`packages` — routing for `www.`-prefixed vhosts on that box looks inconsistent.
+A → `34.192.48.227`. No public response. *Correction 2026-09-30: it answers over HTTPS
+with the gitolite listing that `git` serves, but its certificate (`*.bioconductor.org`)
+doesn't cover a two-level name, so certificate checks fail.* Shares its target IP with `zulip`/`chat`/`git`/`packages` — routing for `www.`-prefixed vhosts on that box looks inconsistent.
 
 ### `www.chat.bioconductor.org` {#dns-www-chat-bioconductor-org}
 
 A → `34.192.48.227`. No public response, same shared-IP pattern as `www.zulip`.
+*Correction 2026-09-30: same as `www.zulip`, it answers with the gitolite listing and fails
+certificate checks.*
 
 ### `packages.bioconductor.org` {#dns-packages-bioconductor-org}
 
@@ -449,6 +479,8 @@ A → `52.4.116.154`. Responds but the body is literally "Nothing to see here" �
 ### `code.bioconductor.org` {#dns-code-bioconductor-org}
 
 A → `194.94.45.72`. No public HTTPS response — purpose unconfirmed from outside; worth a direct look.
+*Correction 2026-09-30: it serves "Bioconductor Code", a site to browse and search package
+source, but its certificate expired on 2026-08-30, so certificate checks fail.*
 
 ### `rabbitmq.bioconductor.org` {#dns-rabbitmq-bioconductor-org}
 

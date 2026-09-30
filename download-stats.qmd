@@ -7,6 +7,17 @@ title: "Download Stats"
 A dated snapshot kept as history, not a live view of the current system: corrected if
 wrong, but not updated to track the estate. The [overview](index.qmd) links the reference
 pages that describe the replacement itself.
+**Since the cutover (2026-09-30).** Since about 20:09 UTC on 2026-09-28, requests to
+`bioconductor.org` and `www` go to Cloudflare, not CloudFront, so the CloudFront logs that
+feed both pipelines below no longer see production traffic. The published tables at
+`/packages/stats/` are still the legacy output, passed through uncached to master; whether
+they have stopped gaining days since the cutover has not been checked. The "replacement is
+live" callout below covers log collection only: request logs go by Logpush to
+`gs://bioc-u24-logs/cloudflare/bioc-access-logs/`, but no published statistics come from
+them yet. Bot classification is
+[bioc-traffic#5](https://github.com/seandavi/bioc-traffic/issues/5), and generating
+statistics from the new logs is
+[bioc-registry#26](https://github.com/seandavi/bioc-registry/issues/26); both are open.
 :::
 
 Measured 2026-08-04. Numbers on this page are point-in-time.

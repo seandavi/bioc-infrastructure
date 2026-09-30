@@ -41,15 +41,15 @@ It's a redeploy, not a rebuild. Everything except data is declared in `wrangler.
 
 | Piece | Effort | Notes |
 |---|---|---|
-| Workers, cron triggers, Workflows (`bioc-site`, `bioc-registry`, `bioc-prop`) | minutes | Redeploy with the new `account_id`; code unchanged |
+| Workers, cron triggers, Workflows: `bioc-site` (cron every 15 min, Workflow `bioc-release-roll`), `bioc-registry` (cron every 15 min, Workflow `bioc-registry-observe`), and `bioc-prop`, now a stub that only returns a 301 to bioc-registry | minutes | Redeploy with the new `account_id`; code unchanged |
 | Secrets, API tokens | ~1 hour | Nothing transfers. Re-set every secret, reissue CI tokens, update GitHub Actions secrets |
-| R2 buckets `bioc-site`, `bioc-prop` | ~1 day, mostly waiting | No cross-account move. Copy with Super Slurper or rclone. Egress is free; cost is write operations, driven by object count (not yet pulled) |
-| Producers writing to R2 | 1–2 hours | The S3 endpoint embeds the account ID. Every sync job needs the new endpoint and keys |
+| R2 buckets `bioc-site`, `bioc-prop` (now bioc-registry's archive bucket) | ~1 day, mostly waiting | No cross-account move. Copy with Super Slurper or rclone. Egress is free; cost is write operations, driven by object count: `bioc-site` holds 4.2 million objects, 5.1 TB ([costs](improvements.qmd#costs-about-5000-a-month-down-to-a-couple-of-hundred)); `bioc-prop` not yet counted |
+| Producers writing to R2 | 1–2 hours | The S3 endpoint embeds the account ID. Every sync job needs the new endpoint and keys, and the purge token needs access to the new zone. `cf-purge.sh` in bioc-edge purges four hosts: `bioconductor.org`, `www.`, `next.` and `bioc-dev.cancerdatasci.org` |
 | Analytics Engine dataset `bioc_site_requests_v3` | not movable | History restarts (retention is ~3 months anyway) |
 | Logpush job (request log, [ADR 0003](adr/0003-request-logging-after-the-cloudflare-cutover.md)) | minutes | Recreate. **Overlap old and new jobs** so no window goes unlogged; Logpush cannot backfill |
 | In-flight Workflow instances | lost | Let them finish, or accept a rerun |
 | `bioconductor.org` zone | ~1 hour + a registrar change | Below |
-| Zone settings (SSL mode, Always Use HTTPS, Bot Preference Sync off, cache rules…) | ~1 hour | Not copied. List them from the old zone first |
+| Zone settings (SSL mode, Always Use HTTPS, Bot Preference Sync off, cache rules…) | ~1 hour | Not copied. List them from the old zone first. Known so far: Browser Cache TTL "Respect existing headers" (set 2026-09-28, [bioc-edge#38](https://github.com/seandavi/bioc-edge/issues/38)), and the WAF rule blocking AS150436 and AS4229 on `/talks/` ([bioc-edge#32](https://github.com/seandavi/bioc-edge/issues/32)). Without that rule, the crawler that hit `/talks/` on 2026-09-28 is served again |
 | Edge certificate | automatic, but see the gap below | Issued fresh for the new zone |
 
 ## Procedure
@@ -78,10 +78,10 @@ It's a redeploy, not a rebuild. Everything except data is declared in `wrangler.
    its own pending nameserver pair.
 3. **Reset proxy status record by record** from the JSON. The dashboard upload marks
    every A/CNAME as Proxied (seen on 2026-09-28). Only the records that are proxied in the
-   old zone should be proxied here (after the site flip: apex and `www`).
+   old zone should be proxied here (on 2026-09-30: apex, `www` and `next`).
 4. Recreate zone settings from the list above, and the Worker routes for
-   `bioconductor.org/*` and `www.bioconductor.org/*` in the new account's
-   `wrangler.jsonc` (inert until the zone is Active).
+   `bioconductor.org/*`, `www.bioconductor.org/*` and `next.bioconductor.org/*` in the new
+   account's `wrangler.jsonc` (inert until the zone is Active).
 5. Diff the two Cloudflare zones with the repo's script:
    ```sh
    A=<old-cf-ns> B=<new-cf-ns> ./dns/verify-zone.sh
@@ -139,13 +139,16 @@ again. Don't let the old zone reach Deleted until the new one has run clean for 
   Logpush job there.
 - Retire the dev hostname `bioc-dev.cancerdatasci.org`, or recreate it under a
   Bioconductor-owned name.
-- Update [ADR 0003](adr/0003-request-logging-after-the-cloudflare-cutover.md)'s delivery
-  details and any docs that name the old account ID.
+- Update the docs that name the old account ID (this page and the
+  [DNS cutover runbook](dns-cutover.qmd)).
+  [ADR 0003](adr/0003-request-logging-after-the-cloudflare-cutover.md) names no account.
 
 ## Open questions
 
-- Who owns the new account and who are the super administrators? Who pays?
-- R2 object counts for `bioc-site` and `bioc-prop`, to size the copy.
+- Who owns the new account and who are the super administrators? Who pays? Not decided
+  as of 2026-09-30. Until then everything runs on, and is billed to, the personal account
+  named at the top of this page.
+- R2 object count for `bioc-prop`, to size the copy.
 - Is the move done before or after M2 retires CloudFront? That decides how the
   certificate gap is closed.
 - Is there a sponsorship route (e.g. Cloudflare's open-source program) that should be

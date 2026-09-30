@@ -8,6 +8,13 @@ date: 2026-08-03
 A dated snapshot kept as history, not a live view of the current system: corrected if
 wrong, but not updated to track the estate. The [overview](index.qmd) links the reference
 pages that describe the replacement itself.
+**Superseded as a plan (2026-09-30).** Retiring master, staging, the legacy build system
+and the legacy stats pipeline is now [milestone M2 on the roadmap](roadmap.qmd), tracked in
+[bioc-infrastructure#3](https://github.com/seandavi/bioc-infrastructure/issues/3). Master
+stays up until the daily parity check in bioc-edge (`parity.sh`, which compares
+`bioconductor.org` with master path by path; see [CI](ci.qmd)) is clean.
+Since 2026-09-28 `bioconductor.org` is served by the new edge, not by master's Apache
+([DNS cutover](dns-cutover.qmd)).
 :::
 
 This is a first pass, based on one read-only recon (2026-08-03) of both boxes. It's a
@@ -125,7 +132,7 @@ commented code pulls per-node `.dcf` files whereas the live code pulls the aggre
    location R2 sync can pick up. Reuses the existing Dockerfile and removes the hourly
    `real_clean` full-rebuild dependency on staging's specific filesystem layout.
 3. **Port `.htaccess` rules into the Worker incrementally**, verified with `cutover-diff.sh`
-   (already in this repo) against master, before any traffic moves.
+   (in the repo this page was written in, now bioc-edge) against master, before any traffic moves.
 4. **Only then** consider whether master's Apache can be retired — Solr and webstats are
    currently proxied through it and need their own homes first.
 5. Staging retires once (2) no longer needs it as a build host and SPB results-tracking has

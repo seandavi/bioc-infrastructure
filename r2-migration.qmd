@@ -8,6 +8,11 @@ date: 2026-08-03
 A dated snapshot kept as history, not a live view of the current system: corrected if
 wrong, but not updated to track the estate. The [overview](index.qmd) links the reference
 pages that describe the replacement itself.
+**Since then (2026-09-30).** This stack has served `bioconductor.org` since 2026-09-28
+([DNS cutover](dns-cutover.qmd)). The cost line below (~$80/month) is R2 storage only; the
+estimate for the whole stack is $240–500/month
+([costs](improvements.qmd#costs-about-5000-a-month-down-to-a-couple-of-hundred)).
+[Cache](cache.qmd) describes how the Worker serves requests today.
 :::
 
 Full detail lives in the repo's own `README.md` and `MIGRATION.md` — this page is the
