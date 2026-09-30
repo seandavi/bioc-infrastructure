@@ -11,6 +11,8 @@ project:
   # Served for mirror operators to download (mirror-how-to.qmd).
   resources:
     - mirror-sync.sh
+    # Unlinked architecture diagram (archify 3.0.1); regenerate from diagrams/architecture.json.
+    - diagrams/architecture.html
 
 website:
   site-url: "https://seandavi.github.io/bioc-infrastructure/"
