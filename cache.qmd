@@ -115,7 +115,8 @@ wrong thing for judging performance.
 ## Purging
 
 Normally you do not: the sync purges what it uploads, on every run. Purge by hand when that
-did not happen, or when testing.
+did not happen, or when testing. A purge only makes the edge re-read R2, so it cannot stop a
+bad file being served; for that, see [pull a bad package](operations.qmd#yank).
 
 The helpers live in the serving repo (`cf-purge.sh`), and are shared by the sync and manifest
 scripts rather than copied, because both spend the same account-wide rate budget.

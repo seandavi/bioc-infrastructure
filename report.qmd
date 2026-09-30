@@ -1,0 +1,51 @@
+---
+title: "Reporting a problem"
+date: 2026-09-30
+---
+
+If something on `bioconductor.org` is broken, slow, missing or different from before,
+report it, however small. Everything goes through one place, the issue forms in the
+bioc-infrastructure repo, so you don't need to know which part of the system is at fault.
+
+## Where to report
+
+| Problem | Where |
+|---|---|
+| A package won't install, can't be found, or a download fails | [Package install problem](https://github.com/seandavi/bioc-infrastructure/issues/new?template=install-problem.yml) form: the command you ran, the full output, your setup, and where you install from (bioconductor.org or a mirror) |
+| A page, download, redirect or file on bioconductor.org doesn't work | [Something's broken on bioconductor.org](https://github.com/seandavi/bioc-infrastructure/issues/new?template=site-problem.yml) form: the URL, what happened and what you expected, how you accessed it, the output or a screenshot, and when you noticed |
+| A suspected security problem | Email, never a public issue; see [Security](#security) |
+| Questions about these docs, corrections, anything else | [bioc-infrastructure issues](https://github.com/seandavi/bioc-infrastructure/issues), or email [seandavi@gmail.com](mailto:seandavi@gmail.com) |
+| How to use a package | The [Bioconductor support site](https://support.bioconductor.org) |
+| The wording of a page on bioconductor.org | [Bioconductor/bioconductor.org issues](https://github.com/Bioconductor/bioconductor.org/issues); the prose still lives there |
+
+A page that looks out of date may be a stale copy at the edge. The
+[edge cache](cache.qmd) page shows how to tell from the response headers; report it either
+way, with those headers if you have them.
+
+## How triage works
+
+- Both forms add the `report` label, which means "incoming, not yet triaged".
+- One person triages reports by hand: Sean Davis, who operates the new stack
+  ([operations](operations.qmd#who-operates-what)). No response time is promised and there
+  is no on-call rotation.
+- A report is moved to the repo that owns it
+  (bioc-edge for serving, caching and the sync; bioc-website for how pages render;
+  bioc-registry for the registry), or fixed with a linked pull request and closed here. For
+  example, [#47](https://github.com/seandavi/bioc-infrastructure/issues/47) (the About page
+  showing HTML as code) was filed on 2026-09-29 and closed the same day by
+  [bioc-website#32](https://github.com/seandavi/bioc-website/pull/32).
+
+On 2026-09-30, three reports were open
+([`label:report`](https://github.com/seandavi/bioc-infrastructure/issues?q=is%3Aissue+label%3Areport)).
+A written triage protocol and automated first-pass triage are planned in
+[bioc-infrastructure#43](https://github.com/seandavi/bioc-infrastructure/issues/43), not built.
+
+## Security {#security}
+
+Report vulnerabilities privately by email to Sean Davis
+([seandavi@gmail.com](mailto:seandavi@gmail.com)), as
+[bioc-edge's SECURITY.md](https://github.com/seandavi/bioc-edge/blob/main/SECURITY.md)
+describes. It says to expect a reply within a few days and asks you to allow time for a fix
+before public disclosure. The same route applies to problems found in the legacy
+bioconductor.org infrastructure; the maintainer coordinates disclosure with the Bioconductor
+core team. Don't open a public issue for either.

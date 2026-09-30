@@ -1,0 +1,207 @@
+---
+title: "Operations: who runs what, runbooks, open decisions"
+date: 2026-09-30
+---
+
+This page is for whoever has to keep `bioconductor.org` running on the new stack. How a
+request is answered and how content is published is on
+[how bioconductor.org works](how-it-works.qmd); this page covers who operates each part,
+what to do when something breaks, what is waiting on a decision, and the biggest risks.
+Facts here were checked on 2026-09-30.
+
+## Who operates what {#who-operates-what}
+
+**One person operates the new stack: Sean Davis ([seandavi@gmail.com](mailto:seandavi@gmail.com)).
+No backup operator is named anywhere.** If Sean Davis is unavailable, nobody else has documented
+access to the Cloudflare account, the sync host, or the credentials the sync uses.
+
+| Component | Where it runs | Operated by | How a failure is noticed |
+|---|---|---|---|
+| `bioconductor.org` DNS zone, `bioc-site` Worker, R2 bucket `bioc-site` | Cloudflare, on a personal account. Moving to a Bioconductor account is [deferred](cloudflare-account-migration.qmd) | Sean Davis | bioc-edge [`health.yml`](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml), daily, from GitHub Actions |
+| Registrar and the Route53 zone kept as the DNS rollback target | AWS | Not recorded on this site | None |
+| `bioc-sync` (hourly), `bioc-reconcile` (weekly, Sunday 04:00) | systemd user units on onclappc02, running from the dev checkout `~/Documents/git/bioc-edge` | Sean Davis | A GitHub issue in bioc-edge titled `bioc-sync.service is failing` (or `bioc-reconcile…`), opened or commented on by `bioc-notify@` |
+| `bioc-logpush-check` (daily 07:15 local) | systemd user unit on onclappc02, from `~/Documents/git/bioc-traffic` | Sean Davis | The same `bioc-notify@` issue in bioc-edge |
+| Site build and publish (`site/<sha>`, `site/latest`) | bioc-website GitHub Actions, on every push to `main` | Sean Davis | The [site badge](https://github.com/seandavi/bioc-website/actions/workflows/site.yml) |
+| Site data snapshot (`_ci/site-data.tar.zst`: prose and package data the build reads) | R2, refreshed by hand | Sean Davis | Nothing; a stale snapshot fails no check |
+| bioc-registry Worker (not in the serving path) | Cloudflare, deployed by hand with `wrangler deploy` | Sean Davis | bioc-registry [`freshness.yml`](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml), daily |
+| master.bioconductor.org and the Bioconductor Build System (BBS) | Legacy servers | Bioconductor core team | bioc-edge [`parity.yml`](https://github.com/seandavi/bioc-edge/actions/workflows/parity.yml) compares production with master daily |
+
+The failure notices go to one GitHub issue per unit; a repeat failure adds a comment rather
+than a new issue. Nothing closes the issue when the unit recovers, so close it by hand. The
+notices run on onclappc02 itself, so if that host is down no issue is filed; only the daily
+GitHub Actions checks still run. Every scheduled job and its badge is listed in
+[CI & scheduled jobs](ci.qmd).
+
+Credentials for the sync and purge scripts come from Secret Manager into a gitignored `.env`
+in the bioc-edge checkout (`./make-env.sh`). Splitting the production units away from dev
+checkouts, and automating detection and routine fixes, is planned in
+[bioc-infrastructure#43](https://github.com/seandavi/bioc-infrastructure/issues/43).
+
+## Runbooks {#runbooks}
+
+All commands run from the bioc-edge checkout on onclappc02 unless stated. For commands that
+call the Cloudflare API, load the credentials first:
+
+```sh
+./make-env.sh && set -a && . ./.env && set +a
+```
+
+None of these procedures has been rehearsed on production as a drill. The M1 item
+"Rollback rehearsed and written up" is still open on the [roadmap](roadmap.qmd).
+
+### Deploy the Worker {#deploy-worker}
+
+Deploys are manual; there is no deploy from CI yet (an open M0 item).
+
+1. Note the version that is live now, so you can return to it:
+   `cd worker && npx wrangler deployments list`
+2. Deploy: `just deploy-worker` (runs `npx wrangler deploy` in `worker/`). The routes come
+   from `worker/wrangler.jsonc`, and a deploy replaces the Worker's routes with that list,
+   so a route added in the dashboard disappears on the next deploy.
+3. Check: `curl -sI https://bioconductor.org/ | grep -iE '^server|cf-cache-status|x-bioc-build'`
+   shows `server: cloudflare`, and a package index still answers:
+   `curl -sI https://bioconductor.org/packages/release/bioc/src/contrib/PACKAGES`.
+4. Run the probe now rather than waiting for tomorrow's:
+   `gh workflow run health.yml -R seandavi/bioc-edge`.
+
+### Roll back the Worker {#rollback-worker}
+
+1. `cd worker && npx wrangler deployments list` and pick the last good version ID.
+2. `npx wrangler rollback <version-id> -m "<reason>"`.
+3. Check as in step 3 above. A rollback changes which Worker version runs; R2 content,
+   `_routes.json` and the edge cache are untouched.
+
+### Roll back the site build {#rollback-site}
+
+The Worker serves whichever build `_routes.json` names. `"latest"` follows the `site/latest`
+pointer that bioc-website CI moves on every `main` build.
+
+1. Find the last good build sha: `gh run list -R seandavi/bioc-website -w site.yml -b main`
+   (each successful run published `site/<headSha>/`).
+2. Write the route table with that sha pinned:
+   ```sh
+   echo '{"build": "<good sha>", "prefixes": ["/"]}' > routes.json
+   npx wrangler r2 object put bioc-site/_routes.json --file routes.json --remote
+   ```
+3. Within about a minute, `curl -sI https://bioconductor.org/ | grep x-bioc-build` shows the
+   pinned sha. No purge is needed: build pages are cached under their build's sha.
+4. To undo, write `{"build": "latest", "prefixes": ["/"]}` the same way. While the pin is in
+   place, new `main` builds publish but are not served.
+
+An empty `prefixes` list, or no `_routes.json`, makes the mirror serve everything: the
+legacy pages copied from master. That is the fallback if no build is good.
+
+### A failed sync {#failed-sync}
+
+A failed `bioc-sync` opens (or comments on) the issue `bioc-sync.service is failing` in
+bioc-edge, with the run's journal and log files.
+
+1. Read the issue, or `journalctl --user -u bioc-sync.service -n 100`.
+2. If rsync failed (the log says "aborting before touching R2"), nothing in R2 changed.
+   Fix the cause (the log and `.err` file say what rsync hit), then run one now:
+   `systemctl --user start bioc-sync.service`. Rsync exits 23 and 24 (unreadable or vanished
+   files) are expected and do not fail the run.
+3. If the run failed after uploading started, the next run does not retry files it already
+   pulled. Run the checksum pass, which reports what is missing or different in R2 and
+   prints the `rclone copy` command that re-uploads it:
+   `systemctl --user start bioc-reconcile.service`. It hashes the whole local mirror and
+   takes hours (the unit allows 12); it holds the mirror lock, so hourly syncs skip while it
+   runs.
+4. If the purge step failed, the files are in R2 but the edge may still serve old copies.
+   Purge the keys from the run's log ([below](#purge)).
+5. When a run succeeds (`systemctl --user status bioc-sync.service`), close the issue.
+
+A missed hour is caught up by the timer (`Persistent=true`). `bioc-reconcile` failing to get
+the lock within two hours also files an issue.
+
+### Purge the edge cache {#purge}
+
+The hourly sync purges what it changes, so a manual purge is for when that did not happen.
+
+```sh
+. ./cf-purge.sh
+cf_purge_keys packages/3.23/bioc/src/contrib/PACKAGES   # storage keys: 3.23, not release
+```
+
+`cf_purge_keys` purges each key on all four hosts in both zones. Check with `curl -sI` for
+`cf-cache-status: MISS`. The rate limit is shared with the running sync; read
+[Purging on the edge-cache page](cache.qmd#purging) before purging more than a few hundred
+URLs or a whole zone.
+
+### Pull a bad package {#yank}
+
+The mirror in R2 follows master: the hourly sync copies master with deletions, so a file
+removed from master is deleted from R2 and purged on the next run, together with the
+updated `PACKAGES`. **The lasting fix is removing the package on master**, which is the core
+team's BBS process, not something this stack controls.
+
+If users must stop receiving the file before that happens:
+
+1. Delete each copy from R2 by its storage key (numeric version, not `release`; source
+   tarball and each binary are separate keys):
+   `rclone delete r2:bioc-site/packages/3.23/bioc/src/contrib/<pkg>_<ver>.tar.gz`
+2. Purge the same keys: `cf_purge_keys packages/3.23/bioc/src/contrib/<pkg>_<ver>.tar.gz`.
+3. Check the URL returns 404.
+
+What this does and does not do, from how `sync.sh` works (checked 2026-09-30; not yet done
+on production):
+
+- `PACKAGES` still lists the package until master's index changes, so installs fail with a
+  download error instead of installing the bad file.
+- The hourly sync uploads only files that changed on master, so it does not put the file
+  back unless master's copy changes. The weekly reconcile will list it as missing from R2;
+  do not run the re-upload command it prints for that key.
+- Mirrors that already synced the file keep it.
+
+### Roll back DNS {#rollback-dns}
+
+The Route53 zone and CloudFront are kept as the rollback target, and records are frozen
+until 2026-10-12: change no DNS record in either zone, or make the same change in both.
+
+- **The Worker is the problem, DNS is fine:** switch the `bioconductor.org` and `www`
+  records to DNS only in the Cloudflare dashboard. Traffic goes straight to CloudFront and
+  the legacy servers within 300 s. Steps:
+  [flip the site, rollback](dns-cutover.qmd#flip-the-site-m1-proper).
+- **Cloudflare's DNS service is the problem:** put the Route53 nameservers back at the
+  registrar. Most resolvers follow within an hour, some take a day. Steps and the four
+  nameservers: [change the nameservers](dns-cutover.qmd#change-the-nameservers).
+
+Both depend on master and CloudFront still running, which they will until
+[M2](roadmap.qmd).
+
+## Decisions pending {#decisions-pending}
+
+Collected from the pages that raise them, as of 2026-09-30. "Not named" means the source
+page names nobody who decides.
+
+| Decision | Who decides | Source |
+|---|---|---|
+| A backup operator for the new stack | Not named | This page |
+| Owner, super administrators and billing for a Bioconductor Cloudflare account | Not named | [Cloudflare account migration](cloudflare-account-migration.qmd) |
+| Core team sign-off on M1, and the upstream security findings | Bioconductor core team; no person named | [Roadmap M1](roadmap.qmd) |
+| `www.`, `secure.` and satellite hostnames; plain-HTTP behaviour; the apex SPF record; the 18 undecided hosts | Bioconductor core team; no person named | [DNS runbook, open questions](dns-cutover.qmd#open-questions-for-the-core-team) |
+| Registry switch: lagging versions, stale binaries, mirror operators, documentation files | Not named | [Registry switch, decisions needed](registry-switch.qmd#decisions-needed) |
+| Build home for annotation, experiment-data and workflow packages | Bioconductor core team with the r-universe track; no person named | [Roadmap M2](roadmap.qmd) |
+| Download statistics surface and continuity | Not named | [Roadmap M2](roadmap.qmd) |
+| Search design | Not named | [Roadmap M3](roadmap.qmd) |
+| Whether to point website reports filed in Bioconductor/bioconductor.org to this repo | Bioconductor core team | [bioc-infrastructure#43](https://github.com/seandavi/bioc-infrastructure/issues/43) |
+
+## Top risks {#risks}
+
+1. **One operator, no backup.** Every component in the table above with a named operator,
+   except the legacy servers, has the same one. Access, credentials and the knowledge of these runbooks sit with one
+   person.
+2. **A personal Cloudflare account** holds the zone, the Worker and the R2 bucket. The
+   [account migration](cloudflare-account-migration.qmd) is deferred, and nobody is named to
+   own the new account.
+3. **One host runs the sync, from dev checkouts.** If onclappc02 is down, package updates
+   stop reaching `bioconductor.org` and no failure issue is filed. The site keeps serving
+   what is in R2.
+4. **master is still in the path.** It is the source of every package update, and
+   `/packages/stats/` is passed straight through to it uncached, so those pages fail if it
+   is down. It retires only after [M2](roadmap.qmd).
+5. **No rollback has been rehearsed.** The steps above are written from the code and the
+   cutover runbook. The DNS rollback target lasts only while the record freeze and the
+   legacy servers do.
+6. **Deploys are manual.** The Worker and the registry deploy from a workstation with
+   `wrangler deploy`; CD from CI is an open M0 item.
