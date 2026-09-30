@@ -101,7 +101,17 @@ website:
 
 format:
   html:
-    theme: cosmo
+    # Archify-derived theme on top of Bootstrap: palette, fonts, panels, cards.
+    theme:
+      light: [cosmo, theme/archify.scss, theme/archify-light.scss]
+      dark: [cosmo, theme/archify.scss, theme/archify-dark.scss]
+    # Follow the reader's OS light/dark preference until they use the toggle.
+    respect-user-color-scheme: true
+    grid:
+      sidebar-width: 270px
+      body-width: 860px
+      margin-width: 240px
+      gutter-width: 2rem
     toc: true
     number-sections: false
     mermaid:
