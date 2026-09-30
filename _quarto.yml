@@ -28,43 +28,55 @@ website:
         text: Roadmap
       - href: install.qmd
         text: Installing Packages
+      - href: report.qmd
+        text: Report a Problem
   sidebar:
     style: docked
     contents:
       - href: index.qmd
         text: Overview
-      - href: how-it-works.qmd
-        text: How bioconductor.org Works
-      - href: roadmap.qmd
-        text: Roadmap
-      - href: install.qmd
-        text: Installing Packages
-      - href: mirror-how-to.qmd
-        text: Running a Mirror
-      - href: ci.qmd
-        text: CI &amp; Scheduled Jobs
-      - section: The new system
+      - section: Using
         contents:
-          - href: improvements.qmd
-            text: What the New Site Has Changed
-          - href: dns-cutover.qmd
-            text: DNS Inventory &amp; Cutover
-          - href: cloudflare-account-migration.qmd
-            text: Cloudflare Account Migration
+          - href: install.qmd
+            text: Installing Packages
+          - href: report.qmd
+            text: Reporting a Problem
+          - href: mirror-how-to.qmd
+            text: Running a Mirror
+      - section: How it works
+        contents:
+          - href: how-it-works.qmd
+            text: How bioconductor.org Works
           - href: cache.qmd
             text: Edge Cache
           - href: astro-site-build.qmd
             text: Astro Site Build
           - href: propagation-gate.qmd
             text: Propagation Gate
+      - section: Operating
+        contents:
+          - href: operations.qmd
+            text: Operations &amp; Runbooks
+          - href: ci.qmd
+            text: CI &amp; Scheduled Jobs
+      - section: Plans
+        contents:
+          - href: roadmap.qmd
+            text: Roadmap
           - href: registry-switch.qmd
             text: Registry Switch (plan)
+          - href: cloudflare-account-migration.qmd
+            text: Cloudflare Account Migration
+      - section: Records
+        contents:
+          - href: improvements.qmd
+            text: What the New Site Has Changed
+          - href: dns-cutover.qmd
+            text: DNS Inventory &amp; Cutover
           - href: r-universe-size-limits.qmd
             text: r-universe Size Limits
           - href: data-packages-in-r-universe.qmd
             text: Data Packages in r-universe
-      - section: The legacy system (historical)
-        contents:
           - href: current-state.qmd
             text: Current State (legacy)
           - href: legacy-propagation.qmd

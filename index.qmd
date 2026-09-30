@@ -6,6 +6,18 @@ This site documents the infrastructure behind bioconductor.org: what runs today,
 replacing it, and the contracts between the pieces. It exists because none of it was
 written down anywhere a newcomer — or a future maintainer — could find in one place.
 
+## Start here {#start-here}
+
+| You want to | Read |
+|---|---|
+| Install packages, or check whether anything changed for you | [Installing packages](install.qmd) |
+| Report something broken, slow or missing | [Reporting a problem](report.qmd) |
+| Run a mirror | [Running a mirror](mirror-how-to.qmd) |
+| Understand how a request is answered and how content is published | [How bioconductor.org works](how-it-works.qmd), then this page |
+| Operate the stack, or know who does | [Operations](operations.qmd): who runs what, runbooks, top risks |
+| See what is waiting on a decision | [Decisions pending](operations.qmd#decisions-pending) and the [roadmap](roadmap.qmd) |
+| Know why it was built this way | The [ADRs](adr/0008-three-repos-and-a-strangler-migration.md) |
+
 ## TL;DR
 
 **Since 2026-09-28, bioconductor.org is served by the new stack.** The replacement estate is
@@ -40,19 +52,8 @@ used to, that's a bug we want to hear about. What has changed, with numbers:
 
 ### Where to file issues {#where-to-file-issues}
 
-Report problems through the bioc-infrastructure issue forms. Reports get the `report`
-label, are triaged by hand, and are moved to the repo that owns the problem.
-
-- **A package won't install, can't be found, or a download fails** →
-  [package install problem](https://github.com/seandavi/bioc-infrastructure/issues/new?template=install-problem.yml)
-- **A page, download, redirect or file on bioconductor.org doesn't work** (for stale
-  content, see [Edge cache](cache.qmd) first) →
-  [something's broken on bioconductor.org](https://github.com/seandavi/bioc-infrastructure/issues/new?template=site-problem.yml)
-- **Questions, doc corrections, or anything else** →
-  [bioc-infrastructure issues](https://github.com/seandavi/bioc-infrastructure/issues), or
-  email [seandavi@gmail.com](mailto:seandavi@gmail.com). Suspected *security* issues go by
-  email, never a public issue; see
-  [bioc-edge's SECURITY.md](https://github.com/seandavi/bioc-edge/blob/main/SECURITY.md).
+Every report goes through the bioc-infrastructure issue forms and is triaged by hand; suspected
+security problems go by email. Details: [reporting a problem](report.qmd).
 
 ## How the pieces meet
 
@@ -159,35 +160,29 @@ Stated here rather than discovered later:
 - **The 15-minute poll has no fast alerting.** A silent stop is caught by bioc-registry's
   daily freshness check, which fails when the latest observation is more than 36 hours old
   (the freshness badge above).
+- **One person operates the new stack, with no named backup**, on a personal Cloudflare
+  account and one host. This and the other operational risks are on
+  [operations](operations.qmd#risks).
 - **Some facts are written in several places** — release numbers, repository lists, display
   labels — and at least one set of display labels already disagrees with itself.
 
 ## How this site is organised
 
-The pages fall into two kinds, and the sidebar separates them:
+The sidebar groups pages by reader and by how they are kept:
 
-- **The new system** — pages that describe the replacement estate and should still be true,
-  with only numbers to refresh, once the transition completes:
-  [how bioconductor.org works](how-it-works.qmd), [what it has changed](improvements.qmd), [installing packages](install.qmd),
-  [running a mirror](mirror-how-to.qmd), the [DNS runbook](dns-cutover.qmd), the
-  [edge cache](cache.qmd), the
-  [site build](astro-site-build.qmd), the [propagation gate](propagation-gate.qmd), and the
-  r-universe half of the build estate: its [size limits](r-universe-size-limits.qmd) and the
-  [data-package size audit](data-packages-in-r-universe.qmd) behind the standalone build
-  system ([bioc-build](https://github.com/seandavi/bioc-build)).
-- **The legacy system (historical)** — dated snapshots of the BBS-era estate and the record
-  of the transition away from it: [what ran on staging and master](current-state.qmd),
-  [legacy propagation and the push hooks](legacy-propagation.qmd), the
-  [builder transition](builder-transition.qmd), the measurement pages on
-  [VIEWS](views-and-r-universe.qmd), [package pages](reproducing-package-pages.qmd) and
-  [download stats](download-stats.qmd), the [R2 migration](r2-migration.qmd) and the
-  [decommission plan](decommission-plan.qmd). These are kept as history — corrected if
-  wrong, but not updated to track the system. Pages about the new system may cite them;
-  nothing new should depend on them.
-
-If you want the reasoning rather than the description, the
-[ADRs](adr/0008-three-repos-and-a-strangler-migration.md) are the honest record —
-including the decisions that were later reversed.
+- **Using** and **How it works** describe the system today and are kept current: a stale
+  statement there is a bug.
+- **Operating** is for whoever runs the stack: [operations](operations.qmd) and
+  [CI & scheduled jobs](ci.qmd).
+- **Plans** carry a status line that should match their tracking issues: the
+  [roadmap](roadmap.qmd), the [registry switch](registry-switch.qmd) and the
+  [Cloudflare account migration](cloudflare-account-migration.qmd).
+- **Records** are dated snapshots of the legacy estate and the transition, including the
+  executed [DNS cutover](dns-cutover.qmd). They are corrected if they were wrong at the
+  time, not updated to track the system; a status banner points to the current page.
+  [What the new site has changed](improvements.qmd) is the one record that is appended to.
+- **Decisions (ADRs)** record the reasoning, including decisions later reversed. They are
+  not edited; a new ADR supersedes an old one.
 
 ::: {.callout-note}
 This site is deliberately public, so that the people affected by this work can read it

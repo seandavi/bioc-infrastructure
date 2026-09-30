@@ -15,6 +15,8 @@ Each link below is the page's Markdown version; the HTML page is the same path w
 - How is a request to bioconductor.org answered, how do packages and site changes get published, and what do terms like "master", "the mirror" and "the build" mean? → [How bioconductor.org works](https://seandavi.github.io/bioc-infrastructure/how-it-works.llms.md)
 - What has the new site improved, with numbers? → [What the new site has changed](https://seandavi.github.io/bioc-infrastructure/improvements.llms.md)
 - What is done and what is left? → [Roadmap](https://seandavi.github.io/bioc-infrastructure/roadmap.llms.md)
+- Something is broken or a package won't install: where do I report it, and how is it triaged? → [Reporting a problem](https://seandavi.github.io/bioc-infrastructure/report.llms.md)
+- Who operates the new stack, is there a backup, how do I deploy or roll back the Worker, the site build or DNS, handle a failed sync, or pull a bad package, and what decisions are pending? → [Operations](https://seandavi.github.io/bioc-infrastructure/operations.llms.md)
 - Why is a page or package file stale, and how is the cache purged? → [Edge cache](https://seandavi.github.io/bioc-infrastructure/cache.llms.md)
 - How did the DNS and site cutover happen, and how is it rolled back? → [DNS inventory and cutover runbook](https://seandavi.github.io/bioc-infrastructure/dns-cutover.llms.md)
 - How do I run a mirror of the repositories? → [Running a mirror](https://seandavi.github.io/bioc-infrastructure/mirror-how-to.llms.md)
@@ -32,9 +34,10 @@ Each link below is the page's Markdown version; the HTML page is the same path w
 - [How bioconductor.org works](https://seandavi.github.io/bioc-infrastructure/how-it-works.llms.md): the request path (hosts, route table, build first then the mirror, symlinks, the stats passthrough, caching), the publishing path (BBS and r-universe to master, hourly sync to R2; site CI to site/<sha>; the registry is not in the serving path), and a glossary of terms.
 - [Roadmap](https://seandavi.github.io/bioc-infrastructure/roadmap.llms.md): milestones M0 (readiness) to M3 (search and redesigns), acceptance criteria and status.
 - [Installing packages](https://seandavi.github.io/bioc-infrastructure/install.llms.md): nothing to configure since the cutover; how to confirm a request was served by the new stack.
+- [Reporting a problem](https://seandavi.github.io/bioc-infrastructure/report.llms.md): the bioc-infrastructure issue forms (label `report`), hand triage and transfer to the owning repo, and security reports by private email.
+- [Operations](https://seandavi.github.io/bioc-infrastructure/operations.llms.md): who operates each component (one operator, no named backup), runbooks for Worker deploy and rollback, site-build rollback, a failed sync, purging, pulling a bad package and DNS rollback; decisions pending and who decides; top risks.
 - [Running a mirror](https://seandavi.github.io/bioc-infrastructure/mirror-how-to.llms.md): syncing the repositories over HTTPS from the published manifest, with no credentials.
 - [Edge cache](https://seandavi.github.io/bioc-infrastructure/cache.llms.md): purge-based freshness, what is cached under which key, how to diagnose a stale page and purge it.
-- [DNS inventory and cutover runbook](https://seandavi.github.io/bioc-infrastructure/dns-cutover.llms.md): every record in the bioconductor.org zone, the move to Cloudflare, the switch log, the record freeze and rollback.
 - [Cloudflare account migration](https://seandavi.github.io/bioc-infrastructure/cloudflare-account-migration.llms.md): the deferred plan to move the zone and Workers into a dedicated Bioconductor account.
 - [Building the site from primary sources](https://seandavi.github.io/bioc-infrastructure/astro-site-build.llms.md): the static Astro build, what it reproduces and what is still missing.
 - [Propagation gate](https://seandavi.github.io/bioc-infrastructure/propagation-gate.llms.md): the rule that decides which r-universe builds bioc-registry publishes.
@@ -45,6 +48,7 @@ Each link below is the page's Markdown version; the HTML page is the same path w
 
 ## Historical: the legacy estate and the transition
 
+- [DNS inventory and cutover runbook](https://seandavi.github.io/bioc-infrastructure/dns-cutover.llms.md): every record in the bioconductor.org zone, the move to Cloudflare, the switch log, the record freeze and rollback; executed 2026-09-28, now a record with a dated outcome section.
 - [Current state (legacy)](https://seandavi.github.io/bioc-infrastructure/current-state.llms.md): what ran on the staging and master servers as of 2026-08.
 - [Legacy propagation and push hooks](https://seandavi.github.io/bioc-infrastructure/legacy-propagation.llms.md): how packages moved from build to repository in the BBS era.
 - [Builder transition](https://seandavi.github.io/bioc-infrastructure/builder-transition.llms.md): the three concurrent build tracks (r-universe, container binaries, BBS) as of 2026-08.

@@ -47,5 +47,5 @@ wrong: all worth reporting, however small. Use one of the bioc-infrastructure is
 [package install problem](https://github.com/seandavi/bioc-infrastructure/issues/new?template=install-problem.yml)
 or [something's broken on bioconductor.org](https://github.com/seandavi/bioc-infrastructure/issues/new?template=site-problem.yml),
 with the R output and, if possible, the failing URL. Reports are triaged by hand and moved
-to the repo that owns the problem. You can also email Sean Davis
+to the repo that owns the problem ([how reporting works](report.qmd)). You can also email Sean Davis
 ([seandavi@gmail.com](mailto:seandavi@gmail.com)).
