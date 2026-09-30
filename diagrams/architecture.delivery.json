@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "06995b53-ad0a-43ff-a4e6-4ae90577123c",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/data/davsean/tmp/wt-src/diagrams/architecture.json",
+  "output": "/data/davsean/tmp/wt-src/diagrams/architecture.html",
+  "specification": {
+    "sha256": "02f7b8084c7475d373db9a67a5182f5f4f62ef6042c47d0201d0d5c2d8dd22f5",
+    "bytes": 9946
+  },
+  "artifact": {
+    "sha256": "0e214957bea59bf75cd96742d73c26c7cc9b2a3bb9c86f8750b795c81a6e60b8",
+    "bytes": 780465
+  }
+}
