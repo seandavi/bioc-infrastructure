@@ -1,440 +1,586 @@
 {
-  "schema_version": 1,
-  "diagram_type": "architecture",
-  "meta": {
-    "title": "bioconductor.org: new architecture (since 2026-09-28)",
-    "quality_profile": "standard",
-    "viewBox": [
-      1290,
-      580
+ "schema_version": 1,
+ "diagram_type": "architecture",
+ "meta": {
+  "title": "bioconductor.org: new architecture (since 2026-09-28)",
+  "quality_profile": "standard",
+  "viewBox": [
+   1290,
+   580
+  ],
+  "views": [
+   {
+    "id": "serving",
+    "label": "Serving path",
+    "focus": [
+     "users",
+     "edge",
+     "worker",
+     "r2",
+     "master"
     ],
-    "views": [
-      {
-        "id": "serving",
-        "label": "Serving path",
-        "focus": [
-          "users",
-          "edge",
-          "worker",
-          "r2",
-          "master"
-        ],
-        "note": "WAF and edge cache, then the Worker reads the Astro build or the mirror copy from R2. /packages/stats still goes to master."
-      },
-      {
-        "id": "publishing",
-        "label": "Publishing",
-        "focus": [
-          "master",
-          "sync",
-          "r2",
-          "ci",
-          "content",
-          "runiverse",
-          "registry"
-        ],
-        "note": "Hourly sync copies BBS output from master into R2; CI builds pages. The registry isn't serving bioconductor.org yet."
-      },
-      {
-        "id": "security",
-        "label": "Security",
-        "focus": [
-          "edge",
-          "worker",
-          "r2",
-          "secrets",
-          "sync"
-        ],
-        "note": "WAF rules at the zone; R2 is private behind the Worker binding; tokens come from Secret Manager."
-      },
-      {
-        "id": "telemetry",
-        "label": "Logging and checks",
-        "focus": [
-          "probes",
-          "edge",
-          "worker",
-          "analytics",
-          "logpush",
-          "traffic"
-        ],
-        "note": "Per-request logs to GCS via Logpush, metrics to Analytics Engine, daily health and parity probes from GitHub Actions."
-      }
+    "note": "WAF and edge cache, then the Worker reads the Astro build or the mirror copy from R2. /packages/stats still goes to master."
+   },
+   {
+    "id": "publishing",
+    "label": "Publishing",
+    "focus": [
+     "master",
+     "sync",
+     "r2",
+     "ci",
+     "content",
+     "runiverse",
+     "registry"
     ],
-    "output": "architecture.html"
+    "note": "Hourly sync copies BBS output from master into R2; CI builds pages. The registry isn't serving bioconductor.org yet."
+   },
+   {
+    "id": "security",
+    "label": "Security",
+    "focus": [
+     "edge",
+     "worker",
+     "r2",
+     "secrets",
+     "sync"
+    ],
+    "note": "WAF rules at the zone; R2 is private behind the Worker binding; tokens come from Secret Manager."
+   },
+   {
+    "id": "telemetry",
+    "label": "Logging and checks",
+    "focus": [
+     "probes",
+     "edge",
+     "worker",
+     "analytics",
+     "logpush",
+     "traffic"
+    ],
+    "note": "Per-request logs to GCS via Logpush, metrics to Analytics Engine, daily health and parity probes from GitHub Actions."
+   }
+  ],
+  "output": "architecture.html",
+  "repository": {
+   "url": "https://github.com/seandavi/bioc-infrastructure",
+   "revision": "ffb82913cff88f6a6cc2d5e86fa0f775fc178f86"
+  }
+ },
+ "components": [
+  {
+   "id": "probes",
+   "type": "external",
+   "label": "Health + parity probes",
+   "sublabel": "GitHub Actions, daily",
+   "pos": [
+    20,
+    80
+   ],
+   "size": [
+    170,
+    64
+   ],
+   "sources": [
+    {
+     "path": "ci.qmd",
+     "label": "CI & scheduled jobs"
+    }
+   ]
   },
-  "components": [
+  {
+   "id": "users",
+   "type": "external",
+   "label": "Clients",
+   "sublabel": "browsers, R, mirrors",
+   "pos": [
+    20,
+    230
+   ],
+   "size": [
+    170,
+    64
+   ],
+   "sources": [
     {
-      "id": "probes",
-      "type": "external",
-      "label": "Health + parity probes",
-      "sublabel": "GitHub Actions, daily",
-      "pos": [
-        20,
-        80
-      ],
-      "size": [
-        170,
-        64
-      ]
+     "path": "install.qmd",
+     "label": "Installing packages"
     },
     {
-      "id": "users",
-      "type": "external",
-      "label": "Clients",
-      "sublabel": "browsers, R, mirrors",
-      "pos": [
-        20,
-        230
-      ],
-      "size": [
-        170,
-        64
-      ]
-    },
-    {
-      "id": "edge",
-      "type": "security",
-      "label": "Cloudflare zone",
-      "sublabel": "WAF rules, edge cache",
-      "pos": [
-        230,
-        230
-      ],
-      "size": [
-        170,
-        64
-      ],
-      "brand": "cloudflare"
-    },
-    {
-      "id": "worker",
-      "type": "backend",
-      "label": "bioc-site Worker",
-      "sublabel": "routes, symlinks, 404 cache",
-      "pos": [
-        440,
-        230
-      ],
-      "size": [
-        170,
-        64
-      ],
-      "tag": "bioc-edge"
-    },
-    {
-      "id": "r2",
-      "type": "database",
-      "label": "R2: bioc-site",
-      "sublabel": "private; build + mirror",
-      "pos": [
-        660,
-        230
-      ],
-      "size": [
-        170,
-        64
-      ],
-      "tag": "5.1 TB"
-    },
-    {
-      "id": "sync",
-      "type": "backend",
-      "label": "bioc-sync",
-      "sublabel": "hourly; purge; manifest",
-      "pos": [
-        880,
-        230
-      ],
-      "size": [
-        170,
-        64
-      ],
-      "tag": "onclappc02"
-    },
-    {
-      "id": "master",
-      "type": "external",
-      "label": "master.bioconductor.org",
-      "sublabel": "legacy origin (BBS)",
-      "pos": [
-        880,
-        80
-      ],
-      "size": [
-        170,
-        64
-      ],
-      "tag": "retire at parity"
-    },
-    {
-      "id": "secrets",
-      "type": "security",
-      "label": "Secret Manager",
-      "sublabel": "API tokens (GCP)",
-      "pos": [
-        1100,
-        230
-      ],
-      "size": [
-        170,
-        64
-      ]
-    },
-    {
-      "id": "analytics",
-      "type": "database",
-      "label": "Analytics Engine",
-      "sublabel": "request metrics",
-      "pos": [
-        230,
-        370
-      ],
-      "size": [
-        170,
-        60
-      ]
-    },
-    {
-      "id": "logpush",
-      "type": "messagebus",
-      "label": "Logpush → GCS",
-      "sublabel": "access logs",
-      "pos": [
-        440,
-        370
-      ],
-      "size": [
-        170,
-        60
-      ]
-    },
-    {
-      "id": "traffic",
-      "type": "backend",
-      "label": "bioc-traffic",
-      "sublabel": "bot classification",
-      "pos": [
-        440,
-        490
-      ],
-      "size": [
-        170,
-        60
-      ]
-    },
-    {
-      "id": "ci",
-      "type": "backend",
-      "label": "bioc-website CI",
-      "sublabel": "Astro build",
-      "pos": [
-        660,
-        370
-      ],
-      "size": [
-        170,
-        60
-      ]
-    },
-    {
-      "id": "content",
-      "type": "external",
-      "label": "bioconductor.org repo",
-      "sublabel": "prose (git)",
-      "pos": [
-        880,
-        370
-      ],
-      "size": [
-        170,
-        60
-      ]
-    },
-    {
-      "id": "runiverse",
-      "type": "external",
-      "label": "r-universe",
-      "sublabel": "metadata, binaries",
-      "pos": [
-        880,
-        490
-      ],
-      "size": [
-        170,
-        60
-      ]
-    },
-    {
-      "id": "registry",
-      "type": "backend",
-      "label": "bioc-registry",
-      "sublabel": "gated repos (planned)",
-      "pos": [
-        1100,
-        490
-      ],
-      "size": [
-        170,
-        60
-      ]
+     "path": "mirror-how-to.qmd",
+     "label": "Running a mirror"
     }
-  ],
-  "boundaries": [
+   ]
+  },
+  {
+   "id": "edge",
+   "type": "security",
+   "label": "Cloudflare zone",
+   "sublabel": "WAF rules, edge cache",
+   "pos": [
+    230,
+    230
+   ],
+   "size": [
+    170,
+    64
+   ],
+   "brand": "cloudflare",
+   "sources": [
     {
-      "kind": "region",
-      "label": "Cloudflare account",
-      "wraps": [
-        "edge",
-        "worker",
-        "r2"
-      ]
+     "path": "cache.qmd",
+     "label": "Edge cache"
+    },
+    {
+     "path": "adr/0013-redirects-land-on-content-or-they-go.md",
+     "label": "ADR 0013: redirects"
+    },
+    {
+     "path": "dns-cutover.qmd",
+     "label": "DNS cutover"
     }
-  ],
-  "connections": [
+   ]
+  },
+  {
+   "id": "worker",
+   "type": "backend",
+   "label": "bioc-site Worker",
+   "sublabel": "routes, symlinks, 404 cache",
+   "pos": [
+    440,
+    230
+   ],
+   "size": [
+    170,
+    64
+   ],
+   "tag": "bioc-edge",
+   "sources": [
     {
-      "id": "req",
-      "from": "users",
-      "to": "edge",
-      "label": "HTTPS",
-      "variant": "emphasis"
+     "path": "cache.qmd",
+     "label": "Edge cache"
     },
     {
-      "id": "probe",
-      "from": "probes",
-      "to": "edge",
-      "label": "probe",
-      "variant": "dashed"
-    },
-    {
-      "id": "edge-worker",
-      "from": "edge",
-      "to": "worker",
-      "variant": "emphasis"
-    },
-    {
-      "id": "worker-r2",
-      "from": "worker",
-      "to": "r2",
-      "label": "binding",
-      "variant": "emphasis"
-    },
-    {
-      "id": "stats",
-      "from": "worker",
-      "to": "master",
-      "label": "/packages/stats",
-      "variant": "dashed",
-      "fromSide": "top",
-      "toSide": "left"
-    },
-    {
-      "id": "rsync",
-      "from": "master",
-      "to": "sync",
-      "label": "rsync",
-      "fromSide": "bottom",
-      "toSide": "top",
-      "labelAt": [
-        965,
-        187
-      ]
-    },
-    {
-      "id": "upload",
-      "from": "sync",
-      "to": "r2",
-      "label": "upload"
-    },
-    {
-      "id": "tokens",
-      "from": "secrets",
-      "to": "sync",
-      "label": "tokens",
-      "variant": "security"
-    },
-    {
-      "id": "publish",
-      "from": "ci",
-      "to": "r2",
-      "label": "site/<sha>",
-      "fromSide": "top",
-      "toSide": "bottom"
-    },
-    {
-      "id": "prose",
-      "from": "content",
-      "to": "ci"
-    },
-    {
-      "id": "pkgmeta",
-      "from": "runiverse",
-      "to": "ci",
-      "label": "metadata"
-    },
-    {
-      "id": "gate",
-      "from": "runiverse",
-      "to": "registry",
-      "label": "gated",
-      "variant": "dashed"
-    },
-    {
-      "id": "metrics",
-      "from": "worker",
-      "to": "analytics",
-      "label": "metrics"
-    },
-    {
-      "id": "logs",
-      "from": "worker",
-      "to": "logpush",
-      "label": "logs",
-      "fromSide": "bottom",
-      "toSide": "top",
-      "labelAt": [
-        525,
-        332
-      ]
-    },
-    {
-      "id": "analyze",
-      "from": "logpush",
-      "to": "traffic"
+     "path": "adr/0008-three-repos-and-a-strangler-migration.md",
+     "label": "ADR 0008: strangler routes"
     }
-  ],
-  "cards": [
+   ]
+  },
+  {
+   "id": "r2",
+   "type": "database",
+   "label": "R2: bioc-site",
+   "sublabel": "private; build + mirror",
+   "pos": [
+    660,
+    230
+   ],
+   "size": [
+    170,
+    64
+   ],
+   "tag": "5.1 TB",
+   "sources": [
     {
-      "dot": "cyan",
-      "title": "Serving",
-      "items": [
-        "Astro build for routed pages, else the mirror copy",
-        "Package files, indexes, 404s cached at the edge"
-      ]
+     "path": "r2-migration.qmd",
+     "label": "R2 migration"
     },
     {
-      "dot": "emerald",
-      "title": "Publishing",
-      "items": [
-        "Hourly sync of BBS output; website CI per merge",
-        "Registry built, not yet serving"
-      ]
-    },
-    {
-      "dot": "rose",
-      "title": "Security",
-      "items": [
-        "WAF rule blocks the /talks crawler ASNs",
-        "R2 private; tokens from Secret Manager"
-      ]
-    },
-    {
-      "dot": "amber",
-      "title": "Telemetry",
-      "items": [
-        "Logpush to GCS, checked daily",
-        "health.yml and parity.yml probe daily"
-      ]
+     "path": "mirror-how-to.qmd",
+     "label": "Mirror manifest"
     }
-  ]
+   ]
+  },
+  {
+   "id": "sync",
+   "type": "backend",
+   "label": "bioc-sync",
+   "sublabel": "hourly; purge; manifest",
+   "pos": [
+    880,
+    230
+   ],
+   "size": [
+    170,
+    64
+   ],
+   "tag": "onclappc02",
+   "sources": [
+    {
+     "path": "ci.qmd",
+     "label": "CI & scheduled jobs"
+    },
+    {
+     "path": "legacy-propagation.qmd",
+     "label": "Legacy propagation"
+    }
+   ]
+  },
+  {
+   "id": "master",
+   "type": "external",
+   "label": "master.bioconductor.org",
+   "sublabel": "legacy origin (BBS)",
+   "pos": [
+    880,
+    80
+   ],
+   "size": [
+    170,
+    64
+   ],
+   "tag": "retire at parity",
+   "sources": [
+    {
+     "path": "current-state.qmd",
+     "label": "Current state (legacy)"
+    },
+    {
+     "path": "decommission-plan.qmd",
+     "label": "Decommission plan"
+    }
+   ]
+  },
+  {
+   "id": "secrets",
+   "type": "security",
+   "label": "Secret Manager",
+   "sublabel": "API tokens (GCP)",
+   "pos": [
+    1100,
+    230
+   ],
+   "size": [
+    170,
+    64
+   ],
+   "sources": [
+    {
+     "path": "ci.qmd",
+     "label": "CI & scheduled jobs"
+    }
+   ]
+  },
+  {
+   "id": "analytics",
+   "type": "database",
+   "label": "Analytics Engine",
+   "sublabel": "request metrics",
+   "pos": [
+    230,
+    370
+   ],
+   "size": [
+    170,
+    60
+   ],
+   "sources": [
+    {
+     "path": "adr/0003-request-logging-after-the-cloudflare-cutover.md",
+     "label": "ADR 0003: request logging"
+    }
+   ]
+  },
+  {
+   "id": "logpush",
+   "type": "messagebus",
+   "label": "Logpush \u2192 GCS",
+   "sublabel": "access logs",
+   "pos": [
+    440,
+    370
+   ],
+   "size": [
+    170,
+    60
+   ],
+   "sources": [
+    {
+     "path": "adr/0003-request-logging-after-the-cloudflare-cutover.md",
+     "label": "ADR 0003: request logging"
+    },
+    {
+     "path": "adr/0012-client-addresses-are-stored-raw-and-hashed-in-views.md",
+     "label": "ADR 0012: client addresses"
+    }
+   ]
+  },
+  {
+   "id": "traffic",
+   "type": "backend",
+   "label": "bioc-traffic",
+   "sublabel": "bot classification",
+   "pos": [
+    440,
+    490
+   ],
+   "size": [
+    170,
+    60
+   ],
+   "sources": [
+    {
+     "path": "download-stats.qmd",
+     "label": "Download stats"
+    },
+    {
+     "path": "adr/0004-download-statistics-are-generated-static-files.md",
+     "label": "ADR 0004: static stats"
+    }
+   ]
+  },
+  {
+   "id": "ci",
+   "type": "backend",
+   "label": "bioc-website CI",
+   "sublabel": "Astro build",
+   "pos": [
+    660,
+    370
+   ],
+   "size": [
+    170,
+    60
+   ],
+   "sources": [
+    {
+     "path": "astro-site-build.qmd",
+     "label": "Astro site build"
+    },
+    {
+     "path": "reproducing-package-pages.qmd",
+     "label": "Reproducing package pages"
+    }
+   ]
+  },
+  {
+   "id": "content",
+   "type": "external",
+   "label": "bioconductor.org repo",
+   "sublabel": "prose (git)",
+   "pos": [
+    880,
+    370
+   ],
+   "size": [
+    170,
+    60
+   ],
+   "sources": [
+    {
+     "path": "astro-site-build.qmd",
+     "label": "Astro site build"
+    }
+   ]
+  },
+  {
+   "id": "runiverse",
+   "type": "external",
+   "label": "r-universe",
+   "sublabel": "metadata, binaries",
+   "pos": [
+    880,
+    490
+   ],
+   "size": [
+    170,
+    60
+   ],
+   "sources": [
+    {
+     "path": "views-and-r-universe.qmd",
+     "label": "VIEWS and r-universe"
+    },
+    {
+     "path": "r-universe-size-limits.qmd",
+     "label": "r-universe size limits"
+    }
+   ]
+  },
+  {
+   "id": "registry",
+   "type": "backend",
+   "label": "bioc-registry",
+   "sublabel": "gated repos (planned)",
+   "pos": [
+    1100,
+    490
+   ],
+   "size": [
+    170,
+    60
+   ],
+   "sources": [
+    {
+     "path": "registry-switch.qmd",
+     "label": "Registry switch (plan)"
+    },
+    {
+     "path": "propagation-gate.qmd",
+     "label": "Propagation gate"
+    },
+    {
+     "path": "adr/0011-one-propagation-gate-for-every-producer.md",
+     "label": "ADR 0011: one gate"
+    }
+   ]
+  }
+ ],
+ "boundaries": [
+  {
+   "kind": "region",
+   "label": "Cloudflare account",
+   "wraps": [
+    "edge",
+    "worker",
+    "r2"
+   ]
+  }
+ ],
+ "connections": [
+  {
+   "id": "req",
+   "from": "users",
+   "to": "edge",
+   "label": "HTTPS",
+   "variant": "emphasis"
+  },
+  {
+   "id": "probe",
+   "from": "probes",
+   "to": "edge",
+   "label": "probe",
+   "variant": "dashed"
+  },
+  {
+   "id": "edge-worker",
+   "from": "edge",
+   "to": "worker",
+   "variant": "emphasis"
+  },
+  {
+   "id": "worker-r2",
+   "from": "worker",
+   "to": "r2",
+   "label": "binding",
+   "variant": "emphasis"
+  },
+  {
+   "id": "stats",
+   "from": "worker",
+   "to": "master",
+   "label": "/packages/stats",
+   "variant": "dashed",
+   "fromSide": "top",
+   "toSide": "left"
+  },
+  {
+   "id": "rsync",
+   "from": "master",
+   "to": "sync",
+   "label": "rsync",
+   "fromSide": "bottom",
+   "toSide": "top",
+   "labelAt": [
+    965,
+    187
+   ]
+  },
+  {
+   "id": "upload",
+   "from": "sync",
+   "to": "r2",
+   "label": "upload"
+  },
+  {
+   "id": "tokens",
+   "from": "secrets",
+   "to": "sync",
+   "label": "tokens",
+   "variant": "security"
+  },
+  {
+   "id": "publish",
+   "from": "ci",
+   "to": "r2",
+   "label": "site/<sha>",
+   "fromSide": "top",
+   "toSide": "bottom"
+  },
+  {
+   "id": "prose",
+   "from": "content",
+   "to": "ci"
+  },
+  {
+   "id": "pkgmeta",
+   "from": "runiverse",
+   "to": "ci",
+   "label": "metadata"
+  },
+  {
+   "id": "gate",
+   "from": "runiverse",
+   "to": "registry",
+   "label": "gated",
+   "variant": "dashed"
+  },
+  {
+   "id": "metrics",
+   "from": "worker",
+   "to": "analytics",
+   "label": "metrics"
+  },
+  {
+   "id": "logs",
+   "from": "worker",
+   "to": "logpush",
+   "label": "logs",
+   "fromSide": "bottom",
+   "toSide": "top",
+   "labelAt": [
+    525,
+    332
+   ]
+  },
+  {
+   "id": "analyze",
+   "from": "logpush",
+   "to": "traffic"
+  }
+ ],
+ "cards": [
+  {
+   "dot": "cyan",
+   "title": "Serving",
+   "items": [
+    "Astro build for routed pages, else the mirror copy",
+    "Package files, indexes, 404s cached at the edge"
+   ]
+  },
+  {
+   "dot": "emerald",
+   "title": "Publishing",
+   "items": [
+    "Hourly sync of BBS output; website CI per merge",
+    "Registry built, not yet serving"
+   ]
+  },
+  {
+   "dot": "rose",
+   "title": "Security",
+   "items": [
+    "WAF rule blocks the /talks crawler ASNs",
+    "R2 private; tokens from Secret Manager"
+   ]
+  },
+  {
+   "dot": "amber",
+   "title": "Telemetry",
+   "items": [
+    "Logpush to GCS, checked daily",
+    "health.yml and parity.yml probe daily"
+   ]
+  }
+ ]
 }
