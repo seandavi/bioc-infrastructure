@@ -1,0 +1,190 @@
+---
+title: "How bioconductor.org Works"
+description: "How a request to bioconductor.org is answered, how packages and site changes get there, and the terms the rest of this site uses"
+---
+
+Reference page, checked 2026-09-30. It describes the running system; if something here is
+wrong, that is a bug in this page. Sources: the Worker in
+[bioc-edge](https://github.com/seandavi/bioc-edge) (`worker/src/index.ts`, `keys.ts`,
+`sync.sh`), bioc-website's `site.yml`, and live responses from `bioconductor.org`.
+
+Since 2026-09-28 (about 20:09 UTC) `bioconductor.org` is answered by a Cloudflare Worker,
+`bioc-site`, reading from an R2 bucket, also named `bioc-site`. The legacy server
+master.bioconductor.org still runs and still produces the package repositories; the edge
+copies them every hour. The registry does not serve `bioconductor.org` yet.
+
+## Terms {#terms}
+
+Other pages use these words with these meanings.
+
+| Term | Meaning |
+|---|---|
+| **master** | master.bioconductor.org, the legacy web server. Its docroot is where BBS and the core team's propagation put the package repositories. The mirror is copied from it. It stays up until parity is clean ([roadmap M2](roadmap.qmd)). |
+| **the mirror** | The copy of master's docroot in R2, at the top level of the `bioc-site` bucket (`packages/...`, `checkResults/...`). About 5.1 TB. |
+| **the build** | One output of bioc-website's Astro build, stored at `site/<sha>/` in R2. `site/latest` holds the sha of the newest `main` build. |
+| **preview** | A pull request's build, stored at `preview/pr-<n>/` and served at `/_pr/<n>/`. The R2 key and the URL differ. |
+| **the edge** | The `bioc-site` Worker plus Cloudflare's cache in front of R2. The code is in bioc-edge. |
+| **route table** | `_routes.json` in R2: which URL prefixes the build answers before the mirror. Data, not code. |
+| **symlink map** | `_symlinks.json` in R2: master's symlinks (`packages/release` → `3.23`, the R-version aliases under `contrib/`), which object storage cannot hold. |
+| **the sync** | `bioc-sync`, the hourly systemd job that copies master into the mirror. |
+| **BBS** | The Bioconductor Build System on the legacy build machines. It builds the source tarballs. |
+| **r-universe** | r-universe.dev's `bioc` and `bioc-release` universes. They build most of the Windows and macOS binaries on bioconductor.org. |
+| **the registry** | [bioc-registry](https://github.com/seandavi/bioc-registry): observes r-universe, applies the [propagation gate](propagation-gate.qmd), and publishes its own repository at its own `workers.dev` host. Not in the serving path. |
+| **parity** | The daily comparison of `bioconductor.org` with master, path by path (bioc-edge `parity.yml`). |
+| **the manifest** | The mirror's file list at `/api/v1/manifest/`, used by [mirror operators](mirror-how-to.qmd). |
+
+## Serving: how a request is answered {#serving}
+
+### Hosts
+
+All four hostnames go to the same Worker and read the same bucket, so they serve the same
+content (checked 2026-09-30: all four return build `360bb871` at `/`).
+
+| Host | Zone | Use |
+|---|---|---|
+| `bioconductor.org` | bioconductor.org (Cloudflare nameservers since 2026-09-28 17:30 UTC) | Production |
+| `www.bioconductor.org` | bioconductor.org | Production |
+| `next.bioconductor.org` | bioconductor.org | Same content as production |
+| `bioc-dev.cancerdatasci.org` | cancerdatasci.org (Worker custom domain) | PR previews at `/_pr/<n>/`. `/_pr/` also answers on production hosts today ([bioc-edge#48](https://github.com/seandavi/bioc-edge/issues/48)). |
+
+The Route53 zone is kept as the rollback target, with a record freeze until 2026-10-12
+([DNS runbook](dns-cutover.qmd)).
+
+### The route table: build first, then the mirror
+
+The route table in production is:
+
+```json
+{"build": "latest", "prefixes": ["/"]}
+```
+
+Every path is routed, so for each request the Worker tries the build's files
+(`site/<latest sha>/...`) first and the mirror's files second. The build wins wherever it has
+a file; anything it lacks (package tarballs, `PACKAGES`, `checkResults`, old-release pages)
+comes from the mirror. A response served from the build carries an `x-bioc-build: <sha>`
+header; a mirror response has none. The Worker rereads `_routes.json` and `site/latest` at most
+once a minute per isolate, so a new build or a rollback reaches all traffic within about a
+minute. Pinning `build` to an older sha is the rollback.
+
+### Request order
+
+The Worker handles a request in this order (bioc-edge `worker/src/index.ts`, Worker
+version 3d1ad785, deployed 2026-09-29):
+
+1. Anything other than `GET` or `HEAD` gets `405`.
+2. `/packages/stats/...` is passed through to master.bioconductor.org, uncached. The
+   download statistics are still generated there by the legacy pipelines
+   ([download stats](download-stats.qmd)).
+3. `/_pr/<n>/...` serves that PR's preview, and `/_latest/...` serves the latest build.
+   Paths the preview lacks fall back to production. Neither is cached, and links in the HTML
+   are rewritten to stay under the prefix.
+4. The redirect table (`redirects.json`, generated from master's `.htaccess` of 2026-07-30)
+   answers with one `301`.
+5. Book short URLs (`/books/<name>`) get a `302` to the release or devel book.
+6. Edge cache lookup (see [Caching](#caching)).
+7. R2: build keys, then mirror keys, with symlinks resolved through the symlink map.
+8. On a miss: a generated directory listing for a few prefixes, or a `302` for a package
+   short URL (`/packages/<name>`), or a `404` whose body is the site's 404 page
+   (`help/404/index.html`, since 2026-09-29).
+
+`/solr/` is not served (it returns `404`). Before the Worker runs, a Cloudflare WAF rule
+blocks AS150436 and AS4229 on `/talks/`, the crawler found on 2026-09-28
+([what the new site has changed](improvements.qmd)).
+
+### Caching {#caching}
+
+Detail, keys and the purge procedure are on [Edge cache](cache.qmd). In short:
+
+- **Cached at the edge:** package files and repository metadata (`PACKAGES`, `VIEWS`,
+  `config.yaml`, tarballs), pages from the build (keyed by build sha, so a new build
+  invalidates them), old-release files from the archive copy (never purged), and `404`s for
+  10 minutes (keyed by build sha).
+- **Not cached:** HTML that comes from the mirror (`checkResults`, old-release pages),
+  previews, and `/packages/stats/`.
+- **Freshness:** the edge keeps objects for up to a year (`s-maxage=31536000`); every sync
+  purges the objects it changed on all four hosts. Browsers get `max-age=300` by default,
+  30 seconds for `PACKAGES` and `config.yaml`, and one year (`immutable`) for tarballs and
+  zips, whose names carry the version. Browser Cache TTL is set to respect these headers in
+  both zones.
+
+Measured 2026-09-29 16:00-18:00 UTC: about 4,400 requests per minute, no 5xx, 63% edge
+hits. A miss took 200 ms from the US west coast and up to 800 ms from Europe, Asia and
+South America.
+
+## Publishing: how content gets there {#publishing}
+
+Two independent paths write to R2. Neither goes through the registry.
+
+```{mermaid}
+flowchart LR
+  subgraph PKG[Packages, hourly]
+    BBS["BBS<br/>source tarballs"] --> M["master.bioconductor.org<br/>docroot"]
+    RU["r-universe<br/>most binaries"] -- "core team propagation" --> M
+    M -- "bioc-sync, hourly<br/>rsync + upload + purge" --> MIR[("R2: the mirror")]
+  end
+  subgraph SITE[Site, on every merge]
+    GH["bioc-website main"] -- "CI: tests, Astro build" --> B[("R2: site/&lt;sha&gt;<br/>+ site/latest")]
+  end
+  MIR --> W["bioc-site Worker<br/>build first, else mirror"]
+  B --> W
+  W --> V(["bioconductor.org"])
+  REG["bioc-registry<br/>own workers.dev host"] -. "planned: registry switch" .-> MIR
+```
+
+### Packages
+
+| Package type | Built by | Reaches bioconductor.org via |
+|---|---|---|
+| Software, source tarballs | BBS | master, then the sync |
+| Software, Windows and macOS binaries | mostly r-universe, published to master by the core team's propagation | master, then the sync |
+| Annotation, experiment-data and workflow packages | the legacy side; no replacement is running ([bioc-build](https://github.com/seandavi/bioc-build) is a proof of concept) | master, then the sync |
+
+The sync (`bioc-sync`, bioc-edge) runs hourly with up to 10 minutes of random delay, on
+onclappc02 from a development checkout of bioc-edge. Each run:
+
+1. rsyncs master's docroot into `/data/davsean/bioc-cloudflare/mirror`;
+2. uploads the changed files to R2 and publishes the symlink map;
+3. regenerates the [manifest](mirror-how-to.qmd);
+4. purges the changed objects from the edge cache on all four hosts.
+
+A weekly job, `bioc-reconcile` (Sunday 04:00), checks R2 against the local copy by checksum.
+Both open a GitHub issue on failure ([CI & scheduled jobs](ci.qmd#scheduled-jobs-outside-github-actions)).
+
+So a package update reaches `bioconductor.org` at the next sync after it lands on master:
+up to about 70 minutes, plus however long that run takes. Separating these jobs from the development
+checkouts is planned in
+[bioc-infrastructure#43](https://github.com/seandavi/bioc-infrastructure/issues/43).
+
+The registry publishes a gated r-universe repository at its own host. No request to
+`bioconductor.org` reads from it; its data reaches the site only through the snapshot, for
+the experimental `/next/` package pages. Making it the source of the software repositories is the
+[registry switch](registry-switch.qmd), a plan with open decisions.
+
+### The site
+
+bioc-website's CI (`site.yml`) runs on every push to `main` and every pull request:
+
+1. Pipeline tests.
+2. Pull the data snapshot `_ci/site-data.tar.zst` from R2.
+3. Astro build (the build step took 27-29 s in recent runs).
+4. `main`: upload to `site/<sha>/`, then write the sha to `site/latest`. Pull request: upload
+   to `preview/pr-<n>/`, which is deleted when the PR closes.
+
+A merge to `main` is live within about a minute of CI finishing, because the route table
+follows `site/latest`. The snapshot is refreshed by hand, so pipeline changes and upstream
+prose edits (from [Bioconductor/bioconductor.org](https://github.com/Bioconductor/bioconductor.org))
+reach production only after someone refreshes it and a `main` build runs
+([Astro site build](astro-site-build.qmd)). Package landing pages for 3.23 and 3.24 take
+versions and download links from the repositories' own `PACKAGES` indexes as of that snapshot
+([bioc-website#31](https://github.com/seandavi/bioc-website/pull/31)); the 33 older releases are frozen.
+
+## When something looks wrong {#diagnosing}
+
+- **A page looks different from before:** check `x-bioc-build` on the response. Present
+  means the build answered; compare with master (`curl -sI https://master.bioconductor.org/<path>`).
+  Known differences are bioc-edge
+  [#43](https://github.com/seandavi/bioc-edge/issues/43)-[#46](https://github.com/seandavi/bioc-edge/issues/46).
+- **A package update is missing:** check master first. If master has it and more than
+  70 minutes have passed, the sync may have failed (look for its issue in bioc-edge), or the
+  edge is holding a stale copy ([Edge cache](cache.qmd)).
+- **Report it:** [where to file issues](index.qmd#where-to-file-issues).

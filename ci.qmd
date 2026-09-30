@@ -51,10 +51,10 @@ bioconductor.org's packages are still built by BBS (source tarballs) and mostly
 r-universe (binaries), and reach R2 through the hourly `bioc-sync` from
 master.bioconductor.org. The registry path above publishes only at the
 registry's own host; switching to it is the
-[registry switch](registry-switch.qmd) plan.
+[registry switch](registry-switch.qmd) plan. The production path is on
+[how bioconductor.org works](how-it-works.qmd#publishing).
 
 Reading a red badge:
-
 
 - **publish** red: the bioc-build → registry ingest broke. Experimental path; software packages from r-universe are unaffected.
 - **freshness** red, publish green: the Worker is down, the observer stalled, or the served index is inconsistent (the #34 invariant).
@@ -66,6 +66,9 @@ Reading a red badge:
 
 The systemd `--user` timers on onclappc02, following the platform
 [scheduling convention](https://github.com/seandavi/monode/blob/main/infrastructure/SCHEDULING.md).
+All of them run on that one host, from development checkouts of their repos (for example
+`~/Documents/git/bioc-edge`); moving them to separate operations checkouts is planned in
+[bioc-infrastructure#43](https://github.com/seandavi/bioc-infrastructure/issues/43).
 There is no live status column: these alert on failure only (a GitHub issue
 or an ntfy push), and the heartbeat that would prove "ran OK today" is not
 set up yet.

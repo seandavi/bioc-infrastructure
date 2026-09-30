@@ -12,6 +12,7 @@ Each link below is the page's Markdown version; the HTML page is the same path w
 
 - How do I install packages, and did anything change for users? → [Installing packages](https://seandavi.github.io/bioc-infrastructure/install.llms.md)
 - What is the overall architecture, which repo does what, and what does it cost? → [Overview](https://seandavi.github.io/bioc-infrastructure/index.llms.md)
+- How is a request to bioconductor.org answered, how do packages and site changes get published, and what do terms like "master", "the mirror" and "the build" mean? → [How bioconductor.org works](https://seandavi.github.io/bioc-infrastructure/how-it-works.llms.md)
 - What has the new site improved, with numbers? → [What the new site has changed](https://seandavi.github.io/bioc-infrastructure/improvements.llms.md)
 - What is done and what is left? → [Roadmap](https://seandavi.github.io/bioc-infrastructure/roadmap.llms.md)
 - Why is a page or package file stale, and how is the cache purged? → [Edge cache](https://seandavi.github.io/bioc-infrastructure/cache.llms.md)
@@ -28,6 +29,7 @@ Each link below is the page's Markdown version; the HTML page is the same path w
 
 - [Overview](https://seandavi.github.io/bioc-infrastructure/index.llms.md): the repos that make up the new estate, the data contracts between them, costs, and known weak points. Start here.
 - [What the new site has changed](https://seandavi.github.io/bioc-infrastructure/improvements.llms.md): measured improvements and regressions since the cutover (costs, performance, a crawler found in the logs, download statistics, the build system), each with its status.
+- [How bioconductor.org works](https://seandavi.github.io/bioc-infrastructure/how-it-works.llms.md): the request path (hosts, route table, build first then the mirror, symlinks, the stats passthrough, caching), the publishing path (BBS and r-universe to master, hourly sync to R2; site CI to site/<sha>; the registry is not in the serving path), and a glossary of terms.
 - [Roadmap](https://seandavi.github.io/bioc-infrastructure/roadmap.llms.md): milestones M0 (readiness) to M3 (search and redesigns), acceptance criteria and status.
 - [Installing packages](https://seandavi.github.io/bioc-infrastructure/install.llms.md): nothing to configure since the cutover; how to confirm a request was served by the new stack.
 - [Running a mirror](https://seandavi.github.io/bioc-infrastructure/mirror-how-to.llms.md): syncing the repositories over HTTPS from the published manifest, with no credentials.
@@ -71,9 +73,9 @@ Each link below is the page's Markdown version; the HTML page is the same path w
 ## Repositories
 
 - [bioc-edge](https://github.com/seandavi/bioc-edge): the Cloudflare Worker, R2 mirror sync and cache purging.
-- [bioc-registry](https://github.com/seandavi/bioc-registry): the data plane and propagation gate.
+- [bioc-registry](https://github.com/seandavi/bioc-registry): the data plane and propagation gate; publishes at its own host, not yet on bioconductor.org.
 - [bioc-website](https://github.com/seandavi/bioc-website): the static site build.
-- [bioc-traffic](https://github.com/seandavi/bioc-traffic): request-log analytics and traffic classification.
+- bioc-traffic (private): checks daily that request logs arrived, and log analysis; traffic classification is planned, not built.
 - [bioc-build](https://github.com/seandavi/bioc-build) and [bioc-manifest](https://github.com/seandavi/bioc-manifest): the standalone build system and its manifest.
 - [bioc-infrastructure](https://github.com/seandavi/bioc-infrastructure): this site; issues here are the migration's ledger.
 - Archived since 2026-09-29, read-only: [bioc-cloudflare](https://github.com/seandavi/bioc-cloudflare) (the serving prototype; its history continues in bioc-edge, so older references to bioc-cloudflare mean bioc-edge today) and [bioc-origin](https://github.com/seandavi/bioc-origin) (an earlier prototype).
