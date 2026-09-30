@@ -50,7 +50,7 @@ out of the path for software packages.
 | `html/` | unchanged (the site build) | |
 
 Only the current release (3.23) and devel (3.24). Older releases are archival
-([ADR 0006](adr/0006-old-releases-and-their-checkresults-are-archival.html)) and stay as they
+([ADR 0006](adr/0006-old-releases-and-their-checkresults-are-archival.md)) and stay as they
 are; they are 77% of package traffic, so most installs are unaffected either way. Annotation,
 experiment and workflow repositories stay on the mirror until
 [bioc-build](https://github.com/seandavi/bioc-build) covers them.

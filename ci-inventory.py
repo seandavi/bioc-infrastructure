@@ -69,7 +69,7 @@ for name, meta in sorted(repos.items(), key=lambda kv: kv[0].lower()):
         base = f"https://github.com/{OWNER}/{name}"
         fname = w["path"].rsplit("/", 1)[-1]
         out.append(f"| [`{fname}`]({base}/blob/main/{w['path']}) "
-                   f"| [![]({base}/actions/workflows/{fname}/badge.svg)]({base}/actions/workflows/{fname}) "
+                   f"| [![{name} {fname} status]({base}/actions/workflows/{fname}/badge.svg)]({base}/actions/workflows/{fname}) "
                    f"| {triggers(yml)} | {desc.replace('|', '/')} |")
     rows.setdefault(group_of[name], []).append((name, meta.get("description") or "", out))
 

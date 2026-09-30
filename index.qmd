@@ -14,17 +14,18 @@ can proceed — or be replaced — without stopping the others.
 
 | Repo | What it is | Retires | Status |
 |---|---|---|---|
-| [bioc-registry](https://github.com/seandavi/bioc-registry) | The data plane: an r-universe observer plus the propagation gate that decides *which build is fit to publish and what is true about a package*, exposed as an installable repository and a Parquet archive | The three builders and the legacy build system | [![freshness](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml/badge.svg)](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml) |
+| [bioc-registry](https://github.com/seandavi/bioc-registry) | The data plane: an r-universe observer plus the propagation gate that decides *which build is fit to publish and what is true about a package*, exposed as an installable repository and a Parquet archive. It publishes at its own host; bioconductor.org does not serve from it yet ([registry switch](registry-switch.qmd)) | The three builders and the legacy build system | [![freshness](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml/badge.svg)](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml) |
 | [bioc-website](https://github.com/seandavi/bioc-website) | The builder: a Python pipeline and an Astro static build that render package truth into ~93,000 pages, published immutably by CI | The master and staging webservers | [![site](https://github.com/seandavi/bioc-website/actions/workflows/site.yml/badge.svg)](https://github.com/seandavi/bioc-website/actions/workflows/site.yml) |
 | [bioc-edge](https://github.com/seandavi/bioc-edge) | The serving side: a Cloudflare Worker and the R2 mirror behind `bioconductor.org`, owner of the route table that decides *what is served where* | CloudFront, the S3 bucket, the Open Storage Network buckets | [![health](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml/badge.svg)](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml) |
-| [bioc-traffic](https://github.com/seandavi/bioc-traffic) | Everything downstream of the request logs: traffic classification, and from it download statistics and a public traffic dashboard | The legacy download-stats pipelines | In progress |
-| [bioc-build](https://github.com/seandavi/bioc-build) and [bioc-manifest](https://github.com/seandavi/bioc-manifest) | The standalone build system for the packages r-universe doesn't build, and the reviewed manifest that authorizes what it builds ([ADR 0010](adr/0010-two-new-repos-for-the-build-system-and-the-manifest-name.html)) | The legacy build machines, for data and workflow packages | Proof of concept |
+| bioc-traffic (private) | Downstream of the request logs. Today: the daily check that yesterday's logs arrived, and log analysis. Planned: traffic classification (bioc-traffic#5), then download statistics from it. Published statistics still come from the legacy pipelines ([download stats](download-stats.qmd)) | The legacy download-stats pipelines | Not yet producing statistics |
+| [bioc-build](https://github.com/seandavi/bioc-build) and [bioc-manifest](https://github.com/seandavi/bioc-manifest) | The standalone build system for the packages r-universe doesn't build, and the reviewed manifest that authorizes what it builds ([ADR 0010](adr/0010-two-new-repos-for-the-build-system-and-the-manifest-name.md)) | The legacy build machines, for data and workflow packages | Proof of concept |
 | [bioc-infrastructure](https://github.com/seandavi/bioc-infrastructure) | This documentation site | Nothing. It is the map. | [![docs](https://github.com/seandavi/bioc-infrastructure/actions/workflows/docs.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/docs.yml) |
 
 Two prototypes are archived (read-only) since 2026-09-29: [bioc-cloudflare](https://github.com/seandavi/bioc-cloudflare), whose history continues in bioc-edge, and [bioc-origin](https://github.com/seandavi/bioc-origin). Older pages and ADRs link to their issues, which remain readable; a mention of bioc-cloudflare as where code lives means bioc-edge today.
 
-The status badges are daily black-box probes of the live system, not just test suites —
-red means something is actually down or stale. Where this is all going, milestone by
+The **health** and **freshness** badges are daily probes of the live system, so red means
+something is down or stale. The **site** and **docs** badges are build workflows; red means
+the last build failed. More in [CI & scheduled jobs](ci.qmd). Where this is all going, milestone by
 milestone: **the [roadmap](roadmap.qmd)**.
 
 ::: {.callout-tip}
@@ -38,17 +39,19 @@ used to, that's a bug we want to hear about. What has changed, with numbers:
 
 ### Where to file issues {#where-to-file-issues}
 
-- **A page on the new site renders wrong, or content is missing** →
-  [bioc-website issues](https://github.com/seandavi/bioc-website/issues)
-- **A package is missing, stale, or its build/check data looks wrong** →
-  [bioc-registry issues](https://github.com/seandavi/bioc-registry/issues)
-- **Serving problems** (failed installs, slow or missing files, stale cache — see
-  [Edge cache](cache.qmd) first) →
-  [bioc-edge issues](https://github.com/seandavi/bioc-edge/issues)
-- **Cross-cutting questions, doc corrections, or anything you can't place** →
+Report problems through the bioc-infrastructure issue forms. Reports get the `report`
+label, are triaged by hand, and are moved to the repo that owns the problem.
+
+- **A package won't install, can't be found, or a download fails** →
+  [package install problem](https://github.com/seandavi/bioc-infrastructure/issues/new?template=install-problem.yml)
+- **A page, download, redirect or file on bioconductor.org doesn't work** (for stale
+  content, see [Edge cache](cache.qmd) first) →
+  [something's broken on bioconductor.org](https://github.com/seandavi/bioc-infrastructure/issues/new?template=site-problem.yml)
+- **Questions, doc corrections, or anything else** →
   [bioc-infrastructure issues](https://github.com/seandavi/bioc-infrastructure/issues), or
   email [seandavi@gmail.com](mailto:seandavi@gmail.com). Suspected *security* issues go by
-  email, never a public issue — see each repo's SECURITY.md.
+  email, never a public issue; see
+  [bioc-edge's SECURITY.md](https://github.com/seandavi/bioc-edge/blob/main/SECURITY.md).
 
 ## How the pieces meet
 
@@ -58,7 +61,7 @@ flowchart TB
   ru -- "polled every 15 min" --> reg["bioc-registry<br/>the propagation gate"]
   reg -. "install.packages()" .-> cran["installable R repository"]
   reg -. "DuckDB" .-> pq["Parquet archive"]
-  reg -- "build-time fetch" --> site["bioc-website<br/>static build, CI, ~60 s"]
+  reg -- "build-time fetch" --> site["bioc-website<br/>static build, CI, ~30 s"]
   site --> r2[("R2<br/>immutable builds")]
   r2 --> wk["bioc-edge Worker<br/>owns the route table"]
   wk --> v(["visitor"])
@@ -93,14 +96,15 @@ write access to the website repo never implies the power to change production.
 **4. The route table — `_routes.json`, an object in R2, not code.** Flipping a route from
 mirrored legacy content to a static build is a data write; rolling it back is the same write
 in reverse. No deploy, no rebuild. An empty table means the mirror serves everything, which
-is the safe default.
+is the safe default. Since the cutover the table routes `/` to the latest build: the build
+serves any path it has a file for, and the mirror copy in R2 serves the rest.
 
 **5. Request logs — serving to statistics.** The Worker emits one structured record per
 request in the same field vocabulary as the CloudFront logs it replaces, delivered by
 Logpush to Google Cloud Storage, so both eras can be one query rather than a migration
 project. Analysis lives in [bioc-traffic](https://github.com/seandavi/bioc-traffic). The record keeps the raw client address; de-identification is a view, and
 nothing published carries the address
-([ADR 0012](adr/0012-client-addresses-are-stored-raw-and-hashed-in-views.html)).
+([ADR 0012](adr/0012-client-addresses-are-stored-raw-and-hashed-in-views.md)).
 
 ## Where this stands
 
@@ -123,11 +127,9 @@ Two figures appear across these pages and they are not competing estimates of th
 - **~$5,000/month** is the AWS estate being *retired* — CloudFront, the S3 bucket, and the
   master and staging webservers — before counting the builder hardware or the staff time to
   keep three operating systems patched.
-- **~$80/month** is the *storage* for the Cloudflare stack replacing it (5.1 TB in R2). R2
-  charges no egress fees, which matters disproportionately for a package repository, where
-  serving tarballs to the world is precisely what a CDN bills most aggressively for.
-  Per-request charges come on top; estimated from production traffic on 2026-09-28, the
-  whole stack is a couple of hundred dollars a month
+- **$240-500/month** is the estimate for the Cloudflare stack replacing it, from production
+  traffic on 2026-09-28. Storage is about $77 of that (5.1 TB in R2); the rest is per-request
+  charges. R2 charges no egress fees, and egress is most of the difference
   ([details](improvements.qmd#costs-about-5000-a-month-down-to-a-couple-of-hundred)).
 
 ### Known weak points
@@ -140,8 +142,9 @@ Stated here rather than discovered later:
   place, add fields and tolerate absences" — it is a convention, with no mechanism behind it.
 - **`astro/data/` has no written schema.** Its shape is implied by the code that writes it
   and the code that reads it, and by nothing else.
-- **The 15-minute poll has no alerting.** A silent stop is currently detected by someone
-  remembering to look.
+- **The 15-minute poll has no fast alerting.** A silent stop is caught by bioc-registry's
+  daily freshness check, which fails when the latest observation is more than 36 hours old
+  (the freshness badge above).
 - **Some facts are written in several places** — release numbers, repository lists, display
   labels — and at least one set of display labels already disagrees with itself.
 
@@ -169,7 +172,7 @@ The pages fall into two kinds, and the sidebar separates them:
   nothing new should depend on them.
 
 If you want the reasoning rather than the description, the
-[ADRs](adr/0008-three-repos-and-a-strangler-migration.html) are the honest record —
+[ADRs](adr/0008-three-repos-and-a-strangler-migration.md) are the honest record —
 including the decisions that were later reversed.
 
 ::: {.callout-note}

@@ -1,17 +1,24 @@
 ---
 title: "Cache behavior at the edge"
-date: 2026-09-28
+date: 2026-09-30
 ---
 
-`bioconductor.org` is served from Cloudflare's edge cache, and **freshness is purge-based
-rather than expiry-based**: objects are cached at the edge effectively forever, and the
-hourly sync purges exactly the URLs it changed, on every hostname the Worker serves. Nothing
-falls out of cache on its own. (404s are the one exception; see below.)
+Not everything on `bioconductor.org` is cached at the edge:
 
-That is the right trade for a site whose content only changes when something publishes it —
-unchanged pages are served from the edge indefinitely, and no request pays for revalidating
-content that did not change. It also means that when a page *is* stale, waiting will not fix
-it. Somebody has to purge.
+| Request | Cached at the edge? |
+|---|---|
+| Legacy HTML the site build does not have (`checkResults/` reports, old-release pages) | No, read from R2 on every request |
+| `/packages/stats/` | No, passed through to master.bioconductor.org |
+| `/_pr/<n>/` and `/_latest/` previews | No (`no-cache`) |
+| 404s | Yes, for ten minutes |
+| Pages from the site build | Yes, until the next build |
+| Package files and repository metadata (tarballs, binaries, `PACKAGES*`, `VIEWS`) | Yes, until the sync purges them |
+
+For what is cached, **freshness is purge-based rather than expiry-based**: objects stay at
+the edge until purged, and the hourly sync purges exactly the URLs it changed, on every
+hostname the Worker serves. Nothing except a 404 falls out of cache on its own. Unchanged
+content is served from the edge with no revalidation, so when a page *is* stale, waiting
+will not fix it. Somebody has to purge.
 
 This page is how to tell which case you are in, and what to do about it.
 
@@ -22,35 +29,35 @@ curl -sI https://bioconductor.org/ \
   | grep -iE 'cf-cache-status|^age|cache-control|x-bioc-build'
 ```
 
-A representative response (measured 2026-08-20):
+A representative response (measured 2026-09-30):
 
 ```
 cf-cache-status: HIT
-age: 21390
+age: 80357
 cache-control: public, max-age=300, s-maxage=31536000
-x-bioc-build: da4ead8f9c7e22c332edfc009faba354d2bd94c6
+x-bioc-build: 360bb871e039dfa9f5505506ecd8c9b405846b71
 ```
 
 | Header | What it tells you |
 |---|---|
 | `cf-cache-status` | Where the response came from. `HIT` = the edge, never reached storage. `MISS` = fetched from R2 and cached on the way past. Also `EXPIRED`, `REVALIDATED`, and `DYNAMIC` (not cacheable). |
-| `age` | Seconds this object has been in the edge cache. `21390` is about six hours. |
+| `age` | Seconds this object has been in the edge cache. `80357` is about 22 hours. |
 | `cache-control` | `max-age=300` is the browser's five minutes (30 seconds for `PACKAGES`/`VIEWS`, which R reads on every install); `s-maxage=31536000` is the edge's one year. The asymmetry is the purge-based model in one line. The zone's Browser Cache TTL is set to respect these headers. |
-| `x-bioc-build` | The commit that produced this page. **This is the header that actually answers "am I looking at something stale?"** |
+| `x-bioc-build` | The commit that produced this page, as a bare sha. Present only on pages served from the site build. **For those pages this is the header that answers "am I looking at something stale?"** |
 
 ## Query strings do not bust the cache
 
-The reflex — append `?x=1` and re-request — does not work here. The Worker normalises the
+Appending `?x=1` and re-requesting does not work here. The Worker normalises the
 cache key, so a query string returns the same cached object:
 
 ```
 $ curl -sI 'https://bioconductor.org/?cachebust=12345' | grep -iE 'cf-cache-status|^age'
 cf-cache-status: HIT
-age: 21390
+age: 80357
 ```
 
-Identical `age` to the request without the query string — the same cache entry, not a new
-one. Anyone debugging a stale page this way will conclude the cache is fine when it is not.
+Identical `age` to the request without the query string, so it is the same cache entry.
+ Anyone debugging a stale page this way will conclude the cache is fine when it is not.
 
 **Use `x-bioc-build` instead.** Compare the sha it reports against the build you expect:
 
@@ -60,19 +67,13 @@ curl -sI https://bioconductor.org/<path> | grep x-bioc-build
 
 If it names an older commit than the one you just published, the edge is stale and needs a
 purge. If it names the commit you expect, the edge is current and the problem is somewhere
-else — a build that did not contain your change, or a route prefix that is not flipped.
+else, such as a build that did not contain your change.
 
-Because that header is on every response, anyone can check the provenance of a page they are
-looking at without access to anything. That is a deliberate property, not a debugging
-convenience.
-
-::: {.callout-note}
-## Scheduled builds carry a suffix
-
-A build published by the daily refresh reports `<sha>-<date>` rather than a bare sha —
-a scheduled rebuild of an unchanged commit needs its own key so it cannot overwrite the
-immutable build published when that commit merged. Same commit, different build id.
-:::
+Anyone can read the header without access to anything. It is set only on responses served
+from the site build (`site/<sha>/`). Package files and other mirror content, the
+`/packages/stats/` passthrough and 404 responses do not carry it (checked 2026-09-30). For
+mirror content served from the edge cache, `age` shows how long the edge has held the copy;
+the stats passthrough is never cached, so it has neither header.
 
 ## What is cached, and under which key
 
@@ -96,13 +97,16 @@ numbered version first.
 
 ## URLs that are never cached
 
-`/packages/stats/` is passed through to the legacy stats service uncached
-(`cf-cache-status: DYNAMIC`) until [M2](roadmap.qmd) replaces it.
+`/packages/stats/` is proxied to master.bioconductor.org uncached
+(`cf-cache-status: DYNAMIC`) until [M2](roadmap.qmd) replaces it, so these pages fail if
+master is down.
 
-Preview and staging paths are served `no-cache` and carry no `cf-cache-status` at all:
+Preview paths are served `no-cache` and carry no `cf-cache-status` at all:
 
-- `/_pr/<n>/` — one prefix per pull request
-- `/_latest/` — whatever `site/latest` currently points at
+- `/_pr/<n>/`, one prefix per pull request, on the PR-preview host
+  `https://bioc-dev.cancerdatasci.org/_pr/<n>/`. The prefix currently also works on
+  production hostnames ([bioc-edge#48](https://github.com/seandavi/bioc-edge/issues/48)).
+- `/_latest/`, whatever `site/latest` currently points at
 
 This is why a preview always shows your most recent push. It is also why a preview URL is
 the right thing to hand someone when the question is "does this change look right", and the
@@ -117,7 +121,7 @@ The helpers live in the serving repo (`cf-purge.sh`), and are shared by the sync
 scripts rather than copied, because both spend the same account-wide rate budget.
 
 ```sh
-. ./cf-purge.sh                    # needs CLOUDFLARE_API_TOKEN in the environment
+. ./cf-purge.sh                    # defines the functions; the calls below need CLOUDFLARE_API_TOKEN
 
 cf_purge_keys packages/3.23/bioc/html/limma.html   # every served host, every zone
 ```
@@ -134,15 +138,16 @@ To discard the entire edge cache of one zone:
 cf_purge_everything "$(cf_zone_id bioconductor.org)"
 ```
 
-Everything is re-fetched from R2 on next request. That is affordable here — static objects,
-no egress fees — but it throws away every warm object for the whole zone, so it belongs to
+The edge copies live in Cloudflare's HTTP cache (the Worker's `caches.default`), separate
+from R2, which holds the objects themselves. After a purge everything is re-fetched from R2
+on next request. That is affordable here (static objects, no egress fees), but it throws away every warm object for the whole zone, so it belongs to
 real incidents rather than routine debugging.
 
 ::: {.callout-warning}
 ## Do not hand-roll a purge loop
 
 Purge-by-URL is the only targeted option below Enterprise: 100 URLs per request, and **800
-URLs/second account-wide**. That budget reads as generous and is not — a naive serial loop of
+URLs/second account-wide**. That budget reads as generous and is not: a naive serial loop of
 100-URL requests moves roughly 1,000 URLs/s and trips within seconds.
 
 Two sync runs on 2026-08-04 died exactly there, at 2,863 URLs after 4 seconds and 5,320 after
@@ -159,8 +164,10 @@ from the same bucket and can starve it.
 
 ---
 
-*The example headers are a measurement from 2026-08-20 on the dev host
-(`bioc-dev.cancerdatasci.org`), which serves the same Worker. The mechanism is stable; the
-numbers are illustrative. The "what is cached" rules are as of 2026-09-28
-([bioc-edge#35](https://github.com/seandavi/bioc-edge/issues/35),
-[#38](https://github.com/seandavi/bioc-edge/issues/38)).*
+*The example headers are a measurement from 2026-09-30 on `bioconductor.org`. The
+mechanism is stable; the numbers are illustrative. The "what is cached" rules are as of
+2026-09-29 ([bioc-edge#35](https://github.com/seandavi/bioc-edge/issues/35),
+[#36](https://github.com/seandavi/bioc-edge/pull/36),
+[#37](https://github.com/seandavi/bioc-edge/pull/37),
+[#38](https://github.com/seandavi/bioc-edge/issues/38),
+[#39](https://github.com/seandavi/bioc-edge/pull/39)).*

@@ -1,10 +1,11 @@
 ---
 title: "Running a Bioconductor mirror"
+date: 2026-09-30
 ---
 
 This replaces the rsync-over-SSH instructions at
 `bioconductor.org/about/mirrors/mirror-how-to/`. Those instructions depend on
-`master.bioconductor.org`, which the [decommission plan](decommission-plan.qmd) retires. The
+`master.bioconductor.org`, which [milestone M2](roadmap.qmd) retires. The
 new site has no rsync server. Instead it publishes a **manifest**: a list of every object in
 the package repositories, with sizes and MD5s, that any HTTP client can sync from.
 
@@ -25,12 +26,12 @@ dry-run first and check the object count.
 
 | | Old | New |
 |---|---|---|
-| Source | `bioc-rsync@master.bioconductor.org` over SSH | `https://bioconductor.org/api/v1/manifest/` over HTTPS |
+| Source | `bioc-rsync@master.bioconductor.org` over SSH | `https://bioconductor.org/api/v1/manifest/index.json` over HTTPS |
 | Access | SSH key, requested by form | none |
 | Tool | `rsync -zrtlv --delete` | `rclone copy --files-from`, or `wget -i` |
-| Symlinks | created by hand: `release` and `devel` | ~150, listed in the manifest index, recreated by script |
+| Symlinks | created by hand: `release` and `devel` | listed in the manifest index (202 on 2026-09-30); the script recreates the 128 under `packages/` |
 | Current version numbers | in the rsync module names | in `index.json`, read every run |
-| Cadence | release monthly-ish, devel at most weekly | unchanged |
+| Cadence | release monthly-ish, devel at most weekly | manifest regenerated on every hourly sync; syncing daily is enough |
 
 ## The manifest
 
@@ -50,7 +51,7 @@ is populated for every object.
 
 Decide explicitly rather than mirroring everything.
 
-| | Notes |
+| Scope | Notes |
 |---|---|
 | `bioc` (`src/contrib`, `bin/windows`, `bin/macosx/*`) | Every mirror needs source. Binaries are comparable in size; skip if your users build from source. |
 | `data-annotation`, `data-experiment` | Large, changes rarely. |
@@ -155,7 +156,8 @@ downloads only what differs and replaces the `release` and `devel` symlinks you 
 If one of them is a real directory rather than a symlink, the script stops and says so; move
 it aside and rerun. Files the rsync tree has that the manifest doesn't are removed, subject
 to the `MAX_REMOVE` hold, so a first run against an old tree will usually stop with status
-`3` and a list to review. Confirm with the Bioconductor team when you have switched, so the rsync
+`3` and a list to review. Tell the Bioconductor team when you have switched, through the
+[site problem form](https://github.com/seandavi/bioc-infrastructure/issues/new?template=site-problem.yml), so the rsync
 account can be closed on your say-so rather than on log silence.
 
 ## Listing your mirror

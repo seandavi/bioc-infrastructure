@@ -34,7 +34,7 @@ never helped a person either. It discarded the rest of the path, so an old link 
 landed on a list of every talk, and in the logs nobody but the crawler asked for `/talks`.
 
 We removed the rule, so those paths now return 404, and wrote the general policy down as
-[ADR 0013](adr/0013-redirects-land-on-content-or-they-go.html): keep redirects that land a
+[ADR 0013](adr/0013-redirects-land-on-content-or-they-go.md): keep redirects that land a
 reader on the page they wanted, keep anything package clients depend on, and drop catch-alls
 to index pages. In the first minutes after the change, the crawler's fetches of the
 course-materials page went from 41,873 to zero and its request rate fell from about 8,300 to
@@ -109,8 +109,9 @@ The same measurement found a regression, and it's fixed. Package files (tarballs
 `PACKAGES`, `VIEWS`, `config.yaml`) were never being served from the edge cache: a rule that
 protects newly built pages from stale copies had ended up covering the whole site, so every
 package download went back to storage.
-[bioc-edge#35](https://github.com/seandavi/bioc-edge/issues/35) narrowed the rule to what a
-build could actually own, and those files now come from the edge cache, still expiring as
+[bioc-edge#36](https://github.com/seandavi/bioc-edge/pull/36), the fix for
+[#35](https://github.com/seandavi/bioc-edge/issues/35), let the cache lookup include files
+only the mirror can hold, and those files now come from the edge cache, still expiring as
 soon as a package changes. From Denver, `PACKAGES` went from 447 to 85 ms, `VIEWS` from 550 to
 205 ms, a tarball from 227 to 72 ms and `config.yaml`, which BiocManager reads on every call,
 from 232 to 58 ms. CloudFront is still faster from this one host, by 30 to 50 ms. About a
@@ -119,10 +120,11 @@ the Worker on every request, cached or not. That gap is the next thing to look a
 
 ## Download statistics that can tell people from bots
 
-*Status: in progress. The logs are being collected now; the classification is
-[bioc-traffic#5](https://github.com/seandavi/bioc-traffic/issues/5), and generating the
-published statistics from it is
-[bioc-registry#26](https://github.com/seandavi/bioc-registry/issues/26).*
+*Status: in progress. The logs are being collected now. The classification is
+bioc-traffic#5 (bioc-traffic is a private repo), still open on 2026-09-30.
+[bioc-registry#26](https://github.com/seandavi/bioc-registry/issues/26) tracks generating
+statistics from the de-identified access log; it leaves the definition of a download to the
+classification. Published statistics still come from the legacy pipelines.*
 
 Bioconductor's download statistics have never filtered bots. The legacy code has a list of
 known crawlers and build-node addresses, and the checks that use them are commented out; the
@@ -133,11 +135,12 @@ container builds reinstalling the same base packages. Those two months are still
 every published table and in the ranking behind each package's `Rank`. Separately, a quarter
 of June 2026 went missing from the published series without anyone noticing.
 
-The new edge keeps every request, with the fields needed to tell traffic apart: network,
-Cloudflare's label for verified bots, and fingerprints of the client's connection. The
-crawler above is a good example of why that matters. Its user agents claim to be browsers, so
-a user-agent filter would have counted it as people; its network and connection fingerprint
-give it away. The plan is a classification we build and maintain ourselves, with versioned
+The new edge keeps every request, with fields that help tell traffic apart: the client's
+network (ASN), Cloudflare's category for verified bots, and hashes of the TLS client hello.
+It has no bot score and no JA4 fingerprint; those need Cloudflare's Enterprise Bot
+Management. The crawler above is a good example of why the network field matters. Its user
+agents claim to be browsers, so a user-agent filter would have counted it as people; its two
+networks give it away. The plan is a classification we build and maintain ourselves, with versioned
 rules so history can be recomputed when they change, and statistics generated from it as
 static files. Web usage and package usage are reported separately, rather than as one
 number that mixes people, installs and crawlers.

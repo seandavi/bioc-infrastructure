@@ -6,7 +6,7 @@ description: "Every GitHub Actions workflow in the public bioc repos, what it te
 One page for the question "what is red, and does it matter?" Status badges are
 live. The table under [Workflows](#workflows) is generated at site build by
 [`ci-inventory.py`](https://github.com/seandavi/bioc-infrastructure/blob/main/ci-inventory.py)
-from the GitHub API, so it cannot drift from what actually exists; the
+from the GitHub API, so it matches the workflows in each repo; the
 description column is each workflow's leading comment block, so a workflow with
 no header comment shows only its name. Everything else on this page is
 hand-written.
@@ -16,7 +16,7 @@ hand-written.
 ```{mermaid}
 flowchart LR
   subgraph RU[r-universe, upstream, no badges here]
-    G[git.bioconductor.org<br/>maintainer push] --> CR[control-room<br/>hourly cron 41 * * * *]
+    G[git.bioconductor.org<br/>maintainer push] --> CR[control-room<br/>hourly cron 25 * * * *]
     CR --> SY[sync<br/>bioc · bioc-release monorepos]
     SY --> BU[workflows/build.yml<br/>build + check]
     BU --> API[r-universe API<br/>bioc · bioc-release]
@@ -27,25 +27,39 @@ flowchart LR
   R --> F[freshness<br/>serves?]
   R --> I[install<br/>installs?]
   subgraph X[Experimental: standalone build path]
-    M[bioc-manifest<br/>validate] --> D[bioc-build<br/>dispatch → build-package → build.yml]
+    M[bioc-manifest<br/>validate]
+    D[bioc-build<br/>dispatch, manual → build-package → build.yml]
   end
+  M -. read by .-> D
   D -. attested tarballs .-> P[publish] -.-> GT
   W[bioc-website<br/>site] -- static site --> R2[(R2)]
-  S[systemd bioc-sync<br/>bioconductor.org → R2] --> R2
+  S[systemd bioc-sync<br/>master.bioconductor.org → R2<br/>+ purge, manifest] --> R2
   R2 --> E[bioc-edge worker]
-  E --> H[health] & PA[parity] & L[bioc-website<br/>links]
+  E --> H[health] & PA[parity<br/>vs master] & L[bioc-website<br/>links]
 ```
 
 The r-universe components are not ours and have no badge on this page. A
 stalled r-universe shows up here as **freshness** red on "latest observation
 under 36 hours", since the registry polls its API and nothing else changes when
 r-universe stops. bioc-build's `build.yml` is a pinned verbatim copy of
-r-universe's, so the two build boxes run the same engine.Reading a red badge:
+r-universe's, so the two build boxes run the same engine. bioc-manifest does not trigger bioc-build: bioc-build's
+`dispatch.yml` is `workflow_dispatch` only, and its schedule is deferred until
+the registry publisher is proven.
+
+This diagram shows the new-system checks, not the production publishing path.
+bioconductor.org's packages are still built by BBS (source tarballs) and mostly
+r-universe (binaries), and reach R2 through the hourly `bioc-sync` from
+master.bioconductor.org. The registry path above publishes only at the
+registry's own host; switching to it is the
+[registry switch](registry-switch.qmd) plan.
+
+Reading a red badge:
+
 
 - **publish** red: the bioc-build → registry ingest broke. Experimental path; software packages from r-universe are unaffected.
 - **freshness** red, publish green: the Worker is down, the observer stalled, or the served index is inconsistent (the #34 invariant).
 - **install** red, freshness green: what the registry serves does not install. Since [#47](https://github.com/seandavi/bioc-registry/issues/47) the canary runs in the r-universe build image, so this is no longer "the runner lacks a system library".
-- **health** or **parity** red: the served site, not the data plane. Parity compares bioc-dev against production path by path.
+- **health** or **parity** red: the served site, not the data plane. Health probes bioconductor.org (since 2026-09-29). Parity compares bioconductor.org with master.bioconductor.org path by path; the known differences are tracked in bioc-edge [#43](https://github.com/seandavi/bioc-edge/issues/43) to [#46](https://github.com/seandavi/bioc-edge/issues/46).
 - **links** red: link rot on the served site, a content problem.
 
 ## Scheduled jobs outside GitHub Actions
@@ -58,7 +72,7 @@ set up yet.
 
 | Unit | Repo | Cadence | What it does | On failure |
 |---|---|---|---|---|
-| [`bioc-sync`](https://github.com/seandavi/bioc-edge/blob/main/systemd/bioc-sync.service) | bioc-edge | hourly | Sync the bioconductor.org docroot to R2 | GitHub issue |
+| [`bioc-sync`](https://github.com/seandavi/bioc-edge/blob/main/systemd/bioc-sync.service) | bioc-edge | hourly | rsync from master.bioconductor.org to the local mirror, upload changes to R2, purge them from the edge cache, regenerate the mirror manifest | GitHub issue |
 | [`bioc-reconcile`](https://github.com/seandavi/bioc-edge/blob/main/systemd/bioc-reconcile.service) | bioc-edge | weekly, Sun 04:00 | Checksum drift check: does R2 match the local mirror | GitHub issue |
 | [`bioc-logpush-check`](https://github.com/seandavi/bioc-edge/blob/main/systemd/bioc-logpush-check.service) | bioc-edge | daily 07:15 | Alert if yesterday's Logpush access-log delivery to GCS is missing | GitHub issue |
 | [`biocintel-refresh`](https://github.com/seandavi/bioc-intelligence/blob/main/systemd/biocintel-refresh.service) | bioc-intelligence | monthly, 1st 06:00 UTC | Enrichment pipeline: extract → link → enrich → marts → publish | ntfy |
