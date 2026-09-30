@@ -1,15 +1,133 @@
 ---
 title: "Building the site from primary sources"
 date: 2026-08-04
+date-modified: 2026-09-30
 ---
 
-How much of bioconductor.org can be rebuilt without the hosts being retired? As of
-2026-08-04: all of the package surface, most of the prose, and none of the search or build
-telemetry. This page records what runs, what it produces, and what is still missing.
+bioconductor.org's pages are built by
+[bioc-website](https://github.com/seandavi/bioconductor-website): a Python pipeline that
+fetches data from primary sources into `astro/data/`, and an Astro build that renders it.
+Since the 2026-09-28 cutover the `bioc-site` Worker serves this build first on every path
+and falls back to the mirror (the R2 copy of the legacy site) where the build has no file.
+This page describes how a build reaches production, how a content edit gets there, and what
+the build does not cover yet. The measurements from the August build are kept further down
+as a [dated record](#the-2026-08-04-build-record).
 
 Companion pages: [Reproducing the package pages](reproducing-package-pages.qmd) for the
-data-source analysis this builds on, [Decommission Plan](decommission-plan.qmd) for where it
-fits.
+data-source analysis, [Edge cache](cache.qmd) for caching and purges,
+[CI & scheduled jobs](ci.qmd) for the other workflows.
+
+## How a build reaches production
+
+`.github/workflows/site.yml` in bioc-website runs on every push to `main`:
+
+1. Run the pipeline's unit tests (`pipeline/test_*.py`). The pipeline itself does not run.
+2. Pull the data snapshot `s3://bioc-site/_ci/site-data.tar.zst` from R2 and unpack it into
+   `astro/`.
+3. `npm run build`, which is `astro build && pagefind --site dist`.
+4. Upload `astro/dist` to `site/<sha>/` in the `bioc-site` bucket, then write `<sha>` to
+   `site/latest`.
+
+The Worker does the rest. Its route table `_routes.json` is
+`{"build":"latest","prefixes":["/"]}`: every path tries `site/<latest sha>/` first, then the
+mirror. The Worker caches the `site/latest` pointer for 60 seconds per isolate. Build pages
+are edge-cached under keys that contain the build sha, so a new build needs no purge. Every
+response served from the build carries an `x-bioc-build: <sha>` header; a page without that
+header came from the mirror.
+
+| Measured 2026-09-29 (run for `360bb87`) | |
+|---|---|
+| Pull snapshot | 5 s |
+| Astro build + Pagefind | 27 s |
+| Upload to `site/<sha>/` | 17 min 43 s |
+| Whole run | 19 min |
+| Published build | 17,787 files, 254 MiB |
+
+The run before it (`de0c708`, same day) took 11 min 30 s; the upload is most of the time and
+varies. The build is small because CI builds only the live releases (3.23 and 3.24), the prose
+pages and `/next/`. Releases 2.5 to 3.22 are archival
+([ADR 0006](adr/0006-old-releases-and-their-checkresults-are-archival.md)) and are served
+from the mirror.
+
+**Rollback.** Set `"build"` in `_routes.json` to an earlier sha instead of `"latest"`, or
+write the earlier sha to `site/latest`. Either reaches every isolate within 60 seconds.
+Earlier builds stay in R2 (12 `site/<sha>/` prefixes on 2026-09-30); there is no retention
+policy yet ([bioc-website#2](https://github.com/seandavi/bioconductor-website/issues/2)).
+
+### The data snapshot
+
+CI does not fetch from primary sources. It builds from a snapshot of `astro/data/` (the live
+releases plus `site/`) and `astro/public/`, made by running the pipeline on a workstation and
+uploading the result, as the bioc-website README describes:
+
+```sh
+just data
+tar -C astro -cf - data/site data/3.23 data/3.24 public | zstd -T0 -8 \
+  | rclone rcat r2:bioc-site/_ci/site-data.tar.zst
+```
+
+The refresh is manual and no one is named to do it; scheduling it is
+[bioc-website#5](https://github.com/seandavi/bioconductor-website/issues/5) (open). The
+snapshot in use is 30 MB, uploaded 2026-09-29 12:40 UTC. The one before it dated from
+2026-08-13. The full 35-release data, including the 2.5 to 3.22 snapshot that no live source
+can regenerate, is `_ci/site-data-full.tar.zst` (2026-08-13).
+
+Two things follow from the snapshot:
+
+- A change to `pipeline/*.py` reaches production only when someone regenerates and uploads
+  the snapshot. Merging it changes nothing served.
+- Package landing pages for 3.23 and 3.24 show the version and download links from the
+  repository's own `PACKAGES` indexes as they were when the snapshot was made
+  ([bioc-website#31](https://github.com/seandavi/bioconductor-website/pull/31)). The hourly
+  `bioc-sync` updates the package files themselves; it does not update the landing pages.
+
+`/next/` pages are different: the Astro build fetches bioc-registry's propagation index over
+HTTP while it runs, so they are as current as the last build on `main`.
+
+### Previews
+
+Every pull request is built the same way and uploaded to `preview/pr-<n>/` in R2. The URL is
+`https://bioc-dev.cancerdatasci.org/_pr/<n>/`; CI posts it as a comment on the PR, and
+`preview-cleanup.yml` deletes the prefix when the PR closes. The R2 key and the URL path
+differ (`preview/pr-<n>/` versus `/_pr/<n>/`). `/_pr/<n>/` also answers on
+bioconductor.org today ([bioc-edge#48](https://github.com/seandavi/bioc-edge/issues/48)).
+Internal links in a preview are root-absolute and leave the preview
+([bioc-website#4](https://github.com/seandavi/bioconductor-website/issues/4)).
+
+## Editing content: where, and how long it takes
+
+| To change | Edit | Reaches bioconductor.org |
+|---|---|---|
+| Layout, components, `/next/` pages | a PR to bioc-website | on the next `main` build after merge |
+| Pipeline code (how data is fetched or transformed) | a PR to bioc-website | after the merge, a snapshot refresh **and** a `main` build |
+| Prose pages (text of `/about/`, `/help/`, `/developers/`, ...) | [Bioconductor/bioconductor.org](https://github.com/Bioconductor/bioconductor.org), as before | after a snapshot refresh **and** a `main` build |
+| Package titles, descriptions, maintainers | the package's own `DESCRIPTION` | after a snapshot refresh **and** a `main` build |
+
+The prose still lives in Bioconductor/bioconductor.org, which the core team edits. The pipeline
+reads it when the snapshot is made. A one-time import of the prose into bioc-website is
+planned in its `CONTRIBUTING.md`; there is no tracking issue or date for it.
+
+Latency, once someone acts:
+
+- **Snapshot refresh.** No automatic trigger. After uploading a new snapshot, a build must
+  run: `site.yml` runs only on push and pull request, so either push to `main` or re-run the
+  latest `main` run (`gh run rerun`).
+- **Build.** 11 to 19 minutes on the two runs measured 2026-09-29.
+- **Serving.** Up to 60 seconds for the Worker to see the new pointer, and up to 5 minutes
+  for browsers holding the old page (build pages are sent with
+  `cache-control: public, max-age=300, s-maxage=31536000`).
+
+A prose edit merged upstream today is therefore not live until the next manual refresh, which
+has no schedule.
+
+### Divergences from upstream
+
+Wherever the build renders Bioconductor/bioconductor.org content differently from nanoc, or
+works around something in it, bioc-website records it in
+[`UPSTREAM.md`](https://github.com/seandavi/bioconductor-website/blob/main/UPSTREAM.md), with
+the upstream change that would remove the workaround. Any PR that changes
+`pipeline/content.py` updates that file. It is the list to work through before the prose moves
+into bioc-website.
 
 ## The seam
 
@@ -17,34 +135,70 @@ Two halves that do not know about each other:
 
 ```{mermaid}
 flowchart LR
-  RU["r-universe API"] --> P
+  RU["r-universe API<br/>(software metadata)"] --> P
+  PK["PACKAGES indexes<br/>on bioconductor.org<br/>(versions, downloads)"] --> P
   TB["source tarballs<br/>(DESCRIPTION)"] --> P
-  GH["Bioconductor/bioconductor.org<br/>git repo"] --> P
+  GH["Bioconductor/bioconductor.org<br/>git repo (prose)"] --> P
   BV["Bioconductor/biocViews<br/>vocabulary"] --> P
   CR["CRAN PACKAGES"] --> P
-  WS["bio-web-stats"] -.->|no independent path| P
+  WS["/packages/stats/<br/>(Rank, via master)"] -.-> P
   P["./bioc.py<br/>pipeline"] --> D["astro/data/"]
-  D --> A["astro build"]
-  A --> O["93,186 files"]
-  O --> R2["R2 + Worker"]
+  D --> S["R2: _ci/site-data.tar.zst<br/>(uploaded by hand)"]
+  S --> A["CI: astro build<br/>+ Pagefind"]
+  REG["bioc-registry<br/>propagation index"] -->|/next/ only| A
+  A --> O["R2: site/&lt;sha&gt;/"]
+  O --> W["bioc-site Worker"]
 
   classDef ok fill:#f3fbf4,stroke:#3d8b47,color:#12263f
   classDef q fill:#fff8e8,stroke:#b8860b,color:#12263f
-  class RU,TB,GH,BV,CR,P,D,A,O,R2 ok
-  class WS q
+  class RU,PK,TB,GH,BV,CR,P,D,A,O,W,REG ok
+  class WS,S q
 ```
 
 The pipeline decides *where data comes from*; the Astro build decides *how it is rendered*.
-`astro/data/` is the contract between them. Everything is driven from one CLI, with `just`
-recipes over the top:
+`astro/data/` is the contract between them. Locally, everything is driven from one CLI, with
+`just` recipes over the top:
 
 ```bash
-just data          # fetch everything from primary sources
-just build         # 93,186 files in ~50 s
-just coverage      # measure against the real site
+just data          # fetch the live releases from primary sources
+just build         # astro build + Pagefind index -> astro/dist/
+just coverage      # compare against bioconductor.org
 ```
 
-## What it produces
+`just coverage` still requests `https://bioconductor.org` (`SITE` in `pipeline/coverage.py`).
+Since 2026-09-28 that host serves this build first, so coverage no longer compares against an
+independent legacy site. For pages the build lacks, it still measures the mirror.
+
+## What the build does not cover
+
+Checked 2026-09-30 against the snapshot and build `360bb87`:
+
+- **17 prose pages with ERB the pipeline cannot evaluate.** The pipeline flags them
+  `erbUnresolved` and does not render them, so the Worker serves the mirror copy. Three need
+  build or live services (`/dashboard/`, `/developers/help_wanted/`, `/developers/gitlog/`),
+  four need data the pipeline could supply (`/developers/new_packages/`,
+  `/about/annual-reports/`, `/about/mirrors/`, `/help/publications/`), and ten are under
+  `/help/course-materials/`: the index page and the nine year pages 2010 to 2018, which are
+  all blocked on the `_course_year_summary` partial.
+- **`/help/events/` shows raw ERB.** Its two `<%= render(...)` calls span two lines each, the
+  single-line detector misses them, and the page is built with the tags as text. The live page
+  (from build `360bb87`) shows both. No open bioc-website issue covers it.
+- **`Rank`** is read from `/packages/stats/` on bioconductor.org, which the Worker passes
+  through to master uncached. It depends on master until download statistics have another
+  home.
+- **Check results, vignettes, manuals** and the other per-package artifacts are served from the
+  mirror; the build does not produce them.
+- **Search.** Site search is a Pagefind index built from `dist/` at build time (bioc-website
+  `1c92ffb`, 2026-08-14): 4,445 files in build `360bb87`. There is no server-side search;
+  `/solr` is not served.
+
+## The 2026-08-04 build (record)
+
+The sections below are the measurements and findings from the first full build, 2026-08-04 to
+2026-08-13, which rebuilt all 35 releases. They are kept as written except where marked
+*(corrected 2026-09-30)*. CI today builds only the live releases (above).
+
+### What it produces
 
 | Page type | Built | Recall | Source |
 |---|--:|--:|---|
@@ -54,23 +208,26 @@ just coverage      # measure against the real site
 | biocViews browsers | 35 | 100% | tree.json |
 | Images / CSS / JS | 361 | — | copied verbatim |
 
+The full build then was 93,186 files in about 50 seconds; with the `/next/` pages (below),
+97,001 files in about 60 seconds. Both figures predate the Pagefind index.
+
 Recall is measured per page type deliberately. A single percentage over a corpus that is 99%
 package pages would read as ~100% while every prose page was missing.
 
 Precision was checked in the other direction: 30 sampled URLs of each type, all of which
-resolve on the live site. Nothing is invented — a 200 on a page the real site does not have
+resolved on the live site. Nothing is invented. A 200 on a page the real site does not have
 would be a silent wrong answer rather than a visible gap.
 
-## The tarball origin
+### The tarball origin
 
-The largest change. Annotation, experiment and workflow packages — 1,387 of them, about a
-third of the corpus — previously had no origin except VIEWS on the site being rebuilt. Their
+The largest change. Annotation, experiment and workflow packages (1,387 of them, about a
+third of the corpus) previously had no origin except VIEWS on the site being rebuilt. Their
 real origin is `DESCRIPTION` inside the source tarball: the maintainer's own file, passed
 through the repository untouched.
 
 The naive version of this downloads 1,387 tarballs, several of them hundreds of megabytes, to
 read a few hundred bytes from each. Instead: `DESCRIPTION` sits near the front of the archive,
-gzip is a stream, and R2 serves ranged requests — so a 64 KB ranged GET, inflated as far as it
+gzip is a stream, and R2 serves ranged requests, so a 64 KB ranged GET, inflated as far as it
 goes, is enough. Bounded at 64 KB regardless of package size, roughly 0.1 s each, the whole
 corpus in about 50 seconds.
 
@@ -78,17 +235,17 @@ Two findings that only appear once you run it:
 
 **VIEWS appends the repository's root biocViews term.** A software package declaring only
 `DifferentialExpression` is published as `["DifferentialExpression", "Software"]`. Packages
-never declare that term themselves — it comes from which repository they were built into — so
+never declare that term themselves (it comes from which repository they were built into), so
 any generator reading DESCRIPTION or r-universe has to add it back. Without it, biocViews
 disagreed on 89% of packages and the category browser lost all four of its top-level roots.
 With it, overall field agreement against the published data goes from 90.8% to **98.9%**.
 
 **Not every archive is ordered with DESCRIPTION near the front.** 32 of 928 annotation
-packages put a large `.rda` first — `BSgenome.Hsapiens.UCSC.hg17` leads with `chr13.rda` — and
+packages put a large `.rda` first (`BSgenome.Hsapiens.UCSC.hg17` leads with `chr13.rda`), and
 gzip cannot be read backwards, so no affordable prefix reaches them. Those still fall back to
 VIEWS and are named in `provenance.json` rather than absorbed silently.
 
-### What the residual 1.1% is
+#### What the residual 1.1% is
 
 Of 480 disagreeing fields out of 41,844:
 
@@ -96,19 +253,22 @@ Of 480 disagreeing fields out of 41,844:
 - **~110 version drift.** r-universe tracks the release *branch head*; the published VIEWS is a
   frozen snapshot. `AnVILWorkflow` is 1.12.0 upstream-of-record and 1.11.0 as published. This
   is a real semantic difference and matters for any rebuild that claims to reproduce a release
-  rather than track it.
+  rather than track it. (Since bioc-website#31, 2026-09-29, software landing pages take their
+  version from the repository's `PACKAGES` index instead.)
 - **~125 absent in ours**, concentrated in about 16 packages.
 - **A handful where our value is right and the published one is wrong.** `BubbleTree`'s
   published `Title` is the literal string `ERROR`; `ViSEAGO`'s published `License` is
   `GPL-3 bioconductor.org`, with a following field leaked into it.
 
-## Deliberate divergences
+### Deliberate divergences
 
 **The biocViews browser is rendered at build time.** Upstream ships a near-empty page and
 builds the tree client-side with a jsTree widget that fetches `tree.json` over XHR. This
 renders the same 500 nodes as nested `<details>`. Same data, same `#___Software` anchors that
 the header and footer link to directly, but crawlable, JS-free, and not dependent on a second
-request succeeding. Collapse comes from `<details>`, a platform feature.
+request succeeding. *(Corrected 2026-09-30:* since 2026-08-14 the page's main interface is a
+hydrated React package finder (`PackageFinder`, the site's only island); the `<details>` tree
+is the fallback when JavaScript or the island does not load, and is hidden once it does.*)*
 
 **jQuery is served locally.** Upstream pulls jQuery 1.5.1 (2011) from `ajax.googleapis.com` on
 the `rebase` path; the same file is already vendored at `/js/jquery.js`. Same library, one
@@ -117,11 +277,14 @@ fewer third-party origin.
 **highlight.js is not loaded from cdnjs.** Nothing should need a CDN to be up in order to
 render.
 
-## ERB is resolved in the pipeline, not ported by hand
+Divergences in the prose pipeline are now recorded in bioc-website's `UPSTREAM.md`
+([above](#divergences-from-upstream)).
+
+### ERB is resolved in the pipeline, not ported by hand
 
 Most of the surviving ERB is trivially evaluable, and treating it as a wall costs pages
-needlessly — the homepage is eight lines of nothing but static partial includes. The pipeline
-therefore expands the constructs that actually occur:
+needlessly: the homepage is eight lines of nothing but static partial includes. The pipeline
+therefore expands the constructs that occur:
 
 ```
 <%= config[:key] %>          site-config lookup, optionally .sub()'d
@@ -133,74 +296,71 @@ Anything else is left in place and reported per page as `erbUnresolved`, so *whe
 render* is decided once, in the pipeline, and the renderer just obeys. An earlier hardcoded
 exclusion list in the Astro side went stale the moment the resolver improved.
 
-Partials that loop over build data cannot be expanded this way — that data belongs to the
-renderer — so they become **named slots**. `_top_events` is the first: the pipeline emits
+Partials that loop over build data cannot be expanded this way (that data belongs to the
+renderer), so they become **named slots**. `_top_events` is the first: the pipeline emits
 `<!--slot:events-->` and Astro fills it from the same `events.json` it already writes. An
 explicit slot means a page that needs one cannot silently render without it.
 
 **Detecting ERB is easy to get wrong in both directions.** The first attempt counted bare `<%`
-with no closing `%>`, which flagged a 6,973-line release-notes page containing no ERB at all —
+with no closing `%>`, which flagged a 6,973-line release-notes page containing no ERB at all:
 the matches were R's `%<%` operator quoted in package NEWS text. It also used a
 more-than-two-tags threshold, which let ten pages with one or two *real* tags reach the build
-and ship visible `<% %>` to readers. Requiring `<%...%>` on a single line is exact here, because
-every ERB tag in this content tree is single-line. Prose recall fell from a reported 97.9% to
-96.8% when this was fixed, which is the honest direction: no page in `dist/` now contains a
-visible ERB tag, where ten did.
+and ship visible `<% %>` to readers. The fix requires `<%...%>` on a single line. Prose recall
+fell from a reported 97.9% to 96.8% when this was fixed, and no page in `dist/` then contained a
+visible ERB tag, where ten had. *(Corrected 2026-09-30:* this page said every ERB tag in the
+content tree is single-line. It is not: `/help/events/` has two multi-line `render()` calls,
+which the detector misses and which ship as visible text; see
+[What the build does not cover](#what-the-build-does-not-cover).*)*
 
-## What is still missing
+### What was still missing on 2026-08-04
 
-- **17 prose pages with ERB the pipeline cannot evaluate.** Not one category: three need build
-  or live services (`/dashboard/`, `/developers/help_wanted/`, `/developers/gitlog/`), four need
-  data the pipeline could supply (`/developers/new_packages/`, `/about/annual-reports/`,
-  `/about/mirrors/`, `/help/publications/`), and nine are `/help/course-materials/<year>/` index
-  pages all blocked on a single partial, `_course_year_summary`.
-- **33 of 35 releases still use snapshotted data.** Only 3.23 and 3.24 have been regenerated
-  from primary sources; r-universe holds only release and devel, so 2.5–3.22 may simply *be*
-  archival — snapshotting them to R2 is likely the right answer rather than regeneration.
+- **17 prose pages with ERB the pipeline cannot evaluate.** Still 17 on 2026-09-30; the
+  current list is [above](#what-the-build-does-not-cover).
+- **33 of 35 releases still use snapshotted data.** Only 3.23 and 3.24 had been regenerated
+  from primary sources; r-universe holds only release and devel. *(Since settled: releases
+  2.5 to 3.22 are archival per
+  [ADR 0006](adr/0006-old-releases-and-their-checkresults-are-archival.md) and served from the
+  mirror.)*
 - **`hasNEWS` / `hasREADME` / `hasINSTALL` / `hasLICENSE`, `vignettes`, `Rfiles`** for the three
   tarball-sourced repositories. These are whole-archive facts and the 64 KB prefix cannot see
-  them. They are reported as unavailable rather than guessed — defaulting them to `false` would
+  them. They are reported as unavailable rather than guessed: defaulting them to `false` would
   silently drop documentation links from ~1,400 landing pages.
-- **`Rank`** still has no independent path. Unchanged from the earlier analysis: bio-web-stats
-  is reachable only because master reverse-proxies it.
-- **Search.** Solr is untouched and out of scope.
+- **`Rank`** had no independent path: bio-web-stats was reachable only because master
+  reverse-proxies it.
+- **Search.** Solr was out of scope. *(Since 2026-08-14 the build ships a Pagefind index.)*
 - **checkResults, vignette and manual files.** Static artifacts already in R2; the Worker serves
   them, the build does not produce them.
 
-## Next-generation pages from the build-system data plane (added 2026-08-13)
+### Next-generation pages from the build-system data plane (added 2026-08-13)
 
 Everything above reproduces the *existing* site from its existing data contract. A second
-track now renders pages the legacy build never produced, from a data source the legacy
-pipeline never had:
+track renders pages the legacy build never produced, from a data source the legacy pipeline
+never had:
 
-- **`/next/{universe}/checkResults.html`** — a check-results matrix per universe
-  (release and devel), built from the propagation pipeline's archived observations:
-  per-configuration verdicts for every package, worst-first, with a column showing what
-  [the propagation gate](propagation-gate.qmd) actually let through. nanoc never built
-  check pages — these arrive in the docroot from the build system — so this is new
-  rendering, not a port.
-- **`/next/{universe}/package/{pkg}.html`** — one landing page per *propagated* package
-  (~2,100 per universe), rendered through the **same component as the parity build** via a
-  mapping from the pipeline's metadata into the existing `packages.json` contract. That is
-  the proof the seam is source-agnostic: legacy JSON and the new data plane feed identical
-  rendering. Version truth comes from the gate, not the latest build; downloads point at
-  the gate's content-addressed artifacts; per-architecture availability follows the gate's
-  per-arch decisions.
-- The `/next/` pages carry their own clean-slate layout — system fonts, dark-mode aware,
-  no jQuery, no legacy CSS cascade — with the rendering stance settled for the redesign:
-  **content is static HTML; reactivity is layered over it** (a copy button, table
-  filtering) as progressive enhancement. Landing and check pages are cited, curled and
-  archived documents; they are never a client-rendered application.
+- **`/next/{universe}/checkResults.html`**: a check-results matrix per universe (release and
+  devel), built from the propagation pipeline's archived observations: per-configuration
+  verdicts for every package, worst-first, with a column showing what
+  [the propagation gate](propagation-gate.qmd) let through. nanoc never built check pages
+  (they arrive in the docroot from the build system), so this is new rendering, not a port.
+- **`/next/{universe}/package/{pkg}.html`**: one landing page per entry in bioc-registry's
+  propagation index, rendered through the **same component as the parity build** via a
+  mapping from the registry's metadata into the existing `packages.json` contract. Legacy JSON
+  and the new data plane feed identical rendering. Version truth comes from the gate, not the
+  latest build; downloads point at the gate's content-addressed artifacts; per-architecture
+  availability follows the gate's per-arch decisions. Build `360bb87` (2026-09-29) has 2,418
+  pages for `bioc` and 2,390 for `bioc-release`, one per index entry including seeded ones.
+- The `/next/` pages carry their own clean-slate layout (system fonts, dark-mode aware, no
+  jQuery, no legacy CSS cascade), with the rendering stance settled for the redesign:
+  **content is static HTML; reactivity is layered over it** (a copy button, table filtering)
+  as progressive enhancement. Landing and check pages are cited, curled and archived
+  documents; they are never a client-rendered application.
 
-Both page types build alongside the parity pages (97,001 files total, ~60 s). Metadata
-that the observation pipeline deliberately does not archive (title, description, authors,
-vignettes) is fetched from r-universe at build time as a stopgap; publishing it as a
-data-plane artifact is tracked work.
+*(Corrected 2026-09-30:* title, description, authors and vignettes come from the metadata
+bioc-registry archives in its propagation index (bioc-website `cf759fa`, 2026-08-13), so they
+describe the propagated version. The build asks r-universe only for downloads, stars and
+reverse-dependency counts and for the banner shown when r-universe has a newer version, and
+an r-universe outage leaves those out rather than failing the build.*)*
 
-## Worker fix landed alongside
-
-HEAD requests returned no `Content-Length`, where Apache always sends it. Worse than uniformly
-missing: a HEAD that hit the edge cache inherited the cached GET's headers and *did* carry it,
-so the header appeared or vanished with cache state and looked fine whenever a warm object was
-spot-checked. Fixed in `worker/src/index.ts` by setting it explicitly from `obj.size` when the
-body is null.
+The `/next/` pages are a preview of pages built from bioc-registry data. bioconductor.org's own
+package pages do not use it; switching them is part of the
+[registry switch](registry-switch.qmd) plan.
