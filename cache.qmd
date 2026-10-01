@@ -93,7 +93,8 @@ numbered version first.
 - **404s** are cached for ten minutes (`s-maxage=600`), keyed by path and the current build
   commit. A new build clears them at once; a file published by the sync can 404 for up to
   ten minutes at a location that asked for it just before. That's the price of not paying
-  several storage reads for every repeated probe.
+  several storage reads for every repeated probe. [One day of traffic](traffic-2026-09-30.qmd)
+  measures what a longer TTL would save, and why the edge hit rate is what it is.
 
 ## URLs that are never cached
 
