@@ -71,6 +71,8 @@ website:
         contents:
           - href: improvements.qmd
             text: What the New Site Has Changed
+          - href: traffic-2026-09-30.qmd
+            text: One Day of Traffic (2026-09-30)
           - href: dns-cutover.qmd
             text: DNS Inventory &amp; Cutover
           - href: r-universe-size-limits.qmd

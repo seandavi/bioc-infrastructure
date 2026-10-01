@@ -48,6 +48,7 @@ Each link below is the page's Markdown version; the HTML page is the same path w
 
 ## Historical: the legacy estate and the transition
 
+- [One day of traffic, 2026-09-30](https://seandavi.github.io/bioc-infrastructure/traffic-2026-09-30.llms.md): a dated snapshot of one day on bioconductor.org: volume, who is asking (v0 classes, including what "other automation" is), R clients, build reports, why the edge cache hit rate is 49%, and whether 404s should be cached longer.
 - [DNS inventory and cutover runbook](https://seandavi.github.io/bioc-infrastructure/dns-cutover.llms.md): every record in the bioconductor.org zone, the move to Cloudflare, the switch log, the record freeze and rollback; executed 2026-09-28, now a record with a dated outcome section.
 - [Current state (legacy)](https://seandavi.github.io/bioc-infrastructure/current-state.llms.md): what ran on the staging and master servers as of 2026-08.
 - [Legacy propagation and push hooks](https://seandavi.github.io/bioc-infrastructure/legacy-propagation.llms.md): how packages moved from build to repository in the BBS era.

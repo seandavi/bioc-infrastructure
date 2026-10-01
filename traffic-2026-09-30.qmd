@@ -1,0 +1,147 @@
+---
+title: "One day of traffic: 2026-09-30"
+date: 2026-10-01
+---
+
+::: {.callout-note}
+## A dated snapshot
+These numbers describe one full UTC day, 2026-09-30, two days after the cutover, for
+bioconductor.org and www.bioconductor.org. They are measurements, not trends, and this page will
+not be updated. They come from the request logs in bioc-traffic (one record per request,
+delivered by Logpush; see [ADR 0003](adr/0003-request-logging-after-the-cloudflare-cutover.md)),
+queried with DuckDB through its `access` and `downloads` views and its first-pass (v0) traffic
+classification ([bioc-traffic#5](https://github.com/seandavi/bioc-traffic/issues/5)).
+Where something is an estimate or an unchecked assumption, it says so.
+:::
+
+## The day at a glance
+
+| | |
+|---|---:|
+| Requests | 5.8M |
+| Bytes served | 8.1 TB |
+| Countries | 215 |
+| Distinct client addresses (hashed) | 723,948 |
+| Distinct R installations (addresses sending R's user agent) | about 21,000 |
+| Busiest hour | 09:00 UTC, 388,115 requests |
+| Served from the edge cache | 48.7% of requests, 22% of bytes |
+
+"Installations" and "clients" are distinct hashed addresses, not people. One address can be a
+whole university behind NAT, and one person can use several.
+
+## Who is asking
+
+| v0 class | Requests | Share | Distinct addresses |
+|---|---:|---:|---:|
+| R and package clients | 1.89M | 32.6% | 35,974 |
+| Other automation | 1.89M | 32.5% | 212,925 |
+| Browser-like | 1.21M | 20.8% | 468,268 |
+| Search crawlers | 333,803 | 5.7% | |
+| Mirrors | 183,966 | 3.2% | |
+| AI crawlers | 135,943 | 2.3% | |
+| CI systems | 94,679 | 1.6% | |
+| Monitoring | 31,036 | 0.5% | |
+| Unknown | 42,514 | 0.7% | |
+
+"Other automation" is v0's `likely_automated` class, and it is mostly machines in clouds
+presenting browser user agents:
+
+| Why v0 called it automated | Requests | Share | Distinct addresses |
+|---|---:|---:|---:|
+| Browser user agent carrying `gzip(gfe)`, which Google's front end appends to requests from Google Cloud | 995,257 | 52.8% | 737 |
+| Browser user agent from a hosting or cloud network (Google Cloud, RapidSeedbox, Datacamp, Azure, AWS, Alibaba lead) | 703,442 | 37.3% | 182,316 |
+| HTTP libraries (Go, Java, Node and others) | 58,189 | 3.1% | 178 |
+| Headless browsers and scrapers | 38,281 | 2.0% | 19,459 |
+| curl | 32,869 | 1.7% | 4,725 |
+| Other self-declared bots | 20,915 | 1.1% | 3,859 |
+| Python | 12,458 | 0.7% | 524 |
+| Everything else (fake browser strings, verified fetchers, no user agent, scanner paths, HEAD from a browser) | 24,517 | 1.3% | |
+
+48% of these requests were for build reports and 42% for `/packages/`. The rules are in
+bioc-traffic's `sql/client_class.sql`; a browser on a VPN that exits through a hosting network
+lands here too, which is a known limit of v0.
+
+"Browser-like" is deliberately not called "humans". By distinct address it is led by Vietnam
+(83,053), China (55,337), the US (54,453) and Brazil (49,013). That looks like crawlers on
+residential connections, which v0 does not yet separate out. The 42,514 unknown requests
+fetched 902 GB.
+
+## R clients
+
+- About 1.0M requests came from 20,966 distinct R installations.
+- By R version: 4.6 is 56%, 4.5 23%, 4.4 15%, 4.3 6%, 4.1 5%, and 4.7 (devel) 3%.
+- By OS: Linux 12,347, Windows 6,303, macOS 2,650.
+- 24,836 distinct clients fetched `config.yaml`, which BiocManager reads to check versions.
+- R clients made 400,509 package downloads from 12,463 distinct addresses. Software packages
+  were 95.7% of them, annotation data 3.4%, experiment data 0.6%, and workflows 27 downloads.
+  The most downloaded were BiocVersion, S4Vectors, BiocGenerics, SparseArray and IRanges.
+
+**One machine made 162,163 downloads of Bioconductor 3.19 packages,** 40% of everything R
+clients downloaded that day. That is almost certainly a script reinstalling in a loop. The
+legacy download statistics would have counted every one, which is why the
+[download stats](download-stats.qmd) need classification before they mean anything.
+
+## Build reports
+
+`/checkResults/` took 1,273,130 requests (22% of all requests) from 241,607 distinct addresses.
+Some of that is maintainers reading their build logs; much of it is crawlers walking the
+reports, which are a long tail of pages that change daily.
+
+## Why the edge cache hit rate is only 49%
+
+48.7% of requests and 22% of bytes came from the edge cache. That matters less than it
+sounds. R2 charges nothing for data transfer, so a miss costs one storage read, about $0.36 per
+million at list price. At about 2.6M misses a day that is on the order of $30 a month (an
+estimate, not a bill). The real cost of a miss is latency: earlier measurements put it at about
+200 ms in the western US and 650–800 ms from Europe and Asia. Four causes, measured:
+
+**1. Half the misses could never have been hits.** 49% of misses were the first request for
+that URL anywhere that day, and 59% of URLs were requested only once. The worst classes are
+long tails that crawlers walk; the files installs depend on are cached well:
+
+| Path type | Requests | Hit rate |
+|---|---:|---:|
+| Build reports (`checkResults/`) | 1.27M | 13% |
+| Package landing pages | 465k | 12% |
+| Repository indexes (`PACKAGES*`, `VIEWS`, `config.yaml`) | 1.1M | 91% (98% of bytes) |
+| Site assets | 930k | 82% |
+| Package files | 804k | 53% |
+
+**2. The cache is per data centre.** Requests came through 256 Cloudflare data centres, and
+the Worker's cache (the Cache API) is local to each one. 32% of misses were for a URL already
+cached in another data centre that day. Our understanding, not yet checked, is that
+Cloudflare's tiered caching does not apply to the Cache API; serving through Cloudflare's own
+cache instead would pick it up.
+
+**3. Files over 512 MB are never cached.** About 2,800 requests for 841 such files fetched
+3.5 TB, 43% of all bytes served, with 7 cache hits. They are annotation and experiment data:
+BSgenome hg38/hg19/mm10, the dbSNP155 SNPlocs packages (6 GB each), MafDb. 512 MB is, as we
+understand it, Cloudflare's per-object cache limit; we have not verified that. This alone is
+why the byte hit rate is so far below the request hit rate. (One query first counted 45,357
+requests for these files; two narrower queries agree on about 2,800, and the 3.5 TB total is
+the same in all three.)
+
+**4. The rest, 18.5% of misses,** were repeats in the same data centre: eviction, the hourly
+sync's purges, and 404s that had expired.
+
+## Should 404s be cached longer?
+
+There were 1.09M 404 responses: 471k from the cache and 601k misses. 404s are cached for ten
+minutes, keyed by path and build ([Edge cache](cache.qmd)). Grouping each miss by the time since
+the last 404 for the same URL in the same data centre:
+
+| 404 miss | Count | Would a longer TTL have saved it? |
+|---|---:|---|
+| First for that URL in that data centre that day | 419k | No |
+| Within 10 minutes (evicted early) | 40k | No |
+| 10–60 minutes later | 69k | Yes, at 1 h |
+| 1–6 hours later | 64k | Yes, at 6 h |
+| More than 6 hours later | 9k | Yes, at 24 h |
+
+A 6-hour TTL would have removed about 133k of 601k misses (22%), worth very roughly $5 a month
+in storage reads (an estimate), and the latency saved goes mostly to crawlers and probes. The
+risk is that the hourly sync purges by object key, so it never clears a cached 404. A package
+published on master would keep 404ing for up to the TTL in every data centre that asked for it
+just before. At ten minutes that is harmless; at six hours an install right after an
+announcement could fail for an afternoon. So the TTL stays at ten minutes unless sync.sh first
+learns to purge the 404 entries for newly added keys.
