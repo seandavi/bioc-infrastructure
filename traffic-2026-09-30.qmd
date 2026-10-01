@@ -58,7 +58,7 @@ presenting browser user agents:
 | Everything else (fake browser strings, verified fetchers, no user agent, scanner paths, HEAD from a browser) | 24,517 | 1.3% | |
 
 48% of these requests were for build reports and 42% for `/packages/`. The rules are in
-bioc-traffic's `sql/client_class.sql`; a browser on a VPN that exits through a hosting network
+bioc-traffic's [`sql/client_class.sql`](https://github.com/seandavi/bioc-traffic/blob/main/sql/client_class.sql); a browser on a VPN that exits through a hosting network
 lands here too, which is a known limit of v0.
 
 "Browser-like" is deliberately not called "humans". By distinct address it is led by Vietnam

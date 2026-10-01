@@ -80,7 +80,7 @@ Each link below is the page's Markdown version; the HTML page is the same path w
 - [bioc-edge](https://github.com/seandavi/bioc-edge): the Cloudflare Worker, R2 mirror sync and cache purging.
 - [bioc-registry](https://github.com/seandavi/bioc-registry): the data plane and propagation gate; publishes at its own host, not yet on bioconductor.org.
 - [bioc-website](https://github.com/seandavi/bioc-website): the static site build.
-- bioc-traffic (private): checks daily that request logs arrived, and log analysis; traffic classification is planned, not built.
+- [bioc-traffic](https://github.com/seandavi/bioc-traffic): checks daily that request logs arrived, and log analysis; a first (v0) traffic classification exists (bioc-traffic#5, open); download statistics from it are planned.
 - [bioc-build](https://github.com/seandavi/bioc-build) and [bioc-manifest](https://github.com/seandavi/bioc-manifest): the standalone build system and its manifest.
 - [bioc-infrastructure](https://github.com/seandavi/bioc-infrastructure): this site; issues here are the migration's ledger.
 - Archived since 2026-09-29, read-only: [bioc-cloudflare](https://github.com/seandavi/bioc-cloudflare) (the serving prototype; its history continues in bioc-edge, so older references to bioc-cloudflare mean bioc-edge today) and [bioc-origin](https://github.com/seandavi/bioc-origin) (an earlier prototype).
