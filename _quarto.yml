@@ -20,7 +20,14 @@ website:
   title: "Bioconductor Infrastructure"
   google-analytics: "G-29EGVRD25B"
   description: "How bioconductor.org is built, served, and being replaced — and the decisions behind it"
+  repo-url: https://github.com/seandavi/bioc-infrastructure
+  repo-branch: main
+  repo-actions: [edit, source]
   navbar:
+    right:
+      - icon: github
+        href: https://github.com/seandavi/bioc-infrastructure
+        aria-label: GitHub repository
     left:
       - href: index.qmd
         text: Overview
