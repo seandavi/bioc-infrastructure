@@ -121,7 +121,8 @@ the Worker on every request, cached or not. That gap is the next thing to look a
 ## Download statistics that can tell people from bots
 
 *Status: in progress. The logs are being collected now. The classification is
-bioc-traffic#5 (bioc-traffic is a private repo), still open on 2026-09-30.
+[bioc-traffic#5](https://github.com/seandavi/bioc-traffic/issues/5): a first version (v0) is written and in use for analysis, and
+the issue is still open on 2026-10-01.
 [bioc-registry#26](https://github.com/seandavi/bioc-registry/issues/26) tracks generating
 statistics from the de-identified access log; it leaves the definition of a download to the
 classification. Published statistics still come from the legacy pipelines.*
