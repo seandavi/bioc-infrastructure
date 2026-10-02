@@ -30,9 +30,12 @@ The proposal:
 
 1. **Sustainability first.** Anything that needs significant or costly infrastructure to run is
    out of scope (@fig-cost-ladder).
-2. **The data plane is logical.** It is a set of open, versioned files, each owned by one
-   producer and joined on the package (@fig-data-plane). It serves search, analytics,
-   integration and agents equally. It is not a database and not a search cluster.
+2. **The data plane is logical.** It is a contract, not a machine: open, versioned files about
+   many entities (packages, builds, people, publications, grants, requests, submissions), each
+   published by the producer that owns it and linked by stable identifiers (@fig-data-plane).
+   It serves search, analytics, integration and agents equally. It isn't a single server or
+   search engine. Databases and search indexes can still be part of the infrastructure that
+   produces it, or consumers that serve an application from it.
 3. **Agents are first-class users,** and with human review, contributors. Machines already make
    most requests to bioconductor.org (@fig-traffic-mix).
 4. **Search is several focused experiences,** each matched to a persona (@tbl-experiences).
@@ -42,6 +45,12 @@ The proposal:
 6. **New sources and new functions plug in** without changing what exists: a new producer
    publishes files under the same contract, and a new tool, skill or agent procedure reads them
    ([Extending it](#extending-it)).
+7. **Decide with the data we already have.** The request logs, the registry and
+   bioc-intelligence already answer many design questions empirically. For example, a
+   three-day look at the logs (@tbl-search-use) showed that Google sends about six times as
+   many package-page visits as the header search box gets searches, and that most "searches"
+   are Bingbot crawling result pages.
+   Look before building, and measure after.
 
 ## Guiding principles
 
@@ -62,19 +71,34 @@ When in doubt, leave it out. A missing feature can be added later; a running ser
 paid for and operated indefinitely.
 :::
 
-**The data plane is logical.** "Data plane" means the contract, not a system: each producer
-publishes its slice as open, versioned files, and consumers join them on the package name.
-bioc-registry owns facts with fixed definitions (versions, builds, checks, DESCRIPTION
-fields); bioc-intelligence owns interpretation (publications, citations, people, funders);
-bioc-traffic owns usage. Search is one consumer among several. The same files feed dashboards,
-grant and board reports, mirrors, other projects, and agents. Nothing in this proposal adds a
-central database.
+**The data plane is logical.** "Data plane" means the contract, not a system. Each producer
+publishes its slice as open, versioned files, and consumers link them through stable
+identifiers: package names, ORCIDs, DOIs, grant numbers, URLs (@tbl-entities). bioc-registry
+owns facts with fixed definitions (versions, builds, checks, DESCRIPTION fields);
+bioc-intelligence owns interpretation (publications, citations, people, funders); bioc-traffic
+owns usage. Search is one consumer among several. The same files feed the website itself,
+dashboards, grant and board reports, mirrors, other projects, and agents. A producer can use a
+database or an index internally, and a consumer can load the files into a search engine to
+serve an application; neither becomes the data plane. Nothing in this proposal adds a central
+database.
 
 **Agents are first-class.** People increasingly find and use software through AI assistants,
 and the project's own maintenance increasingly runs through agents. Both need the same things
 search needs: stable URLs, pages that render without JavaScript, structured metadata, and bulk
 data with documented schemas. Designing for agents is designing for search. See
 [Agents](#agents).
+
+::: {.callout-tip}
+## Use the data we already have
+The new stack logs every request, the registry records every build and propagation, and
+bioc-intelligence links packages to the literature. That makes most questions about search,
+usage and impact answerable with a query instead of a guess, a survey or a vendor's
+assumption. @tbl-search-use took minutes to produce from the existing logs, and it changed
+priorities: crawlability before a better search box, and a robots.txt line before any new
+feature. Every proposal on this page should start the same way: what do the data say today?
+What measurement will show whether the change worked? Most of the [possible
+measures](#possible-measures) need no new infrastructure.
+:::
 
 **Indexes are derived.** Every index, whether a Pagefind bundle, a Parquet extract, a sitemap
 or `llms.txt`, is rebuilt from the sources of truth and never edited by hand
@@ -122,6 +146,55 @@ At most a fifth of requests even claim to come from a browser. Search crawlers a
 together make 8% of requests, and they are how most people will reach a package page. Whatever
 the project builds for search has to work for them first.
 
+### How search on the site is used today
+
+bioconductor.org has no page analytics: the Astro build carries no analytics tag, and we found
+no Google Search Console or Bing Webmaster verification in the site's pages or DNS. It may be
+verified some other way; we didn't check further. The edge logs are the only record, and they
+see two kinds of search:
+
+- **The header search box** submits to `/help/search/?search-bar=…`, so the query is in the
+  logged URL.
+- **Pagefind's own box** runs in the browser. The logs show only the index files it fetches, not
+  what was typed.
+
+| Signal, 2026-09-28 20:09 to 2026-10-01 24:00 UTC (3.2 days) | Requests | Distinct clients |
+|---|---:|---:|
+| Header-form searches (query in the URL), all clients | 11,263 | 610 |
+| … from declared crawlers | 9,968 | 172 |
+| … of which Bingbot | 9,959 | 163 |
+| … from browser user agents | 1,295 | 438 |
+| … of which came from a bioconductor.org page | 1,239 | 412 |
+| Pagefind index fetches (a query typed in the page), browser user agents | 718 | 418 |
+| Header-form searches by browsers, per full day (09-29, 09-30, 10-01) | 446, 462, 347 | |
+| Browser clients searching either way, per full day (09-29, 09-30, 10-01) | | 167, 161, 128 |
+| Package landing-page views by browsers with a Google referrer | 8,657 | |
+| … with an AI-assistant referrer (ChatGPT, Perplexity, Claude, Gemini, Copilot) | 74 | |
+
+: Search activity on bioconductor.org since the 2026-09-28 cutover, from bioc-traffic's
+Cloudflare request logs, queried 2026-10-02. "Clients" are distinct hashed addresses, not
+people. Crawlers were identified by declared user agent only, so the browser rows still
+include some disguised automation. Index fetches undercount queries, because a browser reuses
+chunks it has already fetched; they also include the Pagefind run that a header-form submission
+triggers. Referrer rows count only browser requests that sent a referrer; 84% of browser
+requests to landing pages sent none. {#tbl-search-use}
+
+What the logs already show:
+
+- **People do search the site:** about 130–170 clients a day, and 350–460 header-form
+  searches a day.
+- **Google matters more than the search box.** It sent about 8,700 package-page visits in the
+  same window, roughly six times the header-form searches. AI assistants sent 74, which is
+  small but no longer zero.
+- **Most search requests come from Bingbot crawling search-result URLs:** 9,580 distinct query
+  strings in three days. Each is a unique URL with no unique content. robots.txt should
+  disallow `/help/search/` (added to
+  [bioc-website#33](https://github.com/seandavi/bioc-website/issues/33)).
+
+What nobody can see today: what people type into Pagefind, how many searches return nothing,
+which result they pick, and how bioconductor.org ranks in Google. [Possible
+measures](#possible-measures) lists ways to see them.
+
 ## What exists today
 
 None of these modules was built under the grant. They are what a search effort would build on.
@@ -159,19 +232,20 @@ everything else. Adapted from the "One data layer" slide in the
 [2026-10-01 Technical Advisory Board talk](https://talks.seandavis.net/2026-10-01-bioc-tab/).
 :::
 
-| Entity | Source of truth | Produced by | Published as | Main consumers |
-|---|---|---|---|---|
-| Package (name, version, title, description, biocViews, dependencies) | DESCRIPTION via r-universe or bioc-build | bioc-registry | `index.json`, Parquet | Website build, package finder, intelligence, agents |
-| Build and check status | r-universe and bioc-build results | bioc-registry | Parquet, `/next/` pages | Package pages, maintainers, agents |
-| Vignettes (list and titles) | r-universe metadata | bioc-registry → bioc-website | Page data | Site search, sitemap, guided paths |
-| Vignette full text | Built vignette HTML | New: indexed at site build | Pagefind bundle | Quick search, guided paths |
-| People (authors, maintainers, roles, ORCID) | `Authors@R` | bioc-registry keeps it; bioc-intelligence parses it | Parquet | Package finder, profiles, dashboards, JSON-LD |
-| Funders | `fnd` role; acknowledgements on linked publications | bioc-intelligence | Parquet | Dashboards, package pages |
-| Publications and citations | CITATION and DOI → OpenAlex, iCite | bioc-intelligence | Parquet | Package pages, researchers |
-| Usage | Edge logs | bioc-traffic | Aggregated Parquet, no client addresses | Ranking tiebreaks, dashboards |
-| Support questions and answers | Discourse | Discourse | Its own search and API | Linked from site search and package pages |
-| Videos | YouTube channel | New, small: a curated index | Static JSON | Guided paths, package pages |
-| Code search | none | Out of scope until code.bioconductor.org has an owner | | |
+| Entity | Identifier | Source of truth | Produced by | Published as | Main consumers |
+|---|---|---|---|---|---|
+| Package (name, version, title, description, biocViews, dependencies) | Package name + version | DESCRIPTION via r-universe or bioc-build | bioc-registry | `index.json`, Parquet | Website build, package finder, intelligence, agents |
+| Build and check status | Package, version, platform, job | r-universe and bioc-build results | bioc-registry | Parquet, `/next/` pages | Package pages, maintainers, agents |
+| Vignettes (list and titles) | Package + file name | r-universe metadata | bioc-registry → bioc-website | Page data | Site search, sitemap, guided paths |
+| Vignette full text | URL | Built vignette HTML | New: indexed at site build | Pagefind bundle | Quick search, guided paths |
+| People (authors, maintainers, roles) | ORCID, else a normalized name | `Authors@R` | bioc-registry keeps it; bioc-intelligence parses it | Parquet | Package finder, profiles, dashboards, JSON-LD |
+| Funders and grants | Funder name (normalized), grant number | `fnd` role; acknowledgements on linked publications | bioc-intelligence | Parquet | Dashboards, package pages |
+| Publications and citations | DOI, PMID | CITATION and DOI → OpenAlex, iCite | bioc-intelligence | Parquet | Package pages, researchers |
+| Requests and usage | URL path, day, client class | Edge logs | bioc-traffic | Aggregated Parquet, no client addresses | Ranking tiebreaks, dashboards, download statistics |
+| Submissions and reviews | Tracker issue number | Contributions trackers | bioc-contrib-intelligence | JSONL, Parquet | Review precedent, agents |
+| Support questions and answers | Topic ID, tags | Discourse | Discourse | Its own search and API | Linked from site search and package pages |
+| Videos | YouTube video ID | YouTube channel | New, small: a curated index | Static JSON | Guided paths, package pages |
+| Code search | | none | Out of scope until code.bioconductor.org has an owner | | |
 
 : Where each entity lives in the data plane. Target state: today bioc-website still reads
 r-universe and package tarballs directly rather than through the registry. Rows marked "New"
@@ -227,7 +301,7 @@ data plane already holds what that surface needs. {#tbl-personas}
 | Experience | Serves | How | Cost model |
 |---|---|---|---|
 | Google and other engines | Everyone, long-tail questions | Unblock crawling, a real sitemap, canonical links, structured data ([bioc-website#33–36](https://github.com/seandavi/bioc-website/issues/33), [bioc-edge#55](https://github.com/seandavi/bioc-edge/issues/55)) | None |
-| Quick site search | People who start on bioconductor.org | Pagefind, adding vignette full text, type badges, and separate bundles per surface merged in the browser | Static |
+| Quick site search | People who start on bioconductor.org | Pagefind, adding vignette full text, type badges, separate bundles per surface merged in the browser, and a feedback button on results ("found it" / "didn't find it", plus an optional "report a missing result" link into the existing issue forms) | Static + a tiny Worker endpoint |
 | Package finder | Developers, single-cell users, contributors | Facets (biocViews, repository, maintainer, ORCID, build status, reverse dependencies) over registry and intelligence Parquet, queried in the browser | Static + browser |
 | Guided paths | New and domain users, educators | Curated pages per data type or task, kept as versioned files with named maintainers and CI checks against the registry | Static |
 | Support | People with a problem | Discourse's own search; site search links out with the query filled in; package pages show recent topics | Discourse's |
@@ -273,15 +347,17 @@ Agents matter to this proposal in three ways.
 
 ## Extending it {#extending-it}
 
-Search is the first consumer of the data plane, not the last. The design has to make it cheap
-to add both new data and new capabilities.
+Search is one consumer of the data plane among several. The website itself, the `/next/`
+package pages, the bioc-intelligence dashboard, mirrors and BiocManager already read parts of
+it today. The design has to make it cheap to add both new data and new capabilities.
 
 **A new data source** (the Discourse site, workshop materials, Hub resources, conference
 talks) joins by publishing files under the same contract as the existing producers. It
 needs:
 
 - **an owner,** meaning one repo and one maintainer;
-- **a join key** on the package, plus a stable identifier for its own records;
+- **stable identifiers** for its own records, and links to existing entities through theirs
+  (package name, ORCID, DOI, grant number);
 - **a documented schema** with dated snapshots and a `latest` alias;
 - **a rebuild** from its own source of truth, run by CI or a scheduled serverless job;
 - **no private data** in the published files.
@@ -329,8 +405,11 @@ only if the test set shows a gain; coral: out of scope.
 The new stack serves bioconductor.org for roughly $240–500 a month, against about $5,000 for
 the AWS estate it replaces ([costs](improvements.qmd)). A managed search cluster would add a
 standing monthly bill of its own, plus patching, upgrades and someone on call. It would do
-that for a site whose search traffic Pagefind already handles from static files. The original
-plan's hosted engine and public API are the main things this proposal drops.
+that for a site whose search traffic Pagefind already handles from static files
+(@tbl-search-use). That is why running one is out of scope for this effort. It isn't ruled out
+by the design: a search engine fed from the data plane's files is a legitimate consumer, if
+someone has a need for it and the means to run it. The original plan's hosted engine and
+public API are the main things this proposal drops.
 
 Two operational risks are known for the static approach:
 
@@ -342,6 +421,34 @@ Two operational risks are known for the static approach:
   about 300 kB of payload for a 10,000-page site
   ([pagefind.app](https://pagefind.app/)). Adding vignette full text will grow the index, so
   measure that before and after.
+
+## Possible measures {#possible-measures}
+
+Ways to tell whether search, and the site's findability in general, are working. These are
+possibilities, not commitments. Most use data already collected; the rest are cheap to add.
+
+| Area | Measure | What it tells us | Source | Available today? |
+|---|---|---|---|---|
+| Site search use | Searches per day by people vs crawlers; clients searching | Whether the search box matters, and to whom | Edge logs (header form) | Yes (@tbl-search-use) |
+| Site search quality | Queries typed, zero-result rate, result clicked and its rank, reformulations | Where search fails people | Pagefind events, sent to a Worker and Analytics Engine (I15 privacy rules) | No; a small addition |
+| Explicit feedback | "Found it" / "didn't find it" on a results page, with the query and the rank of any clicked result; free-text reports of a missing result | Which queries fail, in people's own judgement; new cases for the test set (I1) | A feedback button posting to a Worker and Analytics Engine; reports through the existing [issue forms](report.qmd) | No; a small addition |
+| Retrieval quality | NDCG@10 and recall@10 on the persona test set; exact package name ranked first | Whether a ranking change helped, before it ships | CI over a versioned test set (I1) | No |
+| Google | Impressions, clicks, click-through and average position per page and query, over time | How people find packages and vignettes from the web | Google Search Console (free, with an API) | Not set up, as far as we found |
+| Other engines | The same for Bing | A second view of web findability | Bing Webmaster Tools | Not set up, as far as we found |
+| Index coverage | Pages in the sitemap vs pages indexed; crawl errors | Whether the crawlability fixes worked | Search Console, sitemap | No (no sitemap yet) |
+| Crawler activity | Requests by search and AI crawler, by path class, over time | What crawlers read, and what they waste | Edge logs, bioc-traffic client classes | Yes |
+| Referrals | Landings by referrer: Google, other engines, AI assistants, other sites | Which doors people come in through, and how that shifts | Edge logs (`Referer`) | Raw data yes; no report |
+| Agent consumption | Fetches of `llms.txt`, `.md` pages, Parquet files; MCP calls | Whether agents use what is built for them | Edge logs, Worker | Partly |
+| Package reach | Landing-page and vignette views by people, per package, over time | Which packages and documents people actually read | Edge logs + client classes | Partly (v0 classes) |
+| Support | Searches and no-result searches on Discourse | Gaps in answers and documentation | Discourse admin reports | When the new site launches |
+| Freshness | Time from a propagation to the updated page, index and Parquet | Whether "current" is true | Registry ledger, build timestamps | No; derivable |
+| Cost | Monthly cost of each search surface; bytes per search | Whether sustainability holds as usage grows (I14) | Cloudflare analytics, Pagefind payloads | Partly (estimates) |
+| Agent outcomes | Agent drafts merged, edited or rejected | Whether agent work saves time | GitHub | No; derivable |
+
+: Candidate measures for search and findability. "Available today?" says whether the raw data
+exists now, not whether anyone reports on it. Rows marked "No" need a small addition; none
+needs new standing infrastructure. Query-level data follows I15: no addresses or user IDs,
+short retention, aggregates only in anything published. {#tbl-measures}
 
 ## Invariants {#invariants}
 
@@ -429,10 +536,11 @@ Compared with today:
 2. **Data plane gaps:** `Authors@R` into the registry; people, ORCID and funders in
    bioc-intelligence; non-NIH funders from publications; registry coverage of data and
    workflow packages through bioc-build.
-3. **Measure:** the persona test set; anonymous query and zero-result events from Pagefind;
-   a baseline for today's Pagefind and Google.
-4. **Quick search and package finder:** vignette full text in Pagefind; facets over Parquet in
-   the browser.
+3. **Measure:** a standing report from the logs we already have (@tbl-search-use); Google
+   Search Console and Bing Webmaster Tools for bioconductor.org; the persona test set;
+   anonymous query and zero-result events from Pagefind (@tbl-measures).
+4. **Quick search and package finder:** vignette full text in Pagefind; a feedback button on
+   results; facets over Parquet in the browser.
 5. **Guided paths:** start with RNA-seq and single-cell; link Discourse tags and a curated
    video index.
 6. **Data and agent access:** documented Parquet, `llms.txt` for package and vignette pages,
