@@ -74,6 +74,10 @@ website:
             text: Registry Switch (plan)
           - href: cloudflare-account-migration.qmd
             text: Cloudflare Account Migration
+      - section: Proposals
+        contents:
+          - href: proposal-unified-search.qmd
+            text: Unified Search
       - section: Records
         contents:
           - href: improvements.qmd

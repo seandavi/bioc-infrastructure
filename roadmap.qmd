@@ -115,7 +115,7 @@ prove the contribution loop — PR → preview URL → review → merge → rout
 **Tasks**
 
 - [ ] Revisit the July 2026 findability and UX/IA audits (`audit/review/`); pick candidates
-- [ ] Search ADR — Pagefind already indexes the Astro build; measure it at full-site scale first
+- [ ] Search ADR — Pagefind already indexes the Astro build; measure it at full-site scale first. Input: the [unified search proposal](proposal-unified-search.qmd)
 - [ ] Prototype search over the full ported surface
 - [ ] Ship redesign PRs #1 and #2; fold the friction into CONTRIBUTING
 - [ ] Invite at least one outside contributor through the flow

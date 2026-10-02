@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1150 500" width="1150" height="500" role="img" aria-label="Requests by client type on bioconductor.org and www, 2026-09-30 UTC, 5.8 million requests (bioc-traffic v0 classes): R and package clients 32.6%, other automation 32.5%, browser-like 20.8%, search crawlers 5.7%, mirrors 3.2%, AI crawlers 2.3%, CI systems 1.6%, unknown 0.7%, monitoring 0.5%.">
+<title>Requests by client type on bioconductor.org and www, 2026-09-30 UTC, 5.8 million requests (bioc-traffic v0 classes): R and package clients 32.6%, other automation 32.5%, browser-like 20.8%, search crawlers 5.7%, mirrors 3.2%, AI crawlers 2.3%, CI systems 1.6%, unknown 0.7%, monitoring 0.5%.</title>
+<defs><marker id="ah-MUTED" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4a5a6c"/></marker><marker id="ah-BLUE" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f7fc4"/></marker><marker id="ah-GREEN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4f8f17"/></marker><marker id="ah-AMBER" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b87a00"/></marker><marker id="ah-CORAL" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#cc4733"/></marker><marker id="ah-VIOLET" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6e4fd0"/></marker></defs>
+<text x="330" y="46" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" fill="#14202e" font-weight="500" text-anchor="end" xml:space="preserve">R and package clients</text>
+<rect x="350" y="26" width="717.2" height="30" rx="5" fill="#4f8f17"/>
+<text x="1077.2" y="48" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="16" fill="#4f8f17" font-weight="700" text-anchor="start" xml:space="preserve">32.6%</text>
+<text x="330" y="98" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" fill="#14202e" font-weight="500" text-anchor="end" xml:space="preserve">Other automation</text>
+<rect x="350" y="78" width="715.0" height="30" rx="5" fill="#4a5a6c"/>
+<text x="1075.0" y="100" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="16" fill="#4a5a6c" font-weight="700" text-anchor="start" xml:space="preserve">32.5%</text>
+<text x="330" y="150" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" fill="#14202e" font-weight="500" text-anchor="end" xml:space="preserve">Browser-like</text>
+<rect x="350" y="130" width="457.6" height="30" rx="5" fill="#1f7fc4"/>
+<text x="817.6" y="152" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="16" fill="#1f7fc4" font-weight="700" text-anchor="start" xml:space="preserve">20.8%</text>
+<text x="330" y="202" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" fill="#14202e" font-weight="500" text-anchor="end" xml:space="preserve">Search crawlers</text>
+<rect x="350" y="182" width="125.4" height="30" rx="5" fill="#6e4fd0"/>
+<text x="485.4" y="204" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="16" fill="#6e4fd0" font-weight="700" text-anchor="start" xml:space="preserve">5.7%</text>
+<text x="330" y="254" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" fill="#14202e" font-weight="500" text-anchor="end" xml:space="preserve">Mirrors</text>
+<rect x="350" y="234" width="70.4" height="30" rx="5" fill="#4a5a6c"/>
+<text x="430.4" y="256" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="16" fill="#4a5a6c" font-weight="700" text-anchor="start" xml:space="preserve">3.2%</text>
+<text x="330" y="306" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" fill="#14202e" font-weight="500" text-anchor="end" xml:space="preserve">AI crawlers</text>
+<rect x="350" y="286" width="50.599999999999994" height="30" rx="5" fill="#6e4fd0"/>
+<text x="410.6" y="308" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="16" fill="#6e4fd0" font-weight="700" text-anchor="start" xml:space="preserve">2.3%</text>
+<text x="330" y="358" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" fill="#14202e" font-weight="500" text-anchor="end" xml:space="preserve">CI systems</text>
+<rect x="350" y="338" width="35.2" height="30" rx="5" fill="#4a5a6c"/>
+<text x="395.2" y="360" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="16" fill="#4a5a6c" font-weight="700" text-anchor="start" xml:space="preserve">1.6%</text>
+<text x="330" y="410" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" fill="#14202e" font-weight="500" text-anchor="end" xml:space="preserve">Unknown</text>
+<rect x="350" y="390" width="15.399999999999999" height="30" rx="5" fill="#4a5a6c"/>
+<text x="375.4" y="412" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="16" fill="#4a5a6c" font-weight="700" text-anchor="start" xml:space="preserve">0.7%</text>
+<text x="330" y="462" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" fill="#14202e" font-weight="500" text-anchor="end" xml:space="preserve">Monitoring</text>
+<rect x="350" y="442" width="11.0" height="30" rx="5" fill="#4a5a6c"/>
+<text x="371.0" y="464" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="16" fill="#4a5a6c" font-weight="700" text-anchor="start" xml:space="preserve">0.5%</text>
+</svg>

@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1430 660" width="1430" height="660" role="img" aria-label="The logical data plane. Four sources feed four producers, each owning one slice: bioc-registry for package facts, bioc-traffic for usage, bioc-intelligence for interpretation, bioc-contrib-intelligence for submissions. They publish open, versioned Parquet and JSON joined on the package, which search, analytics, integration and agents all read.">
+<title>The logical data plane. Four sources feed four producers, each owning one slice: bioc-registry for package facts, bioc-traffic for usage, bioc-intelligence for interpretation, bioc-contrib-intelligence for submissions. They publish open, versioned Parquet and JSON joined on the package, which search, analytics, integration and agents all read.</title>
+<defs><marker id="ah-MUTED" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4a5a6c"/></marker><marker id="ah-BLUE" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f7fc4"/></marker><marker id="ah-GREEN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4f8f17"/></marker><marker id="ah-AMBER" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b87a00"/></marker><marker id="ah-CORAL" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#cc4733"/></marker><marker id="ah-VIOLET" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6e4fd0"/></marker></defs>
+<rect x="30" y="70" width="300" height="110" rx="12" fill="#4f8f171a" stroke="#4f8f17" stroke-width="2"/>
+<text x="46" y="100" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="20" fill="#14202e" font-weight="650" text-anchor="start" xml:space="preserve">r-universe, bioc-build</text>
+<text x="46" y="130" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">DESCRIPTION, builds, checks</text>
+<rect x="430" y="70" width="360" height="110" rx="12" fill="#6e4fd01a" stroke="#6e4fd0" stroke-width="2"/>
+<text x="446" y="100" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="20" fill="#14202e" font-weight="650" text-anchor="start" xml:space="preserve">bioc-registry</text>
+<text x="446" y="130" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">facts: versions, builds,</text>
+<text x="446" y="152" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">checks, Authors@R</text>
+<path d="M330,125 L425,125" fill="none" stroke="#4f8f17" stroke-width="2.2" marker-end="url(#ah-GREEN)"/>
+<rect x="30" y="205" width="300" height="110" rx="12" fill="#1f7fc41a" stroke="#1f7fc4" stroke-width="2"/>
+<text x="46" y="235" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="20" fill="#14202e" font-weight="650" text-anchor="start" xml:space="preserve">bioconductor.org edge</text>
+<text x="46" y="265" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">every request, logged</text>
+<rect x="430" y="205" width="360" height="110" rx="12" fill="#6e4fd01a" stroke="#6e4fd0" stroke-width="2"/>
+<text x="446" y="235" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="20" fill="#14202e" font-weight="650" text-anchor="start" xml:space="preserve">bioc-traffic</text>
+<text x="446" y="265" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">usage: downloads, client</text>
+<text x="446" y="287" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">classes, search events</text>
+<path d="M330,260 L425,260" fill="none" stroke="#1f7fc4" stroke-width="2.2" marker-end="url(#ah-BLUE)"/>
+<rect x="30" y="340" width="300" height="110" rx="12" fill="#b87a001a" stroke="#b87a00" stroke-width="2"/>
+<text x="46" y="370" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="20" fill="#14202e" font-weight="650" text-anchor="start" xml:space="preserve">Literature (cdsci-lake)</text>
+<text x="46" y="400" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">OpenAlex, iCite, RePORTER</text>
+<rect x="430" y="340" width="360" height="110" rx="12" fill="#6e4fd01a" stroke="#6e4fd0" stroke-width="2"/>
+<text x="446" y="370" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="20" fill="#14202e" font-weight="650" text-anchor="start" xml:space="preserve">bioc-intelligence</text>
+<text x="446" y="400" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">interpretation: papers,</text>
+<text x="446" y="422" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">citations, people, funders</text>
+<path d="M330,395 L425,395" fill="none" stroke="#b87a00" stroke-width="2.2" marker-end="url(#ah-AMBER)"/>
+<rect x="30" y="475" width="300" height="110" rx="12" fill="#4f8f171a" stroke="#4f8f17" stroke-width="2"/>
+<text x="46" y="505" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="20" fill="#14202e" font-weight="650" text-anchor="start" xml:space="preserve">Community</text>
+<text x="46" y="535" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">Contributions trackers,</text>
+<text x="46" y="557" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">Discourse, YouTube</text>
+<rect x="430" y="475" width="360" height="110" rx="12" fill="#6e4fd01a" stroke="#6e4fd0" stroke-width="2"/>
+<text x="446" y="505" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="20" fill="#14202e" font-weight="650" text-anchor="start" xml:space="preserve">bioc-contrib-intelligence</text>
+<text x="446" y="535" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">submissions and reviews</text>
+<path d="M330,530 L425,530" fill="none" stroke="#4f8f17" stroke-width="2.2" marker-end="url(#ah-GREEN)"/>
+<rect x="410" y="50" width="400" height="555" rx="16" fill="none" stroke="#6e4fd0" stroke-width="1.5" stroke-dasharray="4 6"/>
+<text x="426" y="40" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="14" fill="#6e4fd0" font-weight="700" text-anchor="start" xml:space="preserve">LOGICAL DATA PLANE</text>
+<text x="610" y="640" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#6e4fd0" font-weight="600" text-anchor="middle" xml:space="preserve">open, versioned files (Parquet, JSON), joined on the package</text>
+<rect x="1000" y="70" width="400" height="110" rx="12" fill="#1f7fc41a" stroke="#1f7fc4" stroke-width="2"/>
+<text x="1016" y="100" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="20" fill="#14202e" font-weight="650" text-anchor="start" xml:space="preserve">Search</text>
+<text x="1016" y="130" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">quick search, package finder,</text>
+<text x="1016" y="152" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">guided paths, sitemap, JSON-LD</text>
+<path d="M810,330 L995,125" fill="none" stroke="#4a5a6c" stroke-width="2.2" marker-end="url(#ah-MUTED)"/>
+<rect x="1000" y="205" width="400" height="110" rx="12" fill="#1f7fc41a" stroke="#1f7fc4" stroke-width="2"/>
+<text x="1016" y="235" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="20" fill="#14202e" font-weight="650" text-anchor="start" xml:space="preserve">Analytics</text>
+<text x="1016" y="265" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">dashboards, reports,</text>
+<text x="1016" y="287" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">grant and board numbers</text>
+<path d="M810,330 L995,260" fill="none" stroke="#4a5a6c" stroke-width="2.2" marker-end="url(#ah-MUTED)"/>
+<rect x="1000" y="340" width="400" height="110" rx="12" fill="#1f7fc41a" stroke="#1f7fc4" stroke-width="2"/>
+<text x="1016" y="370" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="20" fill="#14202e" font-weight="650" text-anchor="start" xml:space="preserve">Integration</text>
+<text x="1016" y="400" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">website build, API, mirrors,</text>
+<text x="1016" y="422" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">BiocPkgTools, other projects</text>
+<path d="M810,330 L995,395" fill="none" stroke="#4a5a6c" stroke-width="2.2" marker-end="url(#ah-MUTED)"/>
+<rect x="1000" y="475" width="400" height="110" rx="12" fill="#6e4fd01a" stroke="#6e4fd0" stroke-width="2"/>
+<text x="1016" y="505" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="20" fill="#14202e" font-weight="650" text-anchor="start" xml:space="preserve">Agents</text>
+<text x="1016" y="535" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">MCP, llms.txt, Parquet,</text>
+<text x="1016" y="557" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#4a5a6c" font-weight="400" text-anchor="start" xml:space="preserve">events agents act on</text>
+<path d="M810,330 L995,530" fill="none" stroke="#4a5a6c" stroke-width="2.2" marker-end="url(#ah-MUTED)"/>
+</svg>

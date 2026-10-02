@@ -26,6 +26,7 @@ Each link below is the page's Markdown version; the HTML page is the same path w
 - How are download statistics computed, and can they be trusted? → [Download stats](https://seandavi.github.io/bioc-infrastructure/download-stats.llms.md), [ADR 0004](https://seandavi.github.io/bioc-infrastructure/adr/0004-download-statistics-are-generated-static-files.llms.md)
 - What is logged about requests, and how are client addresses handled? → [ADR 0003](https://seandavi.github.io/bioc-infrastructure/adr/0003-request-logging-after-the-cloudflare-cutover.llms.md), [ADR 0012](https://seandavi.github.io/bioc-infrastructure/adr/0012-client-addresses-are-stored-raw-and-hashed-in-views.llms.md)
 - What ran on the legacy servers, and what does retiring them involve? → [Current state (legacy)](https://seandavi.github.io/bioc-infrastructure/current-state.llms.md), [Decommission plan](https://seandavi.github.io/bioc-infrastructure/decommission-plan.llms.md)
+- How will site search work, and what about the CZI-funded unified search? → [Unified search proposal](https://seandavi.github.io/bioc-infrastructure/proposal-unified-search.llms.md)
 
 ## Current: the running system
 
@@ -45,6 +46,10 @@ Each link below is the page's Markdown version; the HTML page is the same path w
 - [r-universe size limits](https://seandavi.github.io/bioc-infrastructure/r-universe-size-limits.llms.md): where r-universe's package size limits live and what they mean for Bioconductor.
 - [Data packages in r-universe](https://seandavi.github.io/bioc-infrastructure/data-packages-in-r-universe.llms.md): a size audit of the experiment-data and workflow packages, which motivates the separate bioc-build system.
 - [CI and scheduled jobs](https://seandavi.github.io/bioc-infrastructure/ci.llms.md): every workflow and timer across the repos, and what a red badge means.
+
+## Proposals: under discussion, not decided
+
+- [Unified search](https://seandavi.github.io/bioc-infrastructure/proposal-unified-search.llms.md): how to deliver the unified search funded by CZI EOSS cycle 6 on the new stack. It treats the data plane as a logical set of open files serving search, analytics, integration and agents. It covers personas, focused search experiences, design invariants with sources, extensibility (skills, agentic SOPs), sustainability limits (no hosted search cluster) and a proposed sequence.
 
 ## Historical: the legacy estate and the transition
 
