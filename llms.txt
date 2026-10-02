@@ -49,7 +49,7 @@ Each link below is the page's Markdown version; the HTML page is the same path w
 
 ## Proposals: under discussion, not decided
 
-- [Unified search](https://seandavi.github.io/bioc-infrastructure/proposal-unified-search.llms.md): how to deliver the unified search funded by CZI EOSS cycle 6 on the new stack. It treats the data plane as a logical set of open files serving search, analytics, integration and agents. It covers personas, focused search experiences, design invariants with sources, extensibility (skills, agentic SOPs), sustainability limits (no hosted search cluster) and a proposed sequence.
+- [Unified search](https://seandavi.github.io/bioc-infrastructure/proposal-unified-search.llms.md): how to deliver the unified search funded by CZI EOSS cycle 6 on the new stack. It treats the data plane as a logical contract (open, versioned files about many entities, linked by stable identifiers) that serves search, analytics, integration and agents. It covers how site search is used today (from the edge logs), personas, focused search experiences, possible measures, design invariants with sources, extensibility (skills, agentic SOPs), sustainability limits (no hosted search cluster) and a proposed sequence.
 
 ## Historical: the legacy estate and the transition
 

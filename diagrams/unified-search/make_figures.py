@@ -108,7 +108,7 @@ def data_plane():
         b.append(box(430, y, 360, 110, pt, pl, "VIOLET"))
         b.append(arrow([(330, y + 55), (425, y + 55)], sr))
     b.append(group(410, 50, 400, 555, "Logical data plane", "VIOLET"))
-    b.append(text(610, 640, "open, versioned files (Parquet, JSON), joined on the package", 15, "VIOLET", 600, "middle", mono=True))
+    b.append(text(610, 640, "open, versioned files about many entities, linked by stable IDs", 15, "VIOLET", 600, "middle", mono=True))
     cons = [
         ("Search", ["quick search, package finder,", "guided paths, sitemap, JSON-LD"], "BLUE"),
         ("Analytics", ["dashboards, reports,", "grant and board numbers"], "BLUE"),
@@ -119,7 +119,7 @@ def data_plane():
         y = 70 + i * 135
         b.append(box(1000, y, 400, 110, t, ls, r))
         b.append(arrow([(810, 330), (995, y + 55)]))
-    return svg(1430, 660, b, "The logical data plane. Four sources feed four producers, each owning one slice: bioc-registry for package facts, bioc-traffic for usage, bioc-intelligence for interpretation, bioc-contrib-intelligence for submissions. They publish open, versioned Parquet and JSON joined on the package, which search, analytics, integration and agents all read.")
+    return svg(1430, 660, b, "The logical data plane. Four sources feed four producers, each owning one slice: bioc-registry for package facts, bioc-traffic for usage, bioc-intelligence for interpretation, bioc-contrib-intelligence for submissions. They publish open, versioned Parquet and JSON about packages, builds, people, publications, grants, requests and submissions, linked by stable identifiers, which search, analytics, integration and agents all read.")
 
 
 def index_lifecycle():
