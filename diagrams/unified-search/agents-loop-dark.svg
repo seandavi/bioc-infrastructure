@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1370 510" width="1370" height="510" role="img" aria-label="Agents in the loop. Events from the data plane (a version propagates, a build breaks, a submission is reviewed, zero-result searches spike, a person asks a question) reach an agent that reads the same data people see and cites stable URLs. It produces answers with citations, draft maintainer notes, draft issues or pull requests, and review precedent. Anything that changes the project passes human review.">
+<title>Agents in the loop. Events from the data plane (a version propagates, a build breaks, a submission is reviewed, zero-result searches spike, a person asks a question) reach an agent that reads the same data people see and cites stable URLs. It produces answers with citations, draft maintainer notes, draft issues or pull requests, and review precedent. Anything that changes the project passes human review.</title>
+<defs><marker id="ah-MUTED" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#a9b8ca"/></marker><marker id="ah-BLUE" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4aa8e8"/></marker><marker id="ah-GREEN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9fd05a"/></marker><marker id="ah-AMBER" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f2b441"/></marker><marker id="ah-CORAL" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ff7a66"/></marker><marker id="ah-VIOLET" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b49cff"/></marker></defs>
+<rect x="30" y="40" width="360" height="72" rx="12" fill="#9fd05a1a" stroke="#9fd05a" stroke-width="2"/>
+<text x="46" y="70" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" fill="#e8eef6" font-weight="650" text-anchor="start" xml:space="preserve">New version propagates</text>
+<path d="M390,76 L495,255" fill="none" stroke="#a9b8ca" stroke-width="1.8" marker-end="url(#ah-MUTED)"/>
+<rect x="30" y="132" width="360" height="72" rx="12" fill="#ff7a661a" stroke="#ff7a66" stroke-width="2"/>
+<text x="46" y="162" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" fill="#e8eef6" font-weight="650" text-anchor="start" xml:space="preserve">Build breaks on a platform</text>
+<path d="M390,168 L495,255" fill="none" stroke="#a9b8ca" stroke-width="1.8" marker-end="url(#ah-MUTED)"/>
+<rect x="30" y="224" width="360" height="72" rx="12" fill="#9fd05a1a" stroke="#9fd05a" stroke-width="2"/>
+<text x="46" y="254" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" fill="#e8eef6" font-weight="650" text-anchor="start" xml:space="preserve">Submission gets a review</text>
+<path d="M390,260 L495,255" fill="none" stroke="#a9b8ca" stroke-width="1.8" marker-end="url(#ah-MUTED)"/>
+<rect x="30" y="316" width="360" height="72" rx="12" fill="#4aa8e81a" stroke="#4aa8e8" stroke-width="2"/>
+<text x="46" y="346" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" fill="#e8eef6" font-weight="650" text-anchor="start" xml:space="preserve">Zero-result searches spike</text>
+<path d="M390,352 L495,255" fill="none" stroke="#a9b8ca" stroke-width="1.8" marker-end="url(#ah-MUTED)"/>
+<rect x="30" y="408" width="360" height="72" rx="12" fill="#4aa8e81a" stroke="#4aa8e8" stroke-width="2"/>
+<text x="46" y="438" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" fill="#e8eef6" font-weight="650" text-anchor="start" xml:space="preserve">A person asks a question</text>
+<path d="M390,444 L495,255" fill="none" stroke="#a9b8ca" stroke-width="1.8" marker-end="url(#ah-MUTED)"/>
+<rect x="500" y="150" width="360" height="210" rx="12" fill="#b49cff1a" stroke="#b49cff" stroke-width="2"/>
+<text x="680.0" y="180" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="22" fill="#e8eef6" font-weight="650" text-anchor="middle" xml:space="preserve">Agent</text>
+<text x="680.0" y="210" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#a9b8ca" font-weight="400" text-anchor="middle" xml:space="preserve">reads the data plane</text>
+<text x="680.0" y="232" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#a9b8ca" font-weight="400" text-anchor="middle" xml:space="preserve">(MCP, Parquet, pages)</text>
+<text x="680.0" y="254" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#a9b8ca" font-weight="400" text-anchor="middle" xml:space="preserve">cites stable URLs</text>
+<text x="680.0" y="276" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#a9b8ca" font-weight="400" text-anchor="middle" xml:space="preserve"></text>
+<text x="680.0" y="298" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#a9b8ca" font-weight="400" text-anchor="middle" xml:space="preserve">same data people see</text>
+<rect x="960" y="40" width="360" height="90" rx="12" fill="#4aa8e81a" stroke="#4aa8e8" stroke-width="2"/>
+<text x="976" y="70" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" fill="#e8eef6" font-weight="650" text-anchor="start" xml:space="preserve">Answer, with citations</text>
+<text x="976" y="100" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#a9b8ca" font-weight="400" text-anchor="start" xml:space="preserve">to the person asking</text>
+<path d="M860,255 L955,85" fill="none" stroke="#a9b8ca" stroke-width="1.8" marker-end="url(#ah-MUTED)"/>
+<rect x="960" y="155" width="360" height="90" rx="12" fill="#4aa8e81a" stroke="#4aa8e8" stroke-width="2"/>
+<text x="976" y="185" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" fill="#e8eef6" font-weight="650" text-anchor="start" xml:space="preserve">Draft maintainer note</text>
+<text x="976" y="215" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#a9b8ca" font-weight="400" text-anchor="start" xml:space="preserve">build failure triage</text>
+<path d="M860,255 L955,200" fill="none" stroke="#a9b8ca" stroke-width="1.8" marker-end="url(#ah-MUTED)"/>
+<rect x="960" y="270" width="360" height="90" rx="12" fill="#4aa8e81a" stroke="#4aa8e8" stroke-width="2"/>
+<text x="976" y="300" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" fill="#e8eef6" font-weight="650" text-anchor="start" xml:space="preserve">Draft issue or PR</text>
+<text x="976" y="330" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#a9b8ca" font-weight="400" text-anchor="start" xml:space="preserve">synonym, guided-path fix</text>
+<path d="M860,255 L955,315" fill="none" stroke="#a9b8ca" stroke-width="1.8" marker-end="url(#ah-MUTED)"/>
+<rect x="960" y="385" width="360" height="90" rx="12" fill="#4aa8e81a" stroke="#4aa8e8" stroke-width="2"/>
+<text x="976" y="415" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" fill="#e8eef6" font-weight="650" text-anchor="start" xml:space="preserve">Review precedent</text>
+<text x="976" y="445" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15" fill="#a9b8ca" font-weight="400" text-anchor="start" xml:space="preserve">similar past submissions</text>
+<path d="M860,255 L955,430" fill="none" stroke="#a9b8ca" stroke-width="1.8" marker-end="url(#ah-MUTED)"/>
+<rect x="950" y="25" width="380" height="455" rx="16" fill="none" stroke="#ff7a66" stroke-width="1.5" stroke-dasharray="4 6"/>
+<text x="966" y="15" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="14" fill="#ff7a66" font-weight="700" text-anchor="start" xml:space="preserve">HUMAN REVIEW BEFORE ANYTHING SHIPS</text>
+</svg>
