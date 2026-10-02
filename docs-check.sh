@@ -39,7 +39,7 @@ if [[ ${LINKS:-1} == 1 ]]; then
            # Placeholders in examples (<path>, %s, $1, {a,b}) aren't links.
            grep -v -E '[<{$%]' |
            # Private repos 404 for anonymous readers by design; ADRs that cite them stay as written.
-           grep -v -E 'github[.]com/seandavi/(bioc-cloudflare|bioc-origin|bioc-traffic|monode)([/]|$)')
+           grep -v -E 'github[.]com/seandavi/(bioc-cloudflare|bioc-origin|bioc-traffic|infra-costs|monode)([/]|$)')
 fi
 report=$(grep . <<< "$report")
 [[ -z $report ]] && { echo "docs-check: clean"; exit 0; }
