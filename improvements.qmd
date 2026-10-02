@@ -90,6 +90,14 @@ around $170, still falling as the edge caches fill. So the honest figure is a co
 hundred dollars a month, not $80, against $5,000. The [overview](index.qmd#two-costs-not-one)
 has the AWS breakdown.
 
+Since 2026-10-02 we also record what both providers actually bill, day by day, so this
+story can move from projections to measured costs over time. A daily job collects the
+Bioconductor AWS account's costs from Cost Explorer, back to 2025-09-01, and the Cloudflare
+account's usage charges, back to 2026-06-17, which is as far as Cloudflare's billing API
+goes. The Cloudflare account also hosts unrelated projects, so its figures are an upper
+bound for Bioconductor. The code is in the private
+[infra-costs](https://github.com/seandavi/infra-costs) repository.
+
 ## Faster, smaller downloads, and a regression we caught
 
 *Status: measured 2026-09-28 from one well-connected host in Denver, before and after fixing
