@@ -11,3 +11,5 @@ ci-inventory.md
 dns/verify.log
 # Local working sources for proposals (grant PDFs, vendor material); not published.
 search-proposal/
+__pycache__/
+.pytest_cache/
