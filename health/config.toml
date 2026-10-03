@@ -1,0 +1,85 @@
+# Defaults for health/collect.py. Edit freely; every threshold the rules use is here.
+owner = "seandavi"
+repos = ["bioc-edge", "bioc-traffic", "bioc-infrastructure", "bioc-registry",
+         "bioc-website", "bioc-build", "bioc-manifest", "bioc-intelligence"]
+# Prototypes, not production (ci-inventory.py NOTES): Actions failures cap at warn.
+experimental_repos = ["bioc-build", "bioc-manifest"]
+# Where bioc-notify@ (bioc-edge/notify-failure.sh) files "<unit> is failing" issues.
+failure_issue_repo = "bioc-edge"
+activity_window_days = 7
+
+[systemd]
+unit_globs = ["bioc-*", "biocintel-*"]
+window_hours = 24
+journal_tail_lines = 40
+
+[access_logs]
+parquet_root = "/data/davsean/bioc-cloudflare-parquet"
+rollups_dir = "/data/davsean/bioc-traffic-rollups"
+stats_as_of = "/data/davsean/bioc-traffic-stats/stats/DATA_AS_OF"
+# First full day of production traffic on the new edge; earlier days are no baseline.
+baseline_floor = "2026-09-29"
+baseline_days = 7
+top_paths = 10
+
+[host]
+disk_paths = ["/data/davsean", "~"]
+log_globs = ["~/Documents/git/bioc-edge/sync-*.log*"]
+
+[[endpoints]]
+name = "homepage"
+url = "https://bioconductor.org/"
+expect_status = 200
+
+[[endpoints]]
+name = "release PACKAGES (BiocManager path)"
+url = "https://bioconductor.org/packages/release/bioc/src/contrib/PACKAGES"
+expect_status = 200
+expect_body_prefix = "Package:"
+
+[[endpoints]]
+name = "symlink resolution"
+url = "https://bioconductor.org/packages/release/bioc/html/BiocGenerics.html"
+expect_status = 200
+
+[[endpoints]]
+name = "range request"
+url = "https://bioconductor.org/packages/release/bioc/src/contrib/PACKAGES.gz"
+range = "bytes=0-99"
+expect_status = 206
+
+[[endpoints]]
+name = "mirror manifest API"
+url = "https://bioconductor.org/api/v1/manifest/index.json"
+expect_status = 200
+expect_body_contains = "\"versions\""
+
+[[endpoints]]
+name = "404 page"
+url = "https://bioconductor.org/no-such-page-health-probe"
+expect_status = 404
+expect_body_contains = "<title>"
+
+[thresholds]
+pr_stale_days = 14
+issue_stale_days = 30
+actions_cron_grace_hours = 6
+parquet_lag_warn_hours = 2
+parquet_lag_fail_hours = 4
+volume_ratio_low = 0.3
+volume_ratio_high = 3.0
+err5xx_share_warn = 0.001
+err5xx_share_fail = 0.01
+err5xx_hour_share_warn = 0.01
+err5xx_hour_min_requests = 1000
+hit_ratio_drop_points = 15
+share404_rise_points = 10
+p95_ratio_warn = 2.0
+rollup_age_hours = { minute = [0.5, 1.0], hour = [2.0, 3.0], day = [36.0, 48.0], overall_day = [36.0, 48.0] }  # [warn, fail]
+stats_as_of_warn_days = 1
+stats_as_of_fail_days = 2
+disk_free_warn_pct = 15
+disk_free_fail_pct = 5
+log_files_warn = 1000
+log_bytes_warn = 2147483648
+endpoint_slow_ms = 5000
