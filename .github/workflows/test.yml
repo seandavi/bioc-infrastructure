@@ -13,3 +13,11 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y rclone
       - name: mirror-sync.sh against a local fake site
         run: ./test-mirror-sync.sh
+
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: health collector rules
+        run: uv run --python 3.12 --with pytest pytest health/tests -q
