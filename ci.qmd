@@ -66,7 +66,7 @@ Reading a red badge:
 
 The systemd `--user` timers on onclappc02, following the platform
 [scheduling convention](https://github.com/seandavi/monode/blob/main/infrastructure/SCHEDULING.md).
-All of them run on that one host, from development checkouts of their repos (for example
+All of them run on that one host, mostly from development checkouts of their repos (`bioc-site-refresh` uses its own clone of main) (for example
 `~/Documents/git/bioc-edge`); moving them to separate operations checkouts is planned in
 [bioc-infrastructure#43](https://github.com/seandavi/bioc-infrastructure/issues/43).
 There is no live status column: these alert on failure only (a GitHub issue
@@ -76,6 +76,7 @@ set up yet.
 | Unit | Repo | Cadence | What it does | On failure |
 |---|---|---|---|---|
 | [`bioc-sync`](https://github.com/seandavi/bioc-edge/blob/main/systemd/bioc-sync.service) | bioc-edge | hourly | rsync from master.bioconductor.org to the local mirror, upload changes to R2, purge them from the edge cache, regenerate the mirror manifest | GitHub issue |
+| [`bioc-site-refresh`](https://github.com/seandavi/bioc-website/blob/main/ops/systemd/bioc-site-refresh.service) | bioc-website | every 20 min | When Bioconductor/bioconductor.org `devel` moves: regenerate prose and assets into the site data snapshot, upload it, dispatch the site build. Keeps replaced snapshots in `/data/davsean/bioc-site-refresh/snapshots` | GitHub issue |
 | [`bioc-reconcile`](https://github.com/seandavi/bioc-edge/blob/main/systemd/bioc-reconcile.service) | bioc-edge | weekly, Sun 04:00 | Checksum drift check: does R2 match the local mirror | GitHub issue |
 | [`bioc-logpush-check`](https://github.com/seandavi/bioc-edge/blob/main/systemd/bioc-logpush-check.service) | bioc-edge | daily 07:15 | Alert if yesterday's Logpush access-log delivery to GCS is missing | GitHub issue |
 | [`biocintel-refresh`](https://github.com/seandavi/bioc-intelligence/blob/main/systemd/biocintel-refresh.service) | bioc-intelligence | monthly, 1st 06:00 UTC | Enrichment pipeline: extract → link → enrich → marts → publish | ntfy |

@@ -21,7 +21,7 @@ Other pages use these words with these meanings.
 |---|---|
 | **master** | master.bioconductor.org, the legacy web server. Its docroot is where BBS and the core team's propagation put the package repositories. The mirror is copied from it. It stays up until parity is clean ([roadmap M2](roadmap.qmd)). |
 | **the mirror** | The copy of master's docroot in R2, at the top level of the `bioc-site` bucket (`packages/...`, `checkResults/...`). About 5.1 TB. |
-| **the build** | One output of bioc-website's Astro build, stored at `site/<sha>/` in R2. `site/latest` holds the sha of the newest `main` build. |
+| **the build** | One output of bioc-website's Astro build, stored at `site/<sha>-<snapshot hash>/` in R2. `site/latest` holds the id of the newest `main` or dispatched build. |
 | **preview** | A pull request's build, stored at `preview/pr-<n>/` and served at `/_pr/<n>/`. The R2 key and the URL differ. |
 | **the edge** | The `bioc-site` Worker plus Cloudflare's cache in front of R2. The code is in bioc-edge. |
 | **route table** | `_routes.json` in R2: which URL prefixes the build answers before the mirror. Data, not code. |
@@ -122,8 +122,9 @@ flowchart LR
     RU["r-universe<br/>most binaries"] -- "core team propagation" --> M
     M -- "bioc-sync, hourly<br/>rsync + upload + purge" --> MIR[("R2: the mirror")]
   end
-  subgraph SITE[Site, on every merge]
-    GH["bioc-website main"] -- "CI: tests, Astro build" --> B[("R2: site/&lt;sha&gt;<br/>+ site/latest")]
+  subgraph SITE[Site, on merge or upstream content push]
+    UP["Bioconductor/bioconductor.org<br/>prose, assets"] -- "bioc-site-refresh, 20 min<br/>snapshot + dispatch" --> GH
+    GH["bioc-website main"] -- "CI: tests, Astro build" --> B[("R2: site/&lt;sha&gt;-&lt;data&gt;<br/>+ site/latest")]
   end
   MIR --> W["bioc-site Worker<br/>build first, else mirror"]
   B --> W
@@ -160,22 +161,39 @@ The registry publishes a gated r-universe repository at its own host. No request
 the experimental `/next/` package pages. Making it the source of the software repositories is the
 [registry switch](registry-switch.qmd), a plan with open decisions.
 
-### The site
+### The site {#site}
 
-bioc-website's CI (`site.yml`) runs on every push to `main` and every pull request:
+The site content means the pages bioc-website renders plus the documents they link to: prose pages,
+events, site assets, and package data for the live releases. The package repositories are not part
+of it. Exactly what it covers, where each part is written, and how it should be managed are open
+for discussion in
+[bioc-infrastructure#91](https://github.com/seandavi/bioc-infrastructure/issues/91)
+(sub-issues #92 to #95).
+
+bioc-website's CI (`site.yml`) runs on every push to `main`, every pull request, and on dispatch:
 
 1. Pipeline tests.
 2. Pull the data snapshot `_ci/site-data.tar.zst` from R2.
 3. Astro build (the build step took 27-29 s in recent runs).
-4. `main`: upload to `site/<sha>/`, then write the sha to `site/latest`. Pull request: upload
-   to `preview/pr-<n>/`, which is deleted when the PR closes.
+4. `main` or dispatch: upload to `site/<sha>-<snapshot hash>/`, then write that id to
+   `site/latest`. Pull request: upload to `preview/pr-<n>/`, which is deleted when the PR closes.
+
+Live pages carry the id as `x-bioc-build`. It includes the snapshot hash because the edge cache
+keys on the build id and treats builds as immutable, so new data on the same commit must get
+a new id. Re-running a build does not refresh cached pages
+([#90](https://github.com/seandavi/bioc-infrastructure/issues/90)).
 
 A merge to `main` is live within about a minute of CI finishing, because the route table
-follows `site/latest`. The snapshot is refreshed by hand, so pipeline changes and upstream
-prose edits (from [Bioconductor/bioconductor.org](https://github.com/Bioconductor/bioconductor.org))
-reach production only after someone refreshes it and a `main` build runs
-([Astro site build](astro-site-build.qmd)). Package landing pages for 3.23 and 3.24 take
-versions and download links from the repositories' own `PACKAGES` indexes as of that snapshot
+follows `site/latest`. The snapshot has three parts, which are refreshed differently:
+
+| Part | Source | Refreshed |
+|---|---|---|
+| Prose pages, events, announcement (`data/site`) and site chrome (`public/`: style, images, js) | [Bioconductor/bioconductor.org](https://github.com/Bioconductor/bioconductor.org) `devel` | Automatically. `bioc-site-refresh` ([CI & scheduled jobs](ci.qmd#scheduled-jobs-outside-github-actions)) checks every 20 minutes and, when `devel` has moved, regenerates this part and dispatches a build. An upstream push is live about 12 minutes later |
+| Package data for 3.23 and 3.24 (`data/<release>`) | r-universe, tarball DESCRIPTIONs, download stats, biocViews | By hand only ([bioc-website#5](https://github.com/seandavi/bioc-website/issues/5)); `bioc-site-refresh` carries it over unchanged |
+| Documents under upstream `assets/` (PDFs such as TAB minutes) | Bioconductor/bioconductor.org | Not in the snapshot. The legacy staging cron deploys them to master, then `bioc-sync` copies them to R2 ([#93](https://github.com/seandavi/bioc-infrastructure/issues/93)) |
+
+Package landing pages for 3.23 and 3.24 take versions and download links from the repositories'
+own `PACKAGES` indexes as of that snapshot
 ([bioc-website#31](https://github.com/seandavi/bioc-website/pull/31)); the 33 older releases are frozen.
 
 ## When something looks wrong {#diagnosing}
