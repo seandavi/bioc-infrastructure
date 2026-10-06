@@ -25,8 +25,8 @@ data-source analysis, [Edge cache](cache.qmd) for caching and purges,
 2. Pull the data snapshot `s3://bioc-site/_ci/site-data.tar.zst` from R2 and unpack it into
    `astro/`.
 3. `npm run build`, which is `astro build && pagefind --site dist`.
-4. Upload `astro/dist` to `site/<sha>/` in the `bioc-site` bucket, then write `<sha>` to
-   `site/latest`.
+4. Upload `astro/dist` to `site/<sha>-<snapshot hash>/` in the `bioc-site` bucket, then write that id to
+   `site/latest` (before 2026-10-06 the id was the bare sha; see [the site](how-it-works.qmd#site)).
 
 The Worker does the rest. Its route table `_routes.json` is
 `{"build":"latest","prefixes":["/"]}`: every path tries `site/<latest sha>/` first, then the
