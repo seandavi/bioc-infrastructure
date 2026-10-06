@@ -28,8 +28,8 @@ dry-run first and check the object count.
 |---|---|---|
 | Source | `bioc-rsync@master.bioconductor.org` over SSH | `https://bioconductor.org/api/v1/manifest/index.json` over HTTPS |
 | Access | SSH key, requested by form | none |
-| Tool | `rsync -zrtlv --delete` | `rclone copy --files-from`, or `wget -i` |
-| Symlinks | created by hand: `release` and `devel` | listed in the manifest index (202 on 2026-09-30); the script recreates the 128 under `packages/` |
+| Tool | `rsync -zrtlv --delete` | `rclone copy --files-from` |
+| Symlinks | created by hand: `release` and `devel` | listed in the manifest index (202 on 2026-09-30); the script recreates `release`, `devel` and the R-version aliases |
 | Current version numbers | in the rsync module names | in `index.json`, read every run |
 | Cadence | release monthly-ish, devel at most weekly | manifest regenerated on every hourly sync; syncing daily is enough |
 
@@ -64,10 +64,9 @@ Release and devel together are roughly 320 GB.
 
 ## Running the sync
 
-One script does the whole job and is safe to run from cron:
-[`mirror-sync.sh`](mirror-sync.sh). It needs `bash`, `curl`, `jq`, `gzip`, `md5sum` and
-`flock`. `Rscript` is optional; if present, the script ends by checking the result with
-`available.packages()`.
+[`mirror-sync.sh`](mirror-sync.sh) is a short wrapper around `rclone copy`. It needs `bash`,
+`curl`, `gunzip`, `jq` and [`rclone`](https://rclone.org/install/), and checks for them before
+doing anything. It runs on Linux and macOS (`brew install jq rclone`).
 
 ```sh
 curl -fsSLO https://seandavi.github.io/bioc-infrastructure/mirror-sync.sh
@@ -85,20 +84,21 @@ From cron, daily is plenty:
 
 1. **Reads `index.json`** for the current release and devel versions, every run. Nothing is
    pinned: at a release roll the script follows the new numbers by itself.
-2. **Fetches the manifests and checks they're complete.** Each manifest's line count must
-   equal the object count `index.json` publishes for it. A partial download stops the run
-   before anything on disk changes.
-3. **Downloads what's new or changed**, judged by presence, size and the manifest's MD5.
-   Each file lands as a `.part` file, is checked against its MD5, then moved into place, so
-   your server never serves a half-written file. A failed download stops the run before any
-   removal.
+2. **Lists every file** in those versions' manifests for the repos you carry, then applies
+   your `INCLUDE`/`EXCLUDE` patterns. A failed manifest download stops the run.
+3. **Copies with `rclone copy --files-from`.** Only new and changed files are fetched, judged
+   by size and modification time. rclone writes each file under a temporary name and renames
+   it when complete, so your server never serves a half-written file. rclone doesn't check
+   the manifest's MD5s; they're there if you want to verify a copy yourself.
 4. **Recreates the symlinks** (`release`, `devel` and the R-version aliases inside
-   `contrib/`). Skipping this fails silently: pages keep working while `install.packages()`
-   returns 404.
-5. **Removes files that left the manifest**, only inside the directories it manages:
-   `packages/<version>/<repo>/` for the repos you carry. Your own pages and any older
-   releases you keep are never touched.
-6. **Checks that R can read the repository** through the `release` link.
+   `contrib/`). rclone can't make them, and without them, URLs that go through them
+   return 404 on your mirror.
+
+**It never deletes.** rclone's http backend can't list directories on this site, so
+`rclone sync` can't tell "removed upstream" from "not listed" (see the warning above).
+Old package versions stay on disk until you remove them. At a release roll, delete the
+retired version yourself, e.g. `rm -rf /srv/bioc/packages/3.22`.
+That also clears the older tarballs that piled up while it was current.
 
 ### Settings
 
@@ -106,29 +106,35 @@ From cron, daily is plenty:
 |---|---|---|
 | `DEST` | (required) | Directory you serve as the site root. |
 | `REPOS` | `bioc data-annotation data-experiment workflows books` | Which repositories to carry (see [Choosing scope](#choosing-scope)). |
-| `MAX_REMOVE` | `0.10` | Remove files automatically only while they're at most this fraction of the mirror. |
-| `CONFIRM_REMOVE` | unset | Set to `1` to carry out a removal that exceeded `MAX_REMOVE`. |
-| `JOBS` | `8` | Parallel downloads. |
-| `STATE` | `~/.local/state/bioc-mirror-sync` | The script's state: last manifest, versions, lock. Use one per `DEST`. |
+| `INCLUDE` | everything | Extended regex; copy only paths that match. |
+| `EXCLUDE` | nothing | Extended regex; skip paths that match. |
+| `RCLONE_*` | | Any rclone setting, e.g. `RCLONE_TRANSFERS=16` for more parallel downloads. |
 
-### Exit status and release rolls
-
-| Status | Meaning |
-|---|---|
-| `0` | Done. |
-| `1` | Something failed (message on stderr). Nothing was removed; rerun to retry. |
-| `3` | Removal held: more files left the manifest than `MAX_REMOVE` allows. |
-
-Routine churn is well under the limit and is removed automatically. A release roll retires
-a whole version, far more than 10% of the mirror, so the run downloads the new version,
-moves the symlinks, and then stops with status `3` instead of deleting. Your mirror keeps
-serving throughout. Review the list in `$STATE/remove.txt`, then:
+Patterns match the full path, e.g. `packages/3.23/bioc/src/contrib/limma_3.66.0.tar.gz`.
+Source packages only, no data repos:
 
 ```sh
-DEST=/srv/bioc CONFIRM_REMOVE=1 ./mirror-sync.sh
+DEST=/srv/bioc REPOS="bioc workflows books" INCLUDE='/src/contrib/' ./mirror-sync.sh
 ```
 
-Runs that overlap (a slow run still going when cron starts the next) are refused by a lock.
+Exit status is `0` when done, and non-zero with a message on stderr otherwise. A failed run
+has deleted nothing; rerun it.
+
+### Without the script
+
+The script is the recipe; you can run its steps by hand or adapt them. The part that
+matters is the file list:
+
+```sh
+curl -fsS https://bioconductor.org/api/v1/manifest/3.23/bioc.tsv.gz | gunzip | cut -f1 \
+  | grep '/src/contrib/' > files.txt
+test -s files.txt
+rclone copy --http-url https://bioconductor.org :http: /srv/bioc --files-from files.txt --no-traverse
+```
+
+A bare `rclone sync` against a directory URL, the way `rsync` used to work, isn't possible
+yet: the site serves no directory listings for rclone to read. That's tracked in
+[bioc-edge#61](https://github.com/seandavi/bioc-edge/issues/61).
 
 ## Serving
 
@@ -152,12 +158,12 @@ BiocManager::install("GEOquery")
 
 ## Migrating an existing rsync mirror
 
-Point the script at the `DEST` you already serve and run it by hand the first time. It
-downloads only what differs and replaces the `release` and `devel` symlinks you made by hand.
-If one of them is a real directory rather than a symlink, the script stops and says so; move
-it aside and rerun. Files the rsync tree has that the manifest doesn't are removed, subject
-to the `MAX_REMOVE` hold, so a first run against an old tree will usually stop with status
-`3` and a list to review. Tell the Bioconductor team when you have switched, through the
+Point the script at the `DEST` you already serve and run it by hand the first time. rsync
+kept the old origin's timestamps, which differ from the new site's, so the first run may
+download much of the tree again; later runs fetch only what changed. If `packages/release` or
+`packages/devel` is a real directory rather than a symlink, move it aside first, or the
+script's link lands inside it. Nothing is deleted, so files the old tree has that the manifest
+doesn't stay until you remove them. Tell the Bioconductor team when you have switched, through the
 [site problem form](https://github.com/seandavi/bioc-infrastructure/issues/new?template=site-problem.yml), so the rsync
 account can be closed on your say-so rather than on log silence.
 
