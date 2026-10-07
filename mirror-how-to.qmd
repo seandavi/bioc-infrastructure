@@ -41,7 +41,9 @@ dry-run first and check the object count.
 | `GET /api/v1/manifest/<version>/<repo>.tsv.gz` | `path` · `size` · `md5`, one object per line, tab-separated |
 
 Repos are `bioc`, `data-annotation`, `data-experiment`, `workflows` and `books`, for the
-current release and devel only. Older releases are not published; ask if you need them
+current release and devel only. Only the manifest names use a hyphen: the paths inside them, on
+the site and in your mirror are the usual `packages/<version>/data/annotation/` and
+`.../data/experiment/`, so `options(repos=)` and R's `etc/repositories` work unchanged. Older releases are not published; ask if you need them
 ([reporting a problem](report.qmd)).
 
 The MD5 is a real MD5 of the object, not a composite ETag. An empty third column means no
