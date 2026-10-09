@@ -5,7 +5,7 @@ date: 2026-10-01
 
 ::: {.callout-note}
 ## A dated snapshot
-These numbers describe one full UTC day, 2026-09-30, two days after the cutover, for
+These numbers describe one full UTC day, 2026-09-30, two days after the cutover, for <!-- docs-check: ok -->
 bioconductor.org and www.bioconductor.org. They are measurements, not trends, and this page will
 not be updated. They come from the request logs in bioc-traffic (one record per request,
 delivered by Logpush; see [ADR 0003](adr/0003-request-logging-after-the-cloudflare-cutover.md)),
