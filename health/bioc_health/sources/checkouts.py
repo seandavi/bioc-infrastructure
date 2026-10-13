@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from pathlib import Path
 
 from .. import rules
 from ..model import Finding, SourceResult, Status
@@ -26,7 +27,8 @@ def collect(cfg: dict, now: datetime) -> SourceResult:
     for svc in discover_units(cfg):
         # `show` prefixes "!" for WorkingDirectory=~ and "-" for missing-ok; drop both.
         wd = show(svc, "WorkingDirectory").get("WorkingDirectory", "").lstrip("!-")
-        if wd:
+        # A unit with no WorkingDirectory= runs in $HOME: no tree to check.
+        if wd and Path(wd) != Path.home():
             dirs.setdefault(wd, []).append(svc)
 
     findings: list[Finding] = []
