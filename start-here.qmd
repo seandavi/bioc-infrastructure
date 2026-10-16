@@ -1,0 +1,42 @@
+---
+title: "Start here"
+description: "A picture of the new Bioconductor ecosystem: the domain names, Workers and buckets, with each box linking to its explanation"
+---
+
+Since 2026-09-28 (about 20:09 UTC), `bioconductor.org` is answered by a Cloudflare Worker,
+`bioc-site`, reading from an R2 bucket, also named `bioc-site`. The legacy server,
+`master.bioconductor.org`, is still running and still produces the package repositories. The
+Worker's bucket is refreshed from it every hour.
+
+Click any box to go to the page that explains it.
+
+```{=html}
+{{< include diagrams/ecosystem.svg >}}
+```
+
+## What each box is
+
+| Box | What it is | Read more |
+|---|---|---|
+| `bioconductor.org`, `www.`, `next.` | Three hostnames answered by the same Worker, so they serve the same content | [Hosts](how-it-works.qmd#hosts) |
+| `bioc-dev.cancerdatasci.org` | Serves pull-request previews of the site at `/_pr/<n>/` | [Hosts](how-it-works.qmd#hosts) |
+| Worker `bioc-site` | Answers each request from the site build first and the mirror second. It applies redirects and caches responses at the edge | [Serving](how-it-works.qmd#serving), [Edge cache](cache.qmd) |
+| R2 `bioc-site` | The private bucket the Worker reads. It holds the mirror of master's package repositories and every site build | [Terms](how-it-works.qmd#terms) |
+| `master.bioconductor.org` | The legacy server. The mirror is copied from it, and `/packages/stats/` is passed through to it, uncached | [Terms](how-it-works.qmd#terms) |
+| Worker `bioc-registry`, R2 `bioc-prop`, `bioc-registry.seandavi.workers.dev` | The registry: observes r-universe, applies the propagation gate and publishes its own repository. It is not in the path that serves `bioconductor.org` | [Propagation gate](propagation-gate.qmd), [Registry switch](registry-switch.qmd) |
+| Worker `bioc-prop` | A stub that returns a 301 redirect to `bioc-registry` | [Cloudflare account migration](cloudflare-account-migration.qmd) |
+| r-universe | Builds most Windows and macOS binaries and supplies package metadata | [Publishing](how-it-works.qmd#publishing) |
+| `Bioconductor/bioconductor.org` | The upstream git repository for prose pages and assets | [The site](how-it-works.qmd#the-site) |
+| OSN archive bucket | Holds package archives for releases 3.22 and older. `packages.bioconductor.org` redirects to it | [R2 migration](r2-migration.qmd) |
+| GCS `bioc-u24-logs`, Analytics Engine | Per-request logs delivered by Logpush, and request metrics | [ADR 0003](adr/0003-request-logging-after-the-cloudflare-cutover.md) |
+| `bioc-sync`, `bioc-reconcile` | Hourly copy of master into R2, and a weekly checksum check of R2 against the local copy | [Publishing](how-it-works.qmd#publishing), [Scheduled jobs](ci.qmd#scheduled-jobs-outside-github-actions) |
+| `bioc-website` CI | Builds the site with Astro on every push and pull request, and publishes it to R2 | [The site](how-it-works.qmd#the-site) |
+| Health and parity checks | Daily comparison of `bioconductor.org` with master, and a health check | [Scheduled jobs](ci.qmd#scheduled-jobs-outside-github-actions) |
+| `bioc-traffic` | Classifies requests in the logs by traffic class and computes package download statistics and traffic rollups from them. It writes the `/packages/stats/` file tree on a daily timer. Today the published `/packages/stats/` pages are still served from master ([bioc-edge#66](https://github.com/seandavi/bioc-edge/pull/66) would serve the `.tab` files from R2) | [Traffic report](traffic-2026-09-30.qmd) |
+
+The page [How bioconductor.org works](how-it-works.qmd) has the full request order, the
+glossary and the caching rules. If something looks wrong, see
+[Reporting a problem](report.qmd).
+
+*Drawn from the repository docs, not from the live Cloudflare account. Other
+`bioconductor.org` subdomains (git., support., code. and so on) are not shown.*

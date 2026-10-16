@@ -72,8 +72,9 @@ The Worker handles a request in this order (bioc-edge `worker/src/index.ts`, Wor
 version 3d1ad785, deployed 2026-09-29):
 
 1. Anything other than `GET` or `HEAD` gets `405`.
-2. `/packages/stats/...` is passed through to master.bioconductor.org, uncached. The
-   download statistics are still generated there by the legacy pipelines
+2. `/packages/stats/...` is passed through to master.bioconductor.org, uncached. Master
+   still builds those pages from legacy pipelines. The new statistics come from
+   [bioc-traffic](https://github.com/seandavi/bioc-traffic) but are not published yet
    ([download stats](download-stats.qmd)).
 3. `/_pr/<n>/...` serves that PR's preview, and `/_latest/...` serves the latest build.
    Paths the preview lacks fall back to production. Neither is cached, and links in the HTML

@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 1280 820" font-family="Helvetica,Arial,sans-serif" font-size="13">
+<title>New Bioconductor ecosystem: domains, Workers, buckets</title>
+<defs>
+<marker id="eco-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="#445"/></marker>
+<style>
+.eco-t{fill:#12263f}.eco-s{fill:#556;font-size:11px}.eco-h{font-weight:bold;font-size:14px;fill:#12263f}
+.eco-dom{fill:#e8f1ff;stroke:#4a6fa5}.eco-wk{fill:#fff1dc;stroke:#d9822b}.eco-bk{fill:#e7f6ea;stroke:#3d8b47}
+.eco-ext{fill:#f2f2f2;stroke:#888}.eco-job{fill:#f3e8fb;stroke:#8a4fb0}.eco-leg{fill:#faf6ec;stroke:#b8860b}
+.eco-box{stroke-width:1.5}.eco-l{stroke:#445;stroke-width:1.5;fill:none;marker-end:url(#eco-a)}.eco-d{stroke-dasharray:6 4}
+.eco-z{fill:none;stroke:#d9822b;stroke-dasharray:3 4;stroke-width:1.5}
+a.eco-node{cursor:pointer}a.eco-node:hover .box,a.eco-node:focus .box{stroke-width:3.5}.eco-box{stroke-width:1.5}a.eco-node:hover .eco-box,a.eco-node:focus .eco-box{stroke-width:3.5}</style></defs>
+<rect width="1280" height="820" fill="#fff"/>
+<text x="20" y="28" class="eco-h" font-size="18">New Bioconductor ecosystem (since 2026-09-28): domains, Workers, buckets</text>
+
+<!-- Cloudflare account -->
+<rect x="290" y="45" width="640" height="470" rx="10" class="eco-z"/>
+<text x="302" y="64" class="eco-s">Cloudflare account</text>
+
+<!-- Domains column -->
+<text x="20" y="64" class="eco-h">Domain names</text>
+<a href="how-it-works.html#hosts" class="eco-node"><title>Production hostnames, answered by the bioc-site Worker</title>
+<rect x="20" y="75" width="230" height="50" rx="6" class="eco-dom eco-box"/><text x="32" y="96" class="eco-t">bioconductor.org · www.</text><text x="32" y="114" class="eco-s">production (Cloudflare zone + WAF)</text>
+</a>
+<a href="how-it-works.html#hosts" class="eco-node"><title>Same content as production</title>
+<rect x="20" y="135" width="230" height="50" rx="6" class="eco-dom eco-box"/><text x="32" y="156" class="eco-t">next.bioconductor.org</text><text x="32" y="174" class="eco-s">same content as production</text>
+</a>
+<a href="how-it-works.html#hosts" class="eco-node"><title>Pull request previews</title>
+<rect x="20" y="195" width="230" height="50" rx="6" class="eco-dom eco-box"/><text x="32" y="216" class="eco-t">bioc-dev.cancerdatasci.org</text><text x="32" y="234" class="eco-s">PR previews at /_pr/&lt;n&gt;/</text>
+</a>
+<a href="propagation-gate.html" class="eco-node"><title>The registry's own repository host</title>
+<rect x="20" y="255" width="230" height="50" rx="6" class="eco-dom eco-box"/><text x="32" y="276" class="eco-t">bioc-registry.seandavi.workers.dev</text><text x="32" y="294" class="eco-s">gated R repos · not serving bioconductor.org</text>
+</a>
+
+<!-- Workers -->
+<a href="how-it-works.html#serving" class="eco-node"><title>How a request is answered</title>
+<rect x="320" y="85" width="260" height="110" rx="6" class="eco-wk eco-box"/>
+<text x="332" y="106" class="eco-h">Worker: bioc-site</text>
+<text x="332" y="126" class="eco-s">repo bioc-edge · build first, then mirror</text>
+<text x="332" y="142" class="eco-s">redirects, symlink map, 404 page, edge cache</text>
+<text x="332" y="158" class="eco-s">cron 15 min · Workflow bioc-release-roll</text>
+<text x="332" y="174" class="eco-s">/packages/stats → master (PR #66 pending)</text>
+</a>
+<a href="propagation-gate.html" class="eco-node"><title>The registry and the propagation gate</title>
+<rect x="320" y="255" width="260" height="95" rx="6" class="eco-wk eco-box"/>
+<text x="332" y="276" class="eco-h">Worker: bioc-registry</text>
+<text x="332" y="296" class="eco-s">repo bioc-registry · observes r-universe</text>
+<text x="332" y="312" class="eco-s">propagation gate · cron 15 min</text>
+<text x="332" y="328" class="eco-s">Workflow bioc-registry-observe</text>
+</a>
+<a href="propagation-gate.html" class="eco-node"><title>Stub that redirects to bioc-registry</title>
+<rect x="320" y="385" width="260" height="50" rx="6" class="eco-wk eco-box"/>
+<text x="332" y="406" class="eco-h">Worker: bioc-prop</text><text x="332" y="424" class="eco-s">stub, 301 → bioc-registry</text>
+</a>
+
+<!-- Buckets -->
+<a href="how-it-works.html#terms" class="eco-node"><title>The mirror and the site builds</title>
+<rect x="650" y="85" width="260" height="110" rx="6" class="eco-bk eco-box"/>
+<text x="662" y="106" class="eco-h">R2: bioc-site (private)</text>
+<text x="662" y="126" class="eco-s">mirror: packages/, checkResults/ (~5.1 TB)</text>
+<text x="662" y="142" class="eco-s">site/&lt;sha&gt;-&lt;hash&gt;/ + site/latest (builds)</text>
+<text x="662" y="158" class="eco-s">preview/pr-&lt;n&gt;/ · _routes.json · _symlinks.json</text>
+<text x="662" y="174" class="eco-s">_ci/site-data.tar.zst · manifest</text>
+</a>
+<a href="propagation-gate.html" class="eco-node"><title>The registry's archive bucket</title>
+<rect x="650" y="255" width="260" height="95" rx="6" class="eco-bk eco-box"/>
+<text x="662" y="276" class="eco-h">R2: bioc-prop</text><text x="662" y="296" class="eco-s">registry archive bucket</text><text x="662" y="312" class="eco-s">data/prop/{bioc,bioc-release}</text>
+</a>
+<a href="adr/0003-request-logging-after-the-cloudflare-cutover.html" class="eco-node"><title>Request metrics and logs</title>
+<rect x="650" y="385" width="260" height="50" rx="6" class="eco-bk eco-box"/>
+<text x="662" y="406" class="eco-h">Analytics Engine</text><text x="662" y="424" class="eco-s">bioc_site_requests_v3 (metrics)</text>
+</a>
+
+<!-- External buckets -->
+<text x="960" y="64" class="eco-h">Buckets outside Cloudflare</text>
+<a href="adr/0003-request-logging-after-the-cloudflare-cutover.html" class="eco-node"><title>Access logs delivered by Logpush</title>
+<rect x="960" y="75" width="300" height="75" rx="6" class="eco-bk eco-box"/>
+<text x="972" y="96" class="eco-h">GCS: bioc-u24-logs</text><text x="972" y="114" class="eco-s">cloudflare/bioc-access-logs/ (Logpush)</text><text x="972" y="130" class="eco-s">BigQuery external tables · DuckLake</text>
+</a>
+<a href="r2-migration.html" class="eco-node"><title>Archive bucket for releases 3.22 and older</title>
+<rect x="960" y="165" width="300" height="75" rx="6" class="eco-bk eco-box"/>
+<text x="972" y="186" class="eco-h">OSN: mghp.osn.xsede.org</text><text x="972" y="204" class="eco-s">archive bucket, releases ≤ 3.22 (anonymous S3)</text><text x="972" y="220" class="eco-s">packages.bioconductor.org alias redirects here</text>
+</a>
+
+<!-- Legacy / external -->
+<a href="how-it-works.html#terms" class="eco-node"><title>The legacy server, still producing the package repositories</title>
+<rect x="960" y="270" width="300" height="75" rx="6" class="eco-ext eco-box"/>
+<text x="972" y="291" class="eco-h">master.bioconductor.org</text><text x="972" y="309" class="eco-s">legacy AWS EC2 · BBS output, stats pages</text><text x="972" y="325" class="eco-s">retires at parity (roadmap M2)</text>
+</a>
+<a href="how-it-works.html#publishing" class="eco-node"><title>Where most Windows and macOS binaries are built</title>
+<rect x="960" y="360" width="300" height="55" rx="6" class="eco-ext eco-box"/>
+<text x="972" y="381" class="eco-h">r-universe (bioc, bioc-release)</text><text x="972" y="399" class="eco-s">Windows/macOS binaries, metadata</text>
+</a>
+<a href="how-it-works.html#the-site" class="eco-node"><title>Upstream prose and assets</title>
+<rect x="960" y="430" width="300" height="55" rx="6" class="eco-ext eco-box"/>
+<text x="972" y="451" class="eco-h">Bioconductor/bioconductor.org</text><text x="972" y="469" class="eco-s">git: prose, assets (upstream content)</text>
+</a>
+
+<!-- Jobs -->
+<text x="20" y="583" class="eco-h" style="display:none">Jobs and CI (outside Cloudflare)</text>
+<a href="how-it-works.html#publishing" class="eco-node"><title>Hourly copy of master into R2</title>
+<rect x="20" y="560" width="270" height="70" rx="6" class="eco-job eco-box"/>
+<text x="32" y="581" class="eco-h">bioc-sync · bioc-reconcile</text><text x="32" y="599" class="eco-s">systemd on onclappc02 · hourly / Sun 04:00</text><text x="32" y="615" class="eco-s">rsync master → upload R2 → purge 4 hosts</text>
+</a>
+<a href="how-it-works.html#the-site" class="eco-node"><title>Site build and publish</title>
+<rect x="310" y="560" width="270" height="70" rx="6" class="eco-job eco-box"/>
+<text x="322" y="581" class="eco-h">bioc-website CI (Astro)</text><text x="322" y="599" class="eco-s">GitHub Actions · every push / PR</text><text x="322" y="615" class="eco-s">+ bioc-site-refresh every 20 min</text>
+</a>
+<a href="ci.html#scheduled-jobs-outside-github-actions" class="eco-node"><title>Daily health and parity checks</title>
+<rect x="600" y="560" width="270" height="70" rx="6" class="eco-job eco-box"/>
+<text x="612" y="581" class="eco-h">bioc-edge health + parity</text><text x="612" y="599" class="eco-s">GitHub Actions, daily</text><text x="612" y="615" class="eco-s">compare bioconductor.org with master</text>
+</a>
+<a href="traffic-2026-09-30.html" class="eco-node"><title>Classifies request-log traffic and computes download statistics</title>
+<rect x="890" y="560" width="270" height="70" rx="6" class="eco-job eco-box"/>
+<text x="902" y="581" class="eco-h">bioc-traffic</text><text x="902" y="599" class="eco-s">traffic classes, download statistics</text><text x="902" y="615" class="eco-s">reads logs from GCS</text>
+</a>
+
+<!-- arrows -->
+<path class="eco-l" d="M250 100 H320"/><path class="eco-l" d="M250 160 L320 140"/><path class="eco-l" d="M250 220 L320 170"/>
+<path class="eco-l" d="M250 280 H320"/>
+<path class="eco-l" d="M580 140 H650"/><path class="eco-l" d="M580 305 H650"/>
+<path class="eco-l eco-d" d="M580 120 C620 72 920 72 960 105"/>
+<path class="eco-l" d="M155 560 V538 H628 V185 H650"/>
+<path class="eco-l" d="M445 560 V550 H610 V170 H650"/>
+
+<!-- legend -->
+<rect x="20" y="660" width="1240" height="140" rx="6" class="eco-leg eco-box"/>
+<text x="32" y="682" class="eco-h">Legend</text>
+<rect x="32" y="694" width="22" height="14" class="eco-dom eco-box"/><text x="62" y="706" class="eco-t">domain name</text>
+<rect x="190" y="694" width="22" height="14" class="eco-wk eco-box"/><text x="220" y="706" class="eco-t">Cloudflare Worker</text>
+<rect x="360" y="694" width="22" height="14" class="eco-bk eco-box"/><text x="390" y="706" class="eco-t">bucket / data store</text>
+<rect x="540" y="694" width="22" height="14" class="eco-job eco-box"/><text x="570" y="706" class="eco-t">job / CI</text>
+<rect x="670" y="694" width="22" height="14" class="eco-ext eco-box"/><text x="700" y="706" class="eco-t">legacy or external</text>
+<path class="eco-l" d="M860 701 H900"/><text x="908" y="706" class="eco-t">request / write</text>
+<path class="eco-l eco-d" d="M1030 701 H1070"/><text x="1078" y="706" class="eco-t">read / background</text>
+<text x="32" y="734" class="eco-s">Arrows: Worker → GCS is Logpush; sync and CI write R2. Serving: browser → domain → bioc-site Worker → R2 bioc-site (build first, else mirror). Not drawn: master → sync, r-universe and upstream repo → CI, GCS → bioc-traffic.</text>
+<text x="32" y="752" class="eco-s">Logs: Worker → Logpush → GCS bioc-u24-logs → bioc-traffic. Registry (Worker + R2 bioc-prop) observes r-universe and is not in the bioconductor.org path yet.</text>
+<text x="32" y="770" class="eco-s">Other bioconductor.org subdomains (git., support., code., etc.) are copied into the Cloudflare zone from Route53 and are not drawn. Sources: how-it-works.qmd, cloudflare-account-migration.qmd, ADR 0003, r2-migration.qmd.</text>
+<text x="32" y="788" class="eco-s">Checked against repo docs 2026-10-16, not against the live Cloudflare account.</text>
+</svg>
