@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import calendar
 import re
 from datetime import date, datetime
 
@@ -256,3 +257,38 @@ def stats_as_of_status(as_of: date, today: date, th: dict) -> Status:
     if age > th["stats_as_of_warn_days"]:
         return Status.WARN
     return Status.OK
+
+
+# --- published download stats --------------------------------------------------------
+
+
+def parse_stats_tab(text: str) -> dict[tuple[int, int], int]:
+    """(year, month) -> downloads from a /packages/stats/ .tab file; 'all' rows skipped."""
+    out = {}
+    for line in text.splitlines()[1:]:
+        f = line.split("\t")
+        if len(f) == 4 and f[1] in calendar.month_abbr[1:]:
+            out[int(f[0]), list(calendar.month_abbr).index(f[1])] = int(f[3])
+    return out
+
+
+def stats_month_status(downloads: dict[tuple[int, int], int], today: date, th: dict) -> tuple[Status, str]:
+    """This month's published downloads against last month's, pro-rated to the complete days
+    so far. Catches a month that stops counting (bioc-infrastructure#114), not a slow one."""
+    days = today.day - 1
+    if days < th["stats_month_min_days"]:
+        return Status.OK, f"day {today.day}: too early in the month to compare"
+    prev = (today.year, today.month - 1) if today.month > 1 else (today.year - 1, 12)
+    cur, last = downloads.get((today.year, today.month)), downloads.get(prev)
+    if cur is None or last is None:
+        return Status.FAIL, "no row for this month or last"
+    if not last:
+        return Status.INFO, "no downloads last month to compare with"
+    expected = last * days / calendar.monthrange(*prev)[1]
+    ratio = cur / expected
+    reason = f"{cur:,} downloads this month, {expected:,.0f} expected from last month ({ratio:.2f}x)"
+    if ratio < th["stats_month_ratio_fail"]:
+        return Status.FAIL, reason
+    if ratio < th["stats_month_ratio_warn"]:
+        return Status.WARN, reason
+    return Status.OK, reason
