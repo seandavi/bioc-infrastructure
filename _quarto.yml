@@ -40,6 +40,8 @@ website:
   sidebar:
     style: docked
     contents:
+      - href: start-here.qmd
+        text: Start here
       - href: index.qmd
         text: Overview
       - section: Using
