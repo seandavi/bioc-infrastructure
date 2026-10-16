@@ -72,7 +72,7 @@ Checkboxes here mirror [#2](https://github.com/seandavi/bioc-infrastructure/issu
 ## M2 — Full disconnect from legacy infrastructure ([#3](https://github.com/seandavi/bioc-infrastructure/issues/3))
 
 The new stack serves production but still depends on master: packages arrive by the hourly
-sync from master's docroot, and `/packages/stats/` is passed through to master. M2 ends
+sync from master's docroot, and the `/packages/stats/` HTML pages are passed through to master (the `.tab` files are served from R2). M2 ends
 the dependency: master, staging, the legacy build system, and the legacy stats pipeline
 all retire, and roughly $5,000/month of AWS with them. Parity with master
 (bioc-edge [#43](https://github.com/seandavi/bioc-edge/issues/43)-[#48](https://github.com/seandavi/bioc-edge/issues/48))

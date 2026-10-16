@@ -72,9 +72,11 @@ The Worker handles a request in this order (bioc-edge `worker/src/index.ts`, Wor
 version 3d1ad785, deployed 2026-09-29):
 
 1. Anything other than `GET` or `HEAD` gets `405`.
-2. `/packages/stats/...` is passed through to master.bioconductor.org, uncached. Master
-   still builds those pages from legacy pipelines. The new statistics come from
-   [bioc-traffic](https://github.com/seandavi/bioc-traffic) but are not published yet
+2. `/packages/stats/...`: `*.tab` files are read from R2, where
+   [bioc-traffic](https://github.com/seandavi/bioc-traffic) uploads them daily
+   (a key missing from R2 falls through to master). The HTML pages and `static/barchart.js`
+   are passed through to master.bioconductor.org, uncached, until
+   [bioc-traffic#28](https://github.com/seandavi/bioc-traffic/issues/28)
    ([download stats](download-stats.qmd)).
 3. `/_pr/<n>/...` serves that PR's preview, and `/_latest/...` serves the latest build.
    Paths the preview lacks fall back to production. Neither is cached, and links in the HTML
@@ -101,7 +103,7 @@ Detail, keys and the purge procedure are on [Edge cache](cache.qmd). In short:
   invalidates them), old-release files from the archive copy (never purged), and `404`s for
   10 minutes (keyed by build sha).
 - **Not cached:** HTML that comes from the mirror (`checkResults`, old-release pages),
-  previews, and `/packages/stats/`.
+  previews, and `/packages/stats/` (`.tab` files from R2, pages from master).
 - **Freshness:** the edge keeps objects for up to a year (`s-maxage=31536000`); every sync
   purges the objects it changed on all four hosts. Browsers get `max-age=300` by default,
   30 seconds for `PACKAGES` and `config.yaml`, and one year (`immutable`) for tarballs and
