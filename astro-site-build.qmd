@@ -141,7 +141,7 @@ flowchart LR
   GH["Bioconductor/bioconductor.org<br/>git repo (prose)"] --> P
   BV["Bioconductor/biocViews<br/>vocabulary"] --> P
   CR["CRAN PACKAGES"] --> P
-  WS["/packages/stats/<br/>(Rank, via master)"] -.-> P
+  WS["/packages/stats/<br/>(Rank, .tab from R2)"] -.-> P
   P["./bioc.py<br/>pipeline"] --> D["astro/data/"]
   D --> S["R2: _ci/site-data.tar.zst<br/>(uploaded by hand)"]
   S --> A["CI: astro build<br/>+ Pagefind"]
@@ -183,9 +183,9 @@ Checked 2026-09-30 against the snapshot and build `360bb87`:
 - **`/help/events/` shows raw ERB.** Its two `<%= render(...)` calls span two lines each, the
   single-line detector misses them, and the page is built with the tags as text. The live page
   (from build `360bb87`) shows both. No open bioc-website issue covers it.
-- **`Rank`** is read from `/packages/stats/` on bioconductor.org, which the Worker passes
-  through to master uncached. It depends on master until download statistics have another
-  home.
+- **`Rank`** is read from the `*_pkg_scores.tab` files under `/packages/stats/` on
+  bioconductor.org. The Worker serves them from R2, where bioc-traffic uploads them daily, so
+  `Rank` no longer depends on master.
 - **Check results, vignettes, manuals** and the other per-package artifacts are served from the
   mirror; the build does not produce them.
 - **Search.** Site search is a Pagefind index built from `dist/` at build time (bioc-website
