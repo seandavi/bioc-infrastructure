@@ -26,6 +26,11 @@ top_paths = 10
 disk_paths = ["/data/davsean", "~"]
 log_globs = ["~/Documents/git/bioc-edge/sync-*.log*"]
 
+# The live bioc year file ({year} is filled in; January also reads last year's). Its current
+# month must keep pace with the last one (stats_month_* thresholds; bioc-infrastructure#114).
+[published_stats]
+url = "https://bioconductor.org/packages/stats/bioc/bioc_{year}_stats.tab"
+
 [[endpoints]]
 name = "homepage"
 url = "https://bioconductor.org/"
@@ -78,6 +83,9 @@ p95_ratio_warn = 2.0
 rollup_age_hours = { minute = [0.5, 1.0], hour = [2.0, 3.0], day = [36.0, 48.0], overall_day = [36.0, 48.0] }  # [warn, fail]
 stats_as_of_warn_days = 1
 stats_as_of_fail_days = 2
+stats_month_min_days = 2       # complete days of the month before the comparison runs
+stats_month_ratio_warn = 0.75  # this month / last month pro-rated
+stats_month_ratio_fail = 0.5
 disk_free_warn_pct = 15
 disk_free_fail_pct = 5
 log_files_warn = 1000

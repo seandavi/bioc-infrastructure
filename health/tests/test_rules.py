@@ -105,6 +105,37 @@ def test_stats_as_of_status(days, want, th):
     assert rules.stats_as_of_status(today - timedelta(days=days), today, th) == want
 
 
+# bioc_2026_stats.tab, 2026-10-15: live (master, frozen at the cutover) and generated.
+LIVE_TAB = "Year\tMonth\tNb_of_distinct_IPs\tNb_of_downloads\n2026\tAug\t3006475\t18140559\n" \
+           "2026\tSep\t1975291\t20726042\n2026\tOct\t268\t1809\n2026\tNov\t0\t0\n2026\tall\t7276817\t89147291"
+GEN_TAB = LIVE_TAB.replace("268\t1809", "2084538\t11628120")
+
+
+def test_parse_stats_tab():
+    got = rules.parse_stats_tab(LIVE_TAB)
+    assert got[2026, 10] == 1809 and got[2026, 9] == 20726042 and len(got) == 4  # 'all' skipped
+
+
+@pytest.mark.parametrize("tab,want", [(LIVE_TAB, FAIL), (GEN_TAB, OK)])
+def test_stats_month_status_issue_114(tab, want, th):
+    assert rules.stats_month_status(rules.parse_stats_tab(tab), date(2026, 10, 15), th)[0] == want
+
+
+@pytest.mark.parametrize("cur,want", [(1125, OK), (1124, WARN), (750, WARN), (749, FAIL)])
+def test_stats_month_status_boundaries(cur, want, th):
+    # 30-day September at 100/day; 2026-10-16 has 15 complete days, so 1500 expected.
+    d = {(2026, 9): 3000, (2026, 10): cur}
+    assert rules.stats_month_status(d, date(2026, 10, 16), th)[0] == want
+
+
+def test_stats_month_status_edges(th):
+    assert rules.stats_month_status({}, date(2026, 10, 2), th)[0] == OK  # too early
+    assert rules.stats_month_status({(2026, 10): 5}, date(2026, 10, 9), th)[0] == FAIL  # no last month
+    assert rules.stats_month_status({(2025, 12): 0, (2026, 1): 5}, date(2026, 1, 9), th)[0] == INFO
+    # January compares with last year's December.
+    assert rules.stats_month_status({(2025, 12): 3100, (2026, 1): 800}, date(2026, 1, 9), th)[0] == OK
+
+
 @pytest.mark.parametrize("branch,head,tip,dirty,want", [
     ("feature/x", "a", "a", 0, FAIL),
     (None, "a", "a", 0, FAIL),

@@ -39,7 +39,7 @@ broke), fail, warn, info, ok.
 | `checkouts` | The git tree each unit runs (its `WorkingDirectory`): on the default branch (else fail), at GitHub's tip and clean (else warn). Never fetches. |
 | `access_logs` | Hourly Parquet freshness and gaps; per-hour volume against the median of the same hour on earlier days; 24 h 5xx share, hit ratio, 404 share and p95 latency against that baseline, with top 5xx/404 paths; rollup and download-stats freshness. Aggregates and paths only, never per-client columns. |
 | `host` | Free space on `disk_paths`; accumulated sync logs. |
-| `endpoints` | The six bioc-edge `health.yml` probes of bioconductor.org: status, body check, latency. |
+| `endpoints` | The six bioc-edge `health.yml` probes of bioconductor.org: status, body check, latency. The live `bioc_<year>_stats.tab`: this month's downloads against last month's, pro-rated to the complete days so far (#114). |
 
 Cross-references (`bioc_health/crossref.py`) compare `<unit> is failing` issues filed by
 `bioc-notify@` in `failure_issue_repo` with live unit state: an issue whose unit has
