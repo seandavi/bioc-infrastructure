@@ -272,12 +272,18 @@ def parse_stats_tab(text: str) -> dict[tuple[int, int], int]:
     return out
 
 
+def stats_month_too_early(today: date, th: dict) -> bool:
+    return today.day - 1 < th["stats_month_min_days"]
+
+
 def stats_month_status(downloads: dict[tuple[int, int], int], today: date, th: dict) -> tuple[Status, str]:
     """This month's published downloads against last month's, pro-rated to the complete days
-    so far. Catches a month that stops counting (bioc-infrastructure#114), not a slow one."""
-    days = today.day - 1
-    if days < th["stats_month_min_days"]:
+    so far. Catches a month that stops counting (bioc-infrastructure#114), not a slow one.
+    Pro-rating assumes the file covers every complete day; generation runs daily, so early in
+    the month a day of lag alone can push the ratio under the warn line (a WARN, not a FAIL)."""
+    if stats_month_too_early(today, th):
         return Status.OK, f"day {today.day}: too early in the month to compare"
+    days = today.day - 1
     prev = (today.year, today.month - 1) if today.month > 1 else (today.year - 1, 12)
     cur, last = downloads.get((today.year, today.month)), downloads.get(prev)
     if cur is None or last is None:

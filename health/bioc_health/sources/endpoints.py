@@ -62,14 +62,21 @@ def collect(cfg: dict, now: datetime) -> SourceResult:
 
 def _stats_month(template: str, now: datetime, th: dict) -> Finding:
     today = now.date()
+    fid, title = f"{NAME}/published-stats/month", "published download stats"
+    # Before fetching: on 1-2 January the new year's file may not exist yet.
+    if rules.stats_month_too_early(today, th):
+        return Finding(fid, NAME, Status.OK, f"{title}: day {today.day}: too early in the month to compare")
     urls = [template.format(year=y) for y in sorted({today.year, (today.replace(day=1) - timedelta(days=1)).year})]
-    fid, title = f"{NAME}/published stats/month", "published download stats"
     downloads = {}
     for url in urls:
         r = _probe({"url": url})
-        if r["error"] is not None or r["status"] != 200:
-            return Finding(fid, NAME, Status.FAIL, f"{title}: {r['error'] or 'HTTP ' + str(r['status'])}",
-                           refs=[url])
-        downloads |= rules.parse_stats_tab(r["body"].decode("utf-8", "replace"))
+        if r["error"] is not None:  # the check could not run
+            return Finding(fid, NAME, Status.ERROR, f"{title}: request failed: {r['error']}", refs=[url])
+        if r["status"] != 200:
+            return Finding(fid, NAME, Status.FAIL, f"{title}: HTTP {r['status']}", refs=[url])
+        try:
+            downloads |= rules.parse_stats_tab(r["body"].decode("utf-8", "replace"))
+        except ValueError as exc:
+            return Finding(fid, NAME, Status.FAIL, f"{title}: malformed .tab: {exc}", refs=[url])
     st, reason = rules.stats_month_status(downloads, today, th)
     return Finding(fid, NAME, st, f"{title}: {reason}", refs=urls)
