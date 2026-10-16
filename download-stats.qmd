@@ -21,9 +21,12 @@ The "replacement is live" callout below covers log collection only: request logs
 this note said before ([bioc-registry#26](https://github.com/seandavi/bioc-registry/issues/26)
 was superseded by that work and is still open). A daily timer writes the `/packages/stats/` `.tab` tree from both
 log eras and uploads it to R2. Since 2026-10-16 (about 20:00 UTC, [bioc-edge#66](https://github.com/seandavi/bioc-edge/pull/66))
-the Worker serves the `.tab` files from R2, so those files count October onward. The HTML pages and
-`static/barchart.js` are still master's and still show an empty or low October until
-[bioc-traffic#28](https://github.com/seandavi/bioc-traffic/issues/28) generates them. The numbers in the
+the Worker serves the `.tab` files from R2, so those files count October onward. Since about 23:00 UTC
+the same day the HTML pages and `static/barchart.js` are generated from that tree too
+([bioc-traffic#28](https://github.com/seandavi/bioc-traffic/issues/28)) and served from R2, and the
+Worker no longer sends any `/packages/stats/` request to master
+([bioc-edge#68](https://github.com/seandavi/bioc-edge/pull/68)). The stats no longer depend on the
+webstats host, so the "dynamic application" points further down this page are history. The numbers in the
 `.tab` files are generated on the published definition from both log eras; where and why they differ from
 master's is in bioc-traffic `docs/published-comparison.md`. Bot classification is
 [bioc-traffic#5](https://github.com/seandavi/bioc-traffic/issues/5), open.

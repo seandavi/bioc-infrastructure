@@ -38,7 +38,7 @@ a.eco-node{cursor:pointer}a.eco-node:hover .box,a.eco-node:focus .box{stroke-wid
 <text x="332" y="126" class="eco-s">repo bioc-edge · build first, then mirror</text>
 <text x="332" y="142" class="eco-s">redirects, symlink map, 404 page, edge cache</text>
 <text x="332" y="158" class="eco-s">cron 15 min · Workflow bioc-release-roll</text>
-<text x="332" y="174" class="eco-s">/packages/stats: .tab R2, pages master</text>
+<text x="332" y="174" class="eco-s">/packages/stats: from R2</text>
 </a>
 <a href="propagation-gate.html" class="eco-node"><title>The registry and the propagation gate</title>
 <rect x="320" y="255" width="260" height="95" rx="6" class="eco-wk eco-box"/>
@@ -84,7 +84,7 @@ a.eco-node{cursor:pointer}a.eco-node:hover .box,a.eco-node:focus .box{stroke-wid
 <!-- Legacy / external -->
 <a href="how-it-works.html#terms" class="eco-node"><title>The legacy server, still producing the package repositories</title>
 <rect x="960" y="270" width="300" height="75" rx="6" class="eco-ext eco-box"/>
-<text x="972" y="291" class="eco-h">master.bioconductor.org</text><text x="972" y="309" class="eco-s">legacy AWS EC2 · BBS output, stats pages</text><text x="972" y="325" class="eco-s">retires at parity (roadmap M2)</text>
+<text x="972" y="291" class="eco-h">master.bioconductor.org</text><text x="972" y="309" class="eco-s">legacy AWS EC2 · BBS output</text><text x="972" y="325" class="eco-s">retires at parity (roadmap M2)</text>
 </a>
 <a href="how-it-works.html#publishing" class="eco-node"><title>Where most Windows and macOS binaries are built</title>
 <rect x="960" y="360" width="300" height="55" rx="6" class="eco-ext eco-box"/>

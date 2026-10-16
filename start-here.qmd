@@ -22,7 +22,7 @@ Click any box to go to the page that explains it.
 | `bioc-dev.cancerdatasci.org` | Serves pull-request previews of the site at `/_pr/<n>/` | [Hosts](how-it-works.qmd#hosts) |
 | Worker `bioc-site` | Answers each request from the site build first and the mirror second. It applies redirects and caches responses at the edge | [Serving](how-it-works.qmd#serving), [Edge cache](cache.qmd) |
 | R2 `bioc-site` | The private bucket the Worker reads. It holds the mirror of master's package repositories and every site build | [Terms](how-it-works.qmd#terms) |
-| `master.bioconductor.org` | The legacy server. The mirror is copied from it, and the `/packages/stats/` HTML pages are passed through to it, uncached | [Terms](how-it-works.qmd#terms) |
+| `master.bioconductor.org` | The legacy server. The mirror is copied from it | [Terms](how-it-works.qmd#terms) |
 | Worker `bioc-registry`, R2 `bioc-prop`, `bioc-registry.seandavi.workers.dev` | The registry: observes r-universe, applies the propagation gate and publishes its own repository. It is not in the path that serves `bioconductor.org` | [Propagation gate](propagation-gate.qmd), [Registry switch](registry-switch.qmd) |
 | Worker `bioc-prop` | A stub that returns a 301 redirect to `bioc-registry` | [Cloudflare account migration](cloudflare-account-migration.qmd) |
 | r-universe | Builds most Windows and macOS binaries and supplies package metadata | [Publishing](how-it-works.qmd#publishing) |
@@ -32,7 +32,7 @@ Click any box to go to the page that explains it.
 | `bioc-sync`, `bioc-reconcile` | Hourly copy of master into R2, and a weekly checksum check of R2 against the local copy | [Publishing](how-it-works.qmd#publishing), [Scheduled jobs](ci.qmd#scheduled-jobs-outside-github-actions) |
 | `bioc-website` CI | Builds the site with Astro on every push and pull request, and publishes it to R2 | [The site](how-it-works.qmd#the-site) |
 | Health and parity checks | Daily comparison of `bioconductor.org` with master, and a health check | [Scheduled jobs](ci.qmd#scheduled-jobs-outside-github-actions) |
-| `bioc-traffic` | Classifies requests in the logs by traffic class and computes package download statistics and traffic rollups from them. It writes the `/packages/stats/` file tree on a daily timer and uploads the `.tab` files to R2, where the Worker serves them. The HTML pages are still master's ([bioc-traffic#28](https://github.com/seandavi/bioc-traffic/issues/28)) | [Traffic report](traffic-2026-09-30.qmd) |
+| `bioc-traffic` | Classifies requests in the logs by traffic class and computes package download statistics and traffic rollups from them. It writes the `/packages/stats/` file tree on a daily timer and uploads it, `.tab` files and HTML pages, to R2, where the Worker serves them | [Traffic report](traffic-2026-09-30.qmd) |
 
 The page [How bioconductor.org works](how-it-works.qmd) has the full request order, the
 glossary and the caching rules. If something looks wrong, see

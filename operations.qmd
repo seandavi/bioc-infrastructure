@@ -197,9 +197,8 @@ page names nobody who decides.
 3. **One host runs the sync, from dev checkouts.** If onclappc02 is down, package updates
    stop reaching `bioconductor.org` and no failure issue is filed. The site keeps serving
    what is in R2.
-4. **master is still in the path.** It is the source of every package update, and
-   the `/packages/stats/` HTML pages are passed straight through to it uncached, so those pages
-   fail if it is down (the `.tab` files come from R2). It retires only after [M2](roadmap.qmd).
+4. **master is still in the path.** It is the source of every package update. (`/packages/stats/`
+   no longer is: it is served from R2.) It retires only after [M2](roadmap.qmd).
 5. **No rollback has been rehearsed.** The steps above are written from the code and the
    cutover runbook. The DNS rollback target lasts only while the record freeze and the
    legacy servers do.
