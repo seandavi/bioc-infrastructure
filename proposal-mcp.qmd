@@ -1,0 +1,228 @@
+---
+title: "A Bioconductor MCP server: one public surface, ops first"
+date: 2026-10-22
+---
+
+::: {.callout-note}
+## Status: proposal, draft (2026-10-22)
+A spec for Bioconductor's public MCP server. It revises the split in
+[#67](https://github.com/seandavi/bioc-infrastructure/issues/67) ("split by audience"): servers
+split by trust, and audiences become modules inside one server. The first modules serve the ops
+and core-team audience. Nothing here is built. Measurements are from 2026-10-22.
+:::
+
+## Summary
+
+One remote MCP server for Bioconductor, running on a Cloudflare Worker (Hono). v0 ships three
+modules (`docs`, `pkg`, `ops`); later audiences add modules, not servers. It adds no new data
+and no new API. Each tool is a thin adapter over an endpoint that already exists, and one tool
+searches these docs so that someone asking "why does the stack work this way?" gets the ADR
+instead of a guess.
+
+v0 is read-only, unauthenticated and public. It serves only what is already public: the
+registry, bioconductor.org, r-universe, public GitHub repos and this site. Anything that is not
+already public (the `bioc-health` bundle, traffic beyond the published stats, reviews in
+progress) is out of v0 by construction, so the server cannot leak anything.
+
+## One public server, split by trust
+
+There will be more than one Bioconductor MCP server, but only where a trust boundary forces it:
+
+| Server | Runs | Trust | Contents |
+|---|---|---|---|
+| **Bioconductor MCP** (this spec) | Remote Worker | Public data only, no auth | Modules: `docs`, `pkg`, `ops` in v0; later `impact`, `contrib`, maintainer tools |
+| **Operator MCP** | Remote, auth-gated | Non-public data | Only when a real question needs it; none does yet |
+| **In-session R MCP** ({mcptools}, OS4LS WP2) | Local, in the user's R session | The user's machine | Live object introspection; cannot be remote |
+
+Audiences are **modules**, not servers. Separate servers per audience would mean separate deploys,
+separate URLs for users to configure, and eventually a gateway to put them back together. A
+gateway earns its place when other teams run servers independently (the OLS MCP, or r-universe if
+it ships one); for one team running one stack, a Worker with one module per domain already does
+the gateway's job.
+
+**Context cost, the real downside of one big server, is handled by toolset paths.** The same Worker
+serves `/mcp` (every module) and `/mcp/{module}[+{module}…]` (a subset: `/mcp/ops`,
+`/mcp/docs+pkg`). Tool names carry their module as a prefix (`docs_search`, `pkg_status`,
+`ops_activity`), so the full set stays readable and never collides. A user who only wants docs
+search pays for two tool descriptions, not twenty.
+
+**Rule for adding a module:** its data is already public, and its tools follow the adapter and
+provenance rules below. Anything failing the first test goes to the operator server.
+
+## Why this order
+
+- **API first, MCP as adapter.** Every tool maps to an endpoint a person can `curl`. When a tool
+  answers wrongly, the cause is either the adapter or the API, and the API can be checked on its
+  own.
+- **Existing APIs first.** Building the server shows which questions the current APIs answer
+  badly (see [Gaps it will expose](#gaps)). Those gaps become the case for the registry and
+  health APIs, measured instead of guessed.
+- **Docs search alongside.** Most questions from the core team are "why" or "how", not "what
+  state is it in". ADRs 0001–0013, the runbooks and the plans already answer them, but only
+  for someone who knows which page to open.
+
+## Tools (v0)
+
+Eight tools in three modules, each read-only. Descriptions are written for the model: what the tool answers, and
+which tool to use instead when it doesn't fit.
+
+| Tool | Answers | Backed by |
+|---|---|---|
+| `docs_search(query, limit=8)` | "Why/how does X work?": ranked sections with title, URL, breadcrumb and snippet | Docs index (below) |
+| `docs_read(url)` | The full text of one page or section from `docs_search` | Same index |
+| `pkg_status(package, universe="bioc")` | Is it propagated, at which version and commit; the upstream build's status, per-config check verdicts, BiocCheck verdict, and whether a newer commit failed | Registry `GET /data/prop/{universe}/index.json` (one entry) + r-universe `GET https://{universe}.r-universe.dev/api/packages/{pkg}` (`_status`, `_jobs`, `_bioccheck`, `_commit`, `_failure`) |
+| `pkg_check_output(universe, job, file="00check.log")` | Why a check failed: the `ERROR`/`WARNING` sections of the check output, not the whole file | Registry `GET /checks/{universe}/{job}` |
+| `pkg_build_environment(universe, job)` | What the build actually ran with: image digest, repos | Registry `GET /builds/{universe}/{job}` |
+| `pkg_release_info()` | Current release and devel, associated R versions, published manifests | `bioconductor.org/config.yaml` + `GET /api/v1/manifest/index.json` |
+| `pkg_downloads(package, year?)` | Monthly distinct clients and downloads under the published `/packages/stats` definition, with the data-as-of date | `bioconductor.org/packages/stats/bioc/{pkg}/{pkg}_{year}_stats.tab` |
+| `ops_activity(repo?)` | Open issues and PRs, failing default-branch workflows, `<unit> is failing` issues from `bioc-notify@`, across the `seandavi/bioc-*` repos | GitHub REST, read-only |
+
+### Resources
+
+- `bioc://docs/{path}`: each docs page, so a client can attach `operations.html` or an ADR
+  directly.
+- `bioc://about`: what the server covers, what each source is, and the freshness of each.
+  This is the answer to "can I trust this number?", written once.
+
+### Prompts
+
+- `triage-failing-package(package)`: `pkg_status` → `pkg_check_output` for the failing config →
+  `docs_search` for the relevant gate or runbook.
+- `explain-decision(topic)`: `docs_search` restricted to `adr/`, then `docs_read`, quoted with
+  links.
+
+### Out of v0, deliberately
+
+- **SQL.** The registry's `/sql` console runs DuckDB-WASM in the browser, and DuckDB is too heavy
+  for a Worker. For history questions, `pkg_status` returns a ready-to-run query and a link
+  to `/sql`, and does not execute it.
+- **`bioc-health` findings.** `bundle.json` exists only on onclappc02. Publishing it is v1 (see
+  [Next](#next)).
+- **Writes of any kind,** including re-running workflows, closing issues and purging caches.
+  Those belong to the Factory layer in
+  [#43](https://github.com/seandavi/bioc-infrastructure/issues/43), with its own permission
+  model.
+- **Bioconductor/Contributions review data.** It is public, so it can come later as a `contrib`
+  module.
+
+## Docs search
+
+**Corpus.**
+
+1. This site's Quarto `search.json`: 264 sections across 41 pages, ADRs included, with
+   `href`, `title`, `section`, `crumbs` and `text` already split by heading. No crawler is needed.
+2. The component repos' own docs, which are not on this site: `bioc-registry/docs/api.md`,
+   `bioc-edge/DATAPLANE.md`, `bioc-traffic/docs/*.md`, and the READMEs of the `bioc-*` repos.
+   These are split by heading into the same record shape, with a `repo` field and a GitHub URL.
+
+**Index: lexical first.** The MCP repo's CI fetches the published records (this site's
+`search.json` and the component docs, all public URLs), builds a BM25 index (MiniSearch,
+serialized JSON) and deploys it with the Worker. It runs daily and on a `repository_dispatch`
+sent by this site's docs deploy. The Worker loads the index once per isolate and caches it. The whole corpus is a few hundred sections, small enough to hold in memory.
+
+This follows the cost ladder in the [unified-search proposal](proposal-unified-search.qmd):
+static index first, managed semantic search (Cloudflare AI Search / Vectorize) only if tests
+show a gain. The test is a fixed set of about 30 real questions (from issues, the
+`bioc-health` skill and this conversation's history), each with the section that answers it.
+If lexical recall@5 falls below about 80%, try embeddings and compare on the same set.
+
+**Freshness.** The index is rebuilt on every docs deploy, so it is never staler than the site.
+The `bioc://about` resource reports the index build time and commit.
+
+## Architecture
+
+```
+MCP client ──POST /mcp[/module]──▶ bioc-mcp Worker (Hono)
+                           ├─ modules: docs · pkg · ops (toolset chosen by path)
+                           ├─ adapters: one per upstream
+                           │    registry · r-universe · bioconductor.org · GitHub
+                           ├─ docs index (JSON asset, built in CI)
+                           └─ Cache API: per-upstream TTLs
+```
+
+- **Protocol:** MCP spec `2026-07-28`, Streamable HTTP. That revision is stateless (no
+  sessions, no `initialize` handshake), which fits a Worker with no Durable Object. Use the
+  official SDK's Hono adapter (`@modelcontextprotocol/hono`, `createMcpHandler`), and set
+  `allowedHosts` to the deployed hostname.
+- **Adapters are pure:** `fetch upstream → shape → return structuredContent + a short text
+  summary`. Each declares an `outputSchema`. Tests run against recorded upstream fixtures, like
+  `health/tests` pins rules against config.
+- **Every result carries provenance:** the upstream URL(s) it came from and their freshness
+  (`ts`, `DATA_AS_OF`, `generated`). An agent quoting a number can say where it came from.
+- **Size discipline:** no tool returns more than about 8 KB of text. Check output is cut to its
+  failing sections, and lists are paginated with a `cursor`.
+- **Caching:** registry index 5 min, r-universe 5 min, stats 1 h, `config.yaml` and manifests
+  1 h, GitHub 2 min. Results also carry the MCP `ttlMs` hint.
+- **GitHub:** a fine-grained token with *no* repository permissions (public read only) as a
+  Worker secret, for the 5,000/h rate limit. It cannot write.
+- **Abuse:** Cloudflare rate limiting per IP on `/mcp`. Every tool call is logged as `{tool,
+  args-shape, latency, upstream status}`, without arguments that could identify people. That
+  log is the usage metric (and the U24 aim 4D metric).
+- **Language: TypeScript.** Workers run it natively; the official SDK's Hono adapter targets the
+  stateless `2026-07-28` protocol; and MiniSearch builds the docs index in CI and loads it in
+  the Worker, so one library reads its own serialized format. Python (FastMCP) would need a
+  host. The cost is contributors, who know R and Python first. A module is a few dozen lines
+  (fetch, shape, zod schema) copied from a template, and eval questions and docs sources are
+  YAML or Markdown. If a module needs real computation, a Python or R producer publishes JSON
+  and the TypeScript adapter reads it.
+- **Separate from the registry Worker.** MCP traffic never touches the install path (#67's
+  "split producers").
+- **Where it lives:** its own repo, `seandavi/bioc-mcp`, moving to the `Bioconductor` org when
+  the core team adopts it (GitHub redirects the old URL). It is a named exception to ADR 0014's
+  operated-stack monorepo and single tracker, on two grounds:
+  - **It shares no code with the stack.** Every input, this site's `search.json` included, is a
+    published artifact at a public URL, the same way it reads r-universe.
+  - **Its contributors are not the stack's.** New modules, docs sources and eval questions are
+    the contributions a Bioconductor developer would make; they should land in a focused repo
+    with its own issues and a "how to add a module" guide, not in the ops tracker beside the
+    runbooks.
+- **Fork PRs never see secrets.** Tests run on `pull_request` against fixtures; deploy runs only
+  on push to `main`.
+- **Hostname:** `bioc-mcp.seandavi.workers.dev` for v0. A `bioconductor.org` subdomain waits
+  on [#39](https://github.com/seandavi/bioc-infrastructure/issues/39).
+
+## Gaps it will expose {#gaps}
+
+These are known before building. Each is a candidate issue on the owning repo, filed once the
+adapter shows the cost.
+
+1. **No per-package registry JSON.** The only JSON for one package is an entry in an 8 MB
+   `index.json` (2,894 packages). The adapter caches and slices it, but a
+   `GET /api/v1/pkg/{universe}/{package}` (index entry + latest observation) would make the
+   adapter trivial and the registry API usable by anyone else. **bioc-registry.**
+2. **Health is not published.** `bioc-health` produces exactly the ops answers this server
+   should give, but only to a shell on onclappc02. **This repo:** run `collect.py` on a timer,
+   upload `bundle.json` (findings only; the `config` block and journal tails need review for
+   anything not already public) to R2, and add an `ops_health` tool. That is v1.
+3. **No "what changed since the last pass".** The registry's parquet holds the history, but
+   only DuckDB can reach it. A precomputed `last_pass` / `first_fail` per package and config,
+   written by the registry at observation time, would answer the most common triage question
+   without SQL. **bioc-registry.**
+4. **Stats lag is implicit.** `.tab` files carry no as-of date; the HTML page does.
+   **bioc-traffic:** publish `DATA_AS_OF` as a file.
+
+## Acceptance (v0)
+
+- All eight tools return the provenance block, and each has a fixture test.
+- `/mcp`, `/mcp/docs` and `/mcp/ops` each list exactly their modules' tools.
+- The 30-question docs set: recall@5 measured and reported in the PR.
+- Works from Claude Code, Claude Desktop and one non-Anthropic client (Codex or Gemini CLI),
+  over the remote URL with no install.
+- `bioc://about` lists every upstream and its freshness.
+- Nothing returned that is not already reachable at a public URL.
+
+## Next {#next}
+
+- **v1:** gap 2 (`ops_health`, `ops_failing_since`), and gap 1 once the registry route exists.
+- **v2:** a `maint` module (`maint_my_packages`, `maint_reverse_deps` with their build state,
+  `maint_release_checklist`) over the same adapters, and an `impact` module over the
+  bioc-intelligence marts. Same server.
+- **Operator, auth-gated:** only if a real question needs non-public data. So far none does.
+
+## Open questions
+
+- Index the `Bioconductor/bioconductor.org` and BiocContributions docs too, or keep the corpus
+  to the stack this site describes?
+- Does #67's MCP section get rewritten to this trust-based split, or does this page supersede it?
+- ADR 0014: add the exception rule ("a community-facing consumer that depends only on public
+  URLs keeps its own repo and tracker") to the ADR itself, or record it only here?
