@@ -1,0 +1,25 @@
+name: traffic / test
+# bioc-traffic had no CI before the merge (ADR 0014): run every script's
+# --self-check, the same checks the justfile's *-self-check recipes run.
+on:
+  pull_request:
+    paths: ['packages/traffic/**', '.github/workflows/traffic-*.yml']
+  push:
+    paths: ['packages/traffic/**', '.github/workflows/traffic-*.yml']
+    branches: [main]
+
+defaults:
+  run:
+    working-directory: packages/traffic
+
+jobs:
+  self-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: self-checks
+        run: |
+          for s in $(grep -l -- '--self-check' *.py); do
+            echo "::group::$s"; ./"$s" --self-check; echo "::endgroup::"
+          done
