@@ -36,7 +36,7 @@ to consume the registry's data. So the split is by **who changes it**: the websi
 team's product; everything that makes it and the package repositories work is one platform,
 maintained together.
 
-### What ADR 0008's objections were, and what holds now
+## What ADR 0008's objections were, and what holds now
 
 ADR 0008 rejected one monorepo for three reasons. On 2026-10-16 none of them held:
 
@@ -49,7 +49,7 @@ ADR 0008 rejected one monorepo for three reasons. On 2026-10-16 none of them hel
 Actions secrets exist in two repos only: bioc-website (3: an R2 key for the whole `bioc-site`
 bucket) and bioc-registry (4). The other six hold none.
 
-### Coupling
+## Coupling
 
 References to another repo's issues in commit messages since 2026-08-15 (pattern
 `(seandavi/)?bioc-(infrastructure|edge|traffic|website|registry|manifest|build|intelligence|cloudflare)#[0-9]+`,
