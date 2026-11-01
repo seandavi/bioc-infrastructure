@@ -1,0 +1,22 @@
+[Unit]
+Description=Dashboard rollups, day tier and the forever overall series -> Parquet + JSON, then R2 (bioc-traffic#10)
+After=network-online.target
+Wants=network-online.target
+OnFailure=bioc-notify@%N.service
+
+[Service]
+# DuckDB opens every Parquet file in the glob; the user-manager default soft limit is 1024 (1653 files by 2026-10-13)
+LimitNOFILE=65536
+Type=oneshot
+WorkingDirectory=/data/davsean/bioc-ops/bioc-infrastructure/packages/traffic
+# just, duckdb, gcloud, rclone
+Environment=PATH=/home/davsean/.local/bin:/usr/bin:/bin
+# After the 08:00 UTC re-seal: pick up its changes to yesterday's hours, then the day tier
+# (which also runs rollup-overall and rollup-clients).
+ExecStart=/home/davsean/.local/bin/just rollup hour --since-yesterday
+ExecStart=/home/davsean/.local/bin/just rollup day --since-yesterday
+ExecStart=/home/davsean/.local/bin/just rollup-upload
+# Incremental: seconds for the tiers, minutes for the 90 d window_clients scan. A --full
+# day rebuild (~48 min) is run by hand, not here.
+TimeoutStartSec=1h
+Nice=10

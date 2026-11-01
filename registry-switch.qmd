@@ -11,7 +11,7 @@ merged 2026-09-29). The dependency gate rule and keeping bioc-build output out o
 software index are open. Steps 1–5 have not started, and none of the decisions below is made.
 
 A plan for making `bioconductor.org`'s software repositories come from
-[bioc-registry](https://github.com/seandavi/bioc-registry), which is built from r-universe,
+[bioc-registry](https://github.com/seandavi/bioc-infrastructure/tree/main/packages/registry), which is built from r-universe,
 instead of from the legacy build system (BBS). Every step and every test below cites the
 measurement that makes it necessary. Measurements are from 2026-09-28 unless another date
 is given, and are reproducible

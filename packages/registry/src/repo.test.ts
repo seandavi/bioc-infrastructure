@@ -1,0 +1,991 @@
+// node --test --experimental-strip-types src/repo.test.ts
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { approveByDeps, packageNames, binaryArtifacts, seedBinaryTopUp, topUpBinaries, buildManifest, gate, rejectedRule, depConstraints, described, describe, findArtifact, gateFamily, isLogEntry, macArmDir, metaOf, originOf, packagesDcf, parseDcf, parseGitmodules, parseRepoDir, parseZipCentral, passingFamilies, matchSel, pendingArtifacts, pendingJobIds, planCompaction, mergeMeta, mergeRows, seedArtifacts, seedDesc, seedMeta, verGt, viewsDcf, waveGateConfig, writeOnce } from "./repo.ts";
+
+const IDX = {
+  S4Vectors: {
+    version: "0.50.1",
+    sha256: "aaa",
+    ts: "2026-08-09T00:00:00Z",
+    desc: {
+      Depends: "R (>= 4.1.0), methods, BiocGenerics (>= 0.53.2)",
+      Imports: "stats",
+      License: "Artistic-2.0",
+      NeedsCompilation: "yes",
+    },
+    // os values are r-universe's own: win/mac/linux/wasm, not windows/macosx.
+    artifacts: [
+      { os: "src", r: "", sha256: "aaa", file: "S4Vectors_0.50.1.tar.gz" },
+      { os: "win", r: "4.7.0", sha256: "bbb", arch: "x86_64", file: "S4Vectors_0.50.1.zip" },
+      { os: "win", r: "4.7.0", sha256: "bb2", arch: "aarch64", file: "S4Vectors_0.50.1.zip" },
+      { os: "mac", r: "4.7.0", sha256: "ccc", arch: "aarch64", file: "S4Vectors_0.50.1.tgz" },
+      { os: "linux", r: "4.6.2", sha256: "ddd", arch: "x86_64", file: "S4Vectors_0.50.1.tar.gz" },
+      { os: "wasm", r: "4.6.0", sha256: "fff", file: "S4Vectors_0.50.1.tar.gz" },
+    ],
+  },
+  // Propagated before desc was recorded — must never reach PACKAGES, since an
+  // empty Depends line reads as "no dependencies".
+  legacyPkg: {
+    version: "1.0.0",
+    sha256: "eee",
+    ts: "2026-08-01T00:00:00Z",
+    artifacts: [{ os: "src", r: "", sha256: "eee", file: "legacyPkg_1.0.0.tar.gz" }],
+  },
+};
+
+test("describe regroups _dependencies back into DCF fields", () => {
+  const d = describe({
+    License: "GPL (>= 2)",
+    NeedsCompilation: "yes",
+    _dependencies: [
+      { package: "R", version: ">= 4.1.0", role: "Depends" },
+      { package: "methods", role: "Depends" },
+      { package: "stats", role: "Imports" },
+      { package: "knitr", role: "Suggests" },
+    ],
+  });
+  assert.equal(d.Depends, "R (>= 4.1.0), methods");
+  assert.equal(d.Imports, "stats");
+  assert.equal(d.Suggests, "knitr");
+  assert.equal(d.LinkingTo, undefined); // absent roles emit no field at all
+  assert.equal(d.License, "GPL (>= 2)");
+});
+
+test("PACKAGES is DCF in write_PACKAGES field order, no MD5sum", () => {
+  const dcf = packagesDcf(IDX, { os: "src" });
+  assert.equal(dcf, [
+    "Package: S4Vectors",
+    "Version: 0.50.1",
+    "Depends: R (>= 4.1.0), methods, BiocGenerics (>= 0.53.2)",
+    "Imports: stats",
+    "License: Artistic-2.0",
+    "NeedsCompilation: yes",
+    "File: S4Vectors_0.50.1.tar.gz",
+    "",
+  ].join("\n"));
+  assert.ok(!dcf.includes("MD5sum"));
+});
+
+test("entries without desc are skipped, not emitted bare", () => {
+  assert.ok(!packagesDcf(IDX, { os: "src" }).includes("legacyPkg"));
+});
+
+test("an EMPTY desc is skipped too — it means the data was never captured", () => {
+  const idx = { ...IDX, emptyDesc: { ...IDX.legacyPkg, desc: {} } };
+  const dcf = packagesDcf(idx, { os: "src" });
+  assert.ok(!dcf.includes("emptyDesc"));
+});
+
+test("each binary dir picks its own artifact, by File and by sha", () => {
+  const sha = (dir) => {
+    const sel = parseRepoDir(dir);
+    const f = packagesDcf(IDX, sel).match(/^File: (.*)$/m)?.[1];
+    return f && findArtifact(IDX, f, sel)?.sha256;
+  };
+  assert.equal(sha(["bin", "windows", "contrib", "4.7"]), "bbb"); // x86_64, not the arm64 zip
+  assert.equal(sha(["bin", "macosx", "big-sur-arm64", "contrib", "4.7"]), "ccc");
+  // wrong R minor selects nothing rather than falling back to another R
+  assert.equal(packagesDcf(IDX, parseRepoDir(["bin", "windows", "contrib", "4.5"])), "");
+});
+
+test("linux and wasm get no repo path — contrib.url() on Linux wants source", () => {
+  assert.equal(parseRepoDir(["bin", "linux", "resolute", "4.6"]), null);
+  assert.equal(parseRepoDir(["bin", "wasm", "contrib", "4.6"]), null);
+});
+
+test("repo paths parse to selectors", () => {
+  assert.deepEqual(parseRepoDir(["src", "contrib"]), { os: "src" });
+  assert.deepEqual(parseRepoDir(["bin", "windows", "contrib", "4.7"]),
+    { os: "win", r: "4.7", arch: "x86_64" });
+  assert.deepEqual(parseRepoDir(["bin", "macosx", "big-sur-arm64", "contrib", "4.7"]),
+    { os: "mac", arch: "big-sur-arm64", r: "4.7" });
+  assert.equal(parseRepoDir(["src"]), null);
+  assert.equal(parseRepoDir(["etc", "passwd"]), null);
+});
+
+test("an arch-less binary is valid for every arch, not for none", () => {
+  // A package with no compiled code builds one arch-independent binary and
+  // r-universe omits the arch field entirely (~69% of binary records).
+  const noarch = { os: "mac", r: "4.7.0", sha256: "zzz", file: "X_1.0.tgz" };
+  assert.ok(matchSel(noarch, { os: "mac", arch: "big-sur-arm64", r: "4.7" }));
+  assert.ok(matchSel(noarch, { os: "mac", arch: "big-sur-x86_64", r: "4.7" }));
+});
+
+test("mac arch normalises CRAN spelling against the bare uname", () => {
+  const mac = IDX.S4Vectors.artifacts.find((a) => a.os === "mac"); // arch: aarch64
+  assert.ok(matchSel(mac, { os: "mac", arch: "big-sur-arm64", r: "4.7" }));
+  assert.ok(!matchSel(mac, { os: "mac", arch: "big-sur-x86_64", r: "4.7" }));
+});
+
+test("findArtifact resolves a filename within its own directory only", () => {
+  assert.equal(findArtifact(IDX, "S4Vectors_0.50.1.tar.gz", { os: "src" })?.sha256, "aaa");
+  assert.equal(findArtifact(IDX, "S4Vectors_0.50.1.zip", { os: "src" }), undefined);
+  assert.equal(findArtifact(IDX, "nope_1.0.0.tar.gz", { os: "src" }), undefined);
+});
+
+test("planCompaction merges the oldest closed day, never today, within a byte budget", () => {
+  const k = (dt, ts) => `parquet/jobs/universe=bioc/dt=${dt}/${dt}T${ts}.000Z-abc.parquet`;
+  const o = (dt, ts, size = 100) => ({ key: k(dt, ts), size });
+  const objs = [
+    o("2026-08-11", "06:00:00"),
+    o("2026-08-09", "12:00:00"), o("2026-08-09", "06:00:00"), o("2026-08-09", "18:00:00"),
+    o("2026-08-10", "06:00:00"), o("2026-08-10", "07:00:00"),
+  ];
+  const p = planCompaction(objs, "2026-08-11", 1000)!;
+  assert.equal(p.day, "2026-08-09", "oldest day first");
+  assert.deepEqual(p.sources, [k("2026-08-09", "06:00:00"), k("2026-08-09", "12:00:00"), k("2026-08-09", "18:00:00")]);
+  assert.equal(p.out, "parquet/jobs/universe=bioc/dt=2026-08-09/2026-08-09T06:00:00.000Z-m.parquet");
+
+  assert.equal(planCompaction(objs, "2026-08-09", 1000)?.day, undefined, "nothing closed yet");
+  assert.equal(planCompaction([o("2026-08-10", "06:00:00")], "2026-08-11", 1000), null, "single file is done");
+
+  // Re-merging: the previous output is the oldest source, so the new file takes the
+  // same key and must not be deleted as a source.
+  const again = planCompaction(
+    [{ key: "parquet/jobs/universe=bioc/dt=2026-08-09/2026-08-09T06:00:00.000Z-m.parquet", size: 100 },
+     o("2026-08-09", "20:00:00")],
+    "2026-08-11", 1000
+  )!;
+  assert.equal(again.out, again.sources[0]);
+  assert.deepEqual(again.sources.filter((s) => s !== again.out), [k("2026-08-09", "20:00:00")]);
+
+  // The budget caps the batch — this is what stops a merge from killing the Worker.
+  assert.equal(planCompaction(objs, "2026-08-11", 250)!.sources.length, 2);
+
+  // A file bigger than the whole budget is skipped, and the rest of its day still
+  // merges. Without this an oversized day file wedges its day forever.
+  const withHuge = [
+    o("2026-08-09", "01:00:00", 99999), o("2026-08-09", "06:00:00"), o("2026-08-09", "12:00:00"),
+  ];
+  const skipped = planCompaction(withHuge, "2026-08-11", 1000)!;
+  assert.deepEqual(skipped.sources, [k("2026-08-09", "06:00:00"), k("2026-08-09", "12:00:00")]);
+  assert.equal(skipped.out, "parquet/jobs/universe=bioc/dt=2026-08-09/2026-08-09T06:00:00.000Z-m.parquet",
+    "output is named for the oldest file actually merged, not the skipped one");
+
+  // Only one file fits: no merge at all rather than a pointless rewrite.
+  assert.equal(planCompaction([o("2026-08-09", "01:00:00", 99999), o("2026-08-09", "06:00:00")], "2026-08-11", 1000), null);
+
+  // The stall seen in production: a previous merge sorts first and sits just under
+  // the budget, so nothing else fits beside it and the day is never touched again.
+  // The tail must merge into a second -m rather than the day wedging.
+  const nearFull = [
+    { key: k("2026-08-09", "01:00:00").replace(/-abc\.parquet$/, "-m.parquet"), size: 900 },
+    o("2026-08-09", "06:00:00", 300), o("2026-08-09", "12:00:00", 300),
+  ];
+  const tail = planCompaction(nearFull, "2026-08-11", 1000)!;
+  assert.deepEqual(tail.sources, [k("2026-08-09", "06:00:00"), k("2026-08-09", "12:00:00")]);
+  assert.equal(tail.out, "parquet/jobs/universe=bioc/dt=2026-08-09/2026-08-09T06:00:00.000Z-m.parquet");
+
+  // …and once every survivor is a near-full merge, the day is genuinely done.
+  assert.equal(
+    planCompaction(
+      [{ key: k("2026-08-09", "01:00:00"), size: 900 }, { key: k("2026-08-09", "06:00:00"), size: 900 }],
+      "2026-08-11", 1000
+    ),
+    null
+  );
+});
+
+// A real zip built by `zip -X`: a deflated log, a deflated "tarball" standing in
+// for the built package, and a stored entry. 412 bytes, so it doubles as the
+// short-file case where the whole archive is smaller than the tail slab.
+const FIXTURE_ZIP =
+  "UEsDBBQAAAAIAKN8D12BzVauMgAAAEQBAAAWAAAAUGtnLlJjaGVjay8wMGNoZWNrLmxvZ9NSSM5ITc7OzEtXSK1I" +
+  "zC3ISS1W0NPTU3ANCvIP4goqzctDkUpLzMxJTeHSGtWFpAsAUEsDBBQAAAAIAKN8D10TLUMbBwAAACwBAAAQAAAA" +
+  "UGtnXzEuMC4wLnRhci5nequoGAXEAgBQSwMECgAAAAAAo3wPXeKcU6UHAAAABwAAAAsAAABwa2dkYXRhLnR4dHN0" +
+  "b3JlZApQSwECHgMUAAAACACjfA9dgc1WrjIAAABEAQAAFgAAAAAAAAABAAAAoIEAAAAAUGtnLlJjaGVjay8wMGNo" +
+  "ZWNrLmxvZ1BLAQIeAxQAAAAIAKN8D10TLUMbBwAAACwBAAAQAAAAAAAAAAEAAACggWYAAABQa2dfMS4wLjAudGFy" +
+  "Lmd6UEsBAh4DCgAAAAAAo3wPXeKcU6UHAAAABwAAAAsAAAAAAAAAAAAAAKCBmwAAAHBrZ2RhdGEudHh0UEsFBgAA" +
+  "AAADAAMAuwAAAMsAAAAAAA==";
+
+test("parseZipCentral reads the directory without the rest of the archive", () => {
+  const zip = Uint8Array.from(atob(FIXTURE_ZIP), (c) => c.charCodeAt(0));
+  const entries = parseZipCentral(zip, 0)!;
+  assert.deepEqual(entries.map((e) => e.name),
+    ["Pkg.Rcheck/00check.log", "Pkg_1.0.0.tar.gz", "pkgdata.txt"]);
+  assert.deepEqual(entries.map((e) => [e.method, e.compressed, e.size, e.offset]),
+    [[8, 50, 324, 0], [8, 7, 300, 102], [0, 7, 7, 155]], "deflated and stored both read");
+
+  // The built package is ~99% of a real artifact and must not be fetched.
+  assert.deepEqual(entries.filter((e) => isLogEntry(e.name)).map((e) => e.name),
+    ["Pkg.Rcheck/00check.log", "pkgdata.txt"]);
+
+  // The point of the whole thing: given only the tail, the offsets still resolve,
+  // so the caller can range-fetch the entries it wants out of a 7.6MB archive.
+  const from = 150; // directory starts at 203, so this slab holds it and nothing else
+  const fromTail = parseZipCentral(zip.subarray(from), from)!;
+  assert.deepEqual(fromTail.map((e) => e.offset), [0, 102, 155]);
+
+  // A slab that misses part of the directory must say so rather than return half
+  // of it — the caller re-fetches a larger one.
+  assert.equal(parseZipCentral(zip.subarray(340), 340), null, "directory truncated");
+  assert.equal(parseZipCentral(zip.subarray(0, 100), 0), null, "no end-of-directory record");
+});
+
+// Shaped like the real thing: GHA prefixes every line with a timestamp, the image
+// digest is printed away from the image name, and dependencies appear only as
+// tarball URLs. Verified against two real job logs (11 and 126 deps).
+const JOB_LOG = [
+  "2026-07-31T12:43:40.1Z ##[group]Run docker pull ghcr.io/r-universe-org/build-source:latest",
+  "2026-07-31T12:43:41.2Z latest: Pulling from r-universe-org/build-source",
+  "2026-07-31T12:43:47.3Z Digest: sha256:" + "b9".repeat(32),
+  "2026-07-31T12:43:50.1Z trying URL 'https://p3m.dev/all/__linux__/resolute/latest/src/contrib/abind_1.4-8.tar.gz'",
+  "2026-07-31T12:43:51.2Z trying URL 'https://p3m.dev/all/__linux__/resolute/latest/src/contrib/bit64_4.8.2.tar.gz'",
+  "2026-07-31T12:43:52.3Z trying URL 'https://bioc.r-universe.dev/bin/linux/resolute-x86_64/4.6/src/contrib/msa_1.45.1.tar.gz'",
+  // Only Linux installs from source. Windows and macOS pull binaries, and missing
+  // these left 52% of jobs with no dependency versions at all.
+  "2026-07-31T12:43:53.4Z trying URL 'https://cloud.r-project.org/bin/windows/contrib/4.7/utf8_1.2.6.zip'",
+  "2026-07-31T12:43:54.5Z trying URL 'https://cloud.r-project.org/bin/macosx/big-sur-arm64/contrib/4.6/pillar_1.11.1.tgz'",
+  "2026-07-31T12:44:01.9Z * DONE (abind)",
+].join("\n");
+
+test("buildManifest recovers the image and resolved dependency versions", () => {
+  const m = buildManifest(JOB_LOG);
+  assert.equal(m.image, `ghcr.io/r-universe-org/build-source@sha256:${"b9".repeat(32)}`,
+    "pinned by digest, not by the :latest tag it was pulled with");
+  assert.deepEqual(m.deps,
+    { abind: "1.4-8", bit64: "4.8.2", msa: "1.45.1", utf8: "1.2.6", pillar: "1.11.1" },
+    "source .tar.gz, Windows .zip and macOS .tgz all parse");
+  assert.deepEqual(m.repos, [
+    "https://bioc.r-universe.dev",
+    "https://cloud.r-project.org",
+    "https://p3m.dev/all/__linux__/resolute/latest",
+  ]);
+
+  // A log with no install section must not claim the build had no dependencies —
+  // captureLogs uses this emptiness to decide not to write a manifest at all.
+  const none = buildManifest("2026-07-31T12:43:40.1Z nothing to see");
+  assert.equal(none.image, undefined);
+  assert.deepEqual(none.deps, {});
+  assert.deepEqual(none.repos, []);
+
+  // An image with no digest line is not a pin, so it is not recorded as one.
+  assert.equal(buildManifest("pulled ghcr.io/r-universe-org/build-source:latest").image, undefined);
+
+  // Windows and macOS run on GitHub-hosted runners, not in a container, so there
+  // is no digest. The runner image is the only environment they can be pinned to,
+  // and without this fallback half the jobs would record none at all.
+  const hosted = [
+    "2026-07-31T12:43:40.1Z ##[group]Runner Image",
+    "2026-07-31T12:43:40.2Z Image: windows-2025-vs2026",
+    "2026-07-31T12:43:40.3Z Version: 20260628.158.1",
+    "2026-07-31T12:43:41.1Z trying URL 'https://cloud.r-project.org/bin/windows/contrib/4.7/utf8_1.2.6.zip'",
+  ].join("\n");
+  const h = buildManifest(hosted);
+  assert.equal(h.image, "windows-2025-vs2026@20260628.158.1");
+  assert.deepEqual(h.deps, { utf8: "1.2.6" });
+});
+
+test("pendingArtifacts carries the artifact id and skips jobs without one", () => {
+  const pkgs = [
+    { _jobs: [{ job: 30, artifact: "c" }, { job: 10, artifact: "a" }] },
+    { _jobs: [{ job: 20, artifact: "" }, { job: 25, artifact: "b" }, { job: 10, artifact: "a" }] },
+  ];
+  assert.deepEqual(pendingArtifacts(pkgs, 0, 10),
+    [{ job: 10, artifact: "a" }, { job: 25, artifact: "b" }, { job: 30, artifact: "c" }],
+    "sorted, deduped, and job 20 has nothing to fetch");
+  assert.deepEqual(pendingArtifacts(pkgs, 10, 10),
+    [{ job: 25, artifact: "b" }, { job: 30, artifact: "c" }], "cursor is exclusive");
+  assert.deepEqual(pendingArtifacts(pkgs, 0, 1), [{ job: 10, artifact: "a" }], "capped");
+});
+
+test("pendingJobIds walks forward from the cursor, deduped and rate-capped", () => {
+  const pkgs = [
+    { _jobs: [{ job: 30 }, { job: 10 }] },
+    { _jobs: [{ job: 20 }, { job: 30 }] }, // same job id on two packages
+    {}, // a package with no jobs at all
+  ];
+  assert.deepEqual(pendingJobIds(pkgs, 0, 50), [10, 20, 30]);
+  assert.deepEqual(pendingJobIds(pkgs, 10, 50), [20, 30], "cursor is exclusive");
+  assert.deepEqual(pendingJobIds(pkgs, 0, 2), [10, 20], "oldest first, so the cap can advance");
+  assert.deepEqual(pendingJobIds(pkgs, 30, 50), [], "nothing new");
+  // Job ids exceed 2^32 in practice; they must stay numbers, not sort as strings.
+  assert.deepEqual(pendingJobIds([{ _jobs: [{ job: 93666921965 }, { job: 9366692196 }] }], 0, 50),
+    [9366692196, 93666921965]);
+});
+
+test("gateFamily maps BBS-equivalent configs and nothing else", () => {
+  assert.equal(gateFamily("source"), "linux");
+  assert.equal(gateFamily("linux-release-x86_64"), "linux");
+  assert.equal(gateFamily("windows-release-x86_64"), "win");
+  assert.equal(gateFamily("macos-release-arm64"), "mac");
+  // Advisory configs gate nothing: BiocCheck, wasm, off-gate chips.
+  assert.equal(gateFamily("bioc-checks"), null);
+  assert.equal(gateFamily("wasm-release"), null);
+  assert.equal(gateFamily("linux-release-arm64"), null);
+  assert.equal(gateFamily("windows-release-arm64"), null);
+  assert.equal(gateFamily("macos-release-x86_64"), null);
+});
+
+test("one passing architecture is enough, and only it passes", () => {
+  const jobs = [
+    { config: "source", r: "4.6.1", check: "OK" },
+    { config: "linux-release-x86_64", r: "4.6.1", check: "ERROR" },
+    { config: "windows-release-x86_64", r: "4.6.1", check: "NOTE" },
+    { config: "macos-release-arm64", r: "4.6.1", check: "WARNING" },
+    { config: "bioc-checks", r: "4.6.1", check: "ERROR" }, // advisory, ignored
+  ];
+  // linux fails (its own job ERRORs even though source is OK); win and mac
+  // pass on NOTE/WARNING; BiocCheck cannot block.
+  assert.deepEqual(passingFamilies(jobs, "4.6"), ["win", "mac"]);
+});
+
+test("every architecture failing means no propagation", () => {
+  const jobs = [
+    { config: "linux-release-x86_64", r: "4.6.1", check: "ERROR" },
+    { config: "windows-release-x86_64", r: "4.6.1", check: "FAIL" },
+    { config: "macos-release-arm64", r: "4.6.1", check: "FAILURE" },
+  ];
+  assert.deepEqual(passingFamilies(jobs, "4.6"), []);
+});
+
+test("a family only passes on the gating R line, with at least one job", () => {
+  const jobs = [
+    { config: "linux-devel-x86_64", r: "4.7.0", check: "OK" },   // wrong R line
+    { config: "macos-release-arm64", r: "4.6.1", check: "OK" },
+  ];
+  assert.deepEqual(passingFamilies(jobs, "4.6"), ["mac"],
+    "linux has no gating-R job, so it neither passes nor blocks — it is not available");
+  assert.deepEqual(passingFamilies([], "4.6"), []);
+});
+
+test("all gating jobs of a family must be clean, source counts against linux", () => {
+  const jobs = [
+    { config: "source", r: "4.6.1", check: "ERROR" },
+    { config: "linux-release-x86_64", r: "4.6.1", check: "OK" },
+    { config: "windows-release-x86_64", r: "4.6.1", check: "OK" },
+  ];
+  assert.deepEqual(passingFamilies(jobs, "4.6"), ["win"]);
+});
+
+test("mergeRows stores only changes, and tombstones what disappears", () => {
+  const row = (pkg, config, check) => ({
+    package: pkg, config, check, version: "1.0", sha256: "a", created: null,
+    expires: null, r: "4.6.1", time: 1, job: 7n, artifact: null,
+  });
+
+  const first = mergeRows({}, [row("A", "linux", "OK"), row("B", "win", "NOTE")]);
+  assert.equal(first.changed.length, 2, "nothing known yet, so everything is a change");
+
+  // Identical observation: nothing stored at all.
+  const same = mergeRows(first.state, [row("A", "linux", "OK"), row("B", "win", "NOTE")]);
+  assert.deepEqual(same.changed, []);
+  assert.deepEqual(same.state, first.state, "state is stable when nothing moves");
+
+  // One check flips; only that row is kept.
+  const flip = mergeRows(first.state, [row("A", "linux", "ERROR"), row("B", "win", "NOTE")]);
+  assert.equal(flip.changed.length, 1);
+  assert.equal(flip.changed[0].package, "A");
+  assert.equal(flip.changed[0].check, "ERROR");
+
+  // B vanishes upstream: a tombstone, or carry-forward would keep it alive forever.
+  const gone = mergeRows(first.state, [row("A", "linux", "OK")]);
+  assert.equal(gone.changed.length, 1);
+  assert.deepEqual(
+    { package: gone.changed[0].package, config: gone.changed[0].config, deleted: gone.changed[0].deleted },
+    { package: "B", config: "win", deleted: 1 }
+  );
+  assert.ok(!("B\u0001win" in gone.state), "a dead key leaves the state");
+
+  // Coming back after a tombstone is a change again, not a silent no-op.
+  const back = mergeRows(gone.state, [row("A", "linux", "OK"), row("B", "win", "NOTE")]);
+  assert.equal(back.changed.length, 1);
+  assert.equal(back.changed[0].package, "B");
+  assert.ok(!back.changed[0].deleted);
+
+  // A field other than check still counts: version bumps must not be swallowed.
+  const bumped = { ...row("A", "linux", "OK"), version: "2.0" };
+  assert.equal(mergeRows(first.state, [bumped, row("B", "win", "NOTE")]).changed.length, 1);
+});
+
+test("metaOf picks descriptive fields, vignettes and commit; skips absences", () => {
+  const m = metaOf({
+    Title: "T", Description: "line1\nline2", biocViews: "Software, Clustering",
+    Maintainer: "A B <a@b.org>",
+    _vignettes: [{ filename: "x.html", title: "Intro", source: "x.Rmd" } as never],
+    _commit: { id: "abc123", time: 1786329705 },
+  });
+  assert.equal(m.Title, "T");
+  assert.equal(m.biocViews, "Software, Clustering");
+  assert.equal(m.URL, undefined);
+  assert.deepEqual(m.vignettes, [{ filename: "x.html", title: "Intro" }]);
+  assert.deepEqual(m.commit, { id: "abc123", time: 1786329705 });
+});
+
+test("VIEWS: metadata, provenance, platform paths, reverse deps", () => {
+  const idx = structuredClone(IDX) as never as Parameters<typeof viewsDcf>[0];
+  idx.S4Vectors.meta = {
+    Title: "Foundation of vector-like containers",
+    Description: "S4 classes.\nSecond line.",
+    biocViews: "Infrastructure, DataRepresentation",
+    Maintainer: "Bioconductor <maintainer@bioconductor.org>",
+    vignettes: [{ filename: "S4Vectors.html", title: "An Overview" }],
+    commit: { id: "fe0a5fe", time: 1786329705 },
+  };
+  idx.leaf = {
+    version: "2.0.0", sha256: "eee", ts: "2026-08-09T00:00:00Z",
+    desc: { Depends: "R (>= 4.4), S4Vectors", Suggests: "legacyPkg", License: "MIT" },
+    artifacts: [{ os: "src", r: "", sha256: "eee", file: "leaf_2.0.0.tar.gz" }],
+  };
+  const dcf = viewsDcf(idx);
+  const stanzas = dcf.trim().split("\n\n");
+  // legacyPkg has no desc: excluded, same rule as PACKAGES.
+  assert.equal(stanzas.length, 2);
+  const s4 = stanzas.find((x) => x.startsWith("Package: S4Vectors"))!;
+  assert.match(s4, /Title: Foundation of vector-like containers/);
+  assert.match(s4, /Description: S4 classes\.\n    Second line\./);
+  assert.match(s4, /git_last_commit: fe0a5fe/);
+  assert.match(s4, /git_last_commit_date: 2026-08-10/);
+  assert.match(s4, /source\.ver: src\/contrib\/S4Vectors_0\.50\.1\.tar\.gz/);
+  assert.match(s4, /win\.binary\.ver: bin\/windows\/contrib\/4\.7\/S4Vectors_0\.50\.1\.zip/);
+  // R 4.7 is past CRAN's rename, so arm64 lives in sonoma-arm64 — the path R
+  // actually asks for. big-sur-arm64 here would advertise a 404.
+  assert.match(s4, /mac\.binary\.ver: bin\/macosx\/sonoma-arm64\/contrib\/4\.7\/S4Vectors_0\.50\.1\.tgz/);
+  assert.match(s4, /vignettes: S4Vectors\.html/);
+  assert.match(s4, /vignetteTitles: An Overview/);
+  assert.match(s4, /dependsOnMe: leaf/);
+  // leaf depends on R too, but R is a constraint, not an edge.
+  const leaf = stanzas.find((x) => x.startsWith("Package: leaf"))!;
+  assert.doesNotMatch(leaf, /Title:/);
+  assert.match(leaf, /Depends: R \(>= 4\.4\), S4Vectors/);
+});
+
+test("originOf: entries predating the field read as propagations", () => {
+  assert.equal(originOf({}), "r-universe");
+  assert.equal(originOf({ origin: "r-universe" }), "r-universe");
+  assert.equal(originOf({ origin: "bioconductor" }), "bioconductor");
+});
+
+// ---------- seeding from the official Bioconductor repositories ----------
+
+test("parseDcf: stanzas, continuation lines, trailing record", () => {
+  const recs = parseDcf([
+    "Package: alpha",
+    "Version: 1.0.0",
+    "Description: one",
+    "    two",
+    "",
+    "Package: beta",
+    "Version: 2.0.0",
+  ].join("\n"));
+  assert.equal(recs.length, 2);
+  assert.equal(recs[0].Description, "one two");
+  assert.equal(recs[1].Package, "beta");   // final stanza without a trailing blank line
+});
+
+test("parseDcf: a value containing a colon keeps it", () => {
+  const [r] = parseDcf("Package: a\nURL: https://example.org/x\n");
+  assert.equal(r.URL, "https://example.org/x");
+});
+
+test("macArmDir tracks CRAN's rename at R 4.6", () => {
+  assert.equal(macArmDir("4.5"), "big-sur-arm64");
+  assert.equal(macArmDir("4.6"), "sonoma-arm64");
+  assert.equal(macArmDir("4.10"), "sonoma-arm64");  // not a float comparison
+});
+
+test("verGt compares numerically, part by part", () => {
+  assert.ok(verGt("1.10.0", "1.9.9"));       // not lexical
+  assert.ok(!verGt("1.2.0", "1.2.0"));       // equal is not greater: a seed needs a bump
+  assert.ok(!verGt("1.2.0", "1.2"));         // missing parts are zero, so these are equal
+  assert.ok(verGt("1.2.1", "1.2"));
+  assert.ok(verGt("1.2-1", "1.2-0"));
+});
+
+test("seedArtifacts: source always, binaries only where they exist", () => {
+  const only = seedArtifacts("edgeR", "4.10.1", "4.6", {});
+  assert.deepEqual(only.map((a) => a.os), ["src"]);
+  assert.equal(only[0].path, "src/contrib/edgeR_4.10.1.tar.gz");
+
+  const all = seedArtifacts("edgeR", "4.10.1", "4.6", { win: true, macArm: true, macX86: true });
+  assert.deepEqual(all.map((a) => `${a.os}/${a.arch ?? "-"}`),
+    ["src/-", "win/x86_64", "mac/arm64", "mac/x86_64"]);
+  assert.equal(all[1].path, "bin/windows/contrib/4.6/edgeR_4.10.1.zip");
+  assert.equal(all[2].path, "bin/macosx/sonoma-arm64/contrib/4.6/edgeR_4.10.1.tgz");
+  assert.equal(all[3].path, "bin/macosx/big-sur-x86_64/contrib/4.6/edgeR_4.10.1.tgz");
+  // Both mac builds share a filename and are told apart by arch alone.
+  assert.equal(all[2].file, all[3].file);
+});
+
+test("seeded artifacts resolve through the same selectors as propagated ones", () => {
+  const arts = seedArtifacts("edgeR", "4.10.1", "4.6", { win: true, macArm: true, macX86: true });
+  const idx = {
+    edgeR: {
+      version: "4.10.1", sha256: "s0", ts: "2026-08-14T00:00:00Z", origin: "bioconductor",
+      desc: { License: "GPL" }, artifacts: arts.map((a, i) => ({ ...a, sha256: "s" + i })),
+    },
+  };
+  const sha = (dir) => {
+    const sel = parseRepoDir(dir);
+    const f = packagesDcf(idx, sel).match(/^File: (.*)$/m)?.[1];
+    return f && findArtifact(idx, f, sel)?.sha256;
+  };
+  assert.equal(sha(["bin", "windows", "contrib", "4.6"]), "s1");
+  assert.equal(sha(["bin", "macosx", "sonoma-arm64", "contrib", "4.6"]), "s2");
+  assert.equal(sha(["bin", "macosx", "big-sur-x86_64", "contrib", "4.6"]), "s3");
+  assert.equal(sha(["src", "contrib"]), "s0");
+});
+
+test("seedDesc/seedMeta split a VIEWS stanza the way propagation does", () => {
+  const v = {
+    Package: "TPP", Version: "3.41.0",
+    Depends: "R (>= 3.4),\n  Biobase", Imports: "ggplot2", License: "Artistic-2.0",
+    NeedsCompilation: "no", Title: "Analyze TPP experiments",
+    Description: "A toolbox.", biocViews: "Software, Proteomics",
+    Maintainer: "Someone <s@example.org>",
+    vignettes: "vignettes/TPP/inst/doc/intro.html, vignettes/TPP/inst/doc/adv.html",
+    vignetteTitles: "Introduction, Advanced",
+    git_last_commit: "abc1234", git_last_commit_date: "2026-05-01",
+    // Fields the official VIEWS carries that we deliberately do not store.
+    dependencyCount: "88", hasREADME: "TRUE",
+  };
+  const d = seedDesc(v);
+  assert.equal(d.Depends, "R (>= 3.4), Biobase");   // folded, no bare newline in DCF
+  assert.equal(d.NeedsCompilation, "no");
+  assert.equal(d.Title, undefined);                 // Title is meta, not PACKAGES
+
+  const m = seedMeta(v);
+  assert.equal(m.Title, "Analyze TPP experiments");
+  assert.equal(m.biocViews, "Software, Proteomics");
+  assert.deepEqual(m.vignettes, [
+    { filename: "vignettes/TPP/inst/doc/intro.html", title: "Introduction" },
+    { filename: "vignettes/TPP/inst/doc/adv.html", title: "Advanced" },
+  ]);
+  assert.equal(m.commit.id, "abc1234");
+  assert.equal(m.dependencyCount, undefined);
+});
+
+test("a seeded commit date round-trips back through VIEWS unchanged", () => {
+  const m = seedMeta({ git_last_commit: "abc1234", git_last_commit_date: "2026-05-01" });
+  const dcf = viewsDcf({
+    TPP: {
+      version: "3.41.0", sha256: "s0", ts: "2026-08-14T00:00:00Z",
+      desc: { License: "Artistic-2.0" }, meta: m,
+      artifacts: [{ os: "src", r: "", sha256: "s0", file: "TPP_3.41.0.tar.gz" }],
+      origin: "bioconductor",
+    },
+  });
+  assert.match(dcf, /^git_last_commit_date: 2026-05-01$/m);
+});
+
+test("parseGitmodules maps package name to source repo", () => {
+  // Verbatim shape of r-universe/bioc/.gitmodules, including the .registry
+  // submodule and the handful of packages served straight off Bioconductor git.
+  const map = parseGitmodules([
+    '[submodule ".registry"]',
+    "\tpath = .registry",
+    "\turl = https://github.com/r-universe-org/cran-to-git",
+    "\tbranch = HEAD",
+    '[submodule "edgeR"]',
+    "\tpath = edgeR",
+    "\turl = https://github.com/bioc/edgeR",
+    '[submodule "h5vc"]',
+    "\tpath = h5vc",
+    "\turl = https://git.bioconductor.org/packages/h5vc",
+  ].join("\n"));
+  assert.equal(map.edgeR, "https://github.com/bioc/edgeR");
+  assert.equal(map.h5vc, "https://git.bioconductor.org/packages/h5vc");
+  assert.equal(map[".registry"], "https://github.com/r-universe-org/cran-to-git");
+  // branch = HEAD must not be mistaken for a url
+  assert.equal(Object.keys(map).length, 3);
+});
+
+test("git_url reaches VIEWS, from either origin", () => {
+  const idx = {
+    edgeR: {
+      version: "4.10.1", sha256: "s0", ts: "2026-08-14T00:00:00Z",
+      desc: { License: "GPL" }, meta: { git_url: "https://github.com/bioc/edgeR" },
+      artifacts: [{ os: "src", r: "", sha256: "s0", file: "edgeR_4.10.1.tar.gz" }],
+    },
+  };
+  assert.match(viewsDcf(idx), /^git_url: https:\/\/github\.com\/bioc\/edgeR$/m);
+  // and the seeder picks it up from the official VIEWS stanza
+  assert.equal(seedMeta({ git_url: "https://git.bioconductor.org/packages/h5vc" }).git_url,
+    "https://git.bioconductor.org/packages/h5vc");
+});
+
+test("VIEWS mac paths: arm64 tracks the R version, Intel gets its own field", () => {
+  const entry = (arts) => ({
+    X: {
+      version: "1.0.0", sha256: "s0", ts: "2026-08-14T00:00:00Z",
+      desc: { License: "MIT" },
+      artifacts: [{ os: "src", r: "", sha256: "s0", file: "X_1.0.0.tar.gz" }, ...arts],
+    },
+  });
+  const arm = { os: "mac", r: "4.6.1", arch: "arm64", sha256: "s1", file: "X_1.0.0.tgz" };
+  const x86 = { os: "mac", r: "4.6.1", arch: "x86_64", sha256: "s2", file: "X_1.0.0.tgz" };
+
+  const both = viewsDcf(entry([arm, x86]));
+  assert.match(both, /^mac\.binary\.ver: bin\/macosx\/sonoma-arm64\/contrib\/4\.6\/X_1\.0\.0\.tgz$/m);
+  assert.match(both, /^mac\.binary\.big-sur-x86_64\.ver: bin\/macosx\/big-sur-x86_64\/contrib\/4\.6\/X_1\.0\.0\.tgz$/m);
+
+  // Intel-only must not be advertised as the arm64 build.
+  const intelOnly = viewsDcf(entry([x86]));
+  assert.doesNotMatch(intelOnly, /^mac\.binary\.ver:/m);
+  assert.match(intelOnly, /^mac\.binary\.big-sur-x86_64\.ver:/m);
+
+  // Before R 4.6 the arm64 directory was big-sur-arm64.
+  const old = viewsDcf(entry([{ ...arm, r: "4.5.1" }]));
+  assert.match(old, /^mac\.binary\.ver: bin\/macosx\/big-sur-arm64\/contrib\/4\.5\/X_1\.0\.0\.tgz$/m);
+});
+
+test("mergeMeta keeps git_url, which no observation carries", () => {
+  // /reindex replaces meta wholesale so a field dropped upstream disappears.
+  // git_url comes from .gitmodules instead, so a plain replace silently unlinked
+  // every entry on the next reindex.
+  const fresh = { Title: "T", Description: "D" };
+  const kept = mergeMeta(fresh, { Title: "old", git_url: "https://github.com/bioc/X" });
+  assert.equal(kept.git_url, "https://github.com/bioc/X");
+  assert.equal(kept.Title, "T");
+  assert.equal(mergeMeta(fresh, { Title: "old" }).git_url, undefined);
+  assert.equal(mergeMeta(fresh).Title, "T");
+  // A field the package dropped upstream must not survive.
+  assert.equal(mergeMeta(fresh, { URL: "https://gone.example" }).URL, undefined);
+});
+
+test("writeOnce: only immutable objects may be cached", () => {
+  for (const k of [
+    "obs/bioc/dt=2026-08-14/x.json",
+    "parquet/jobs/universe=bioc/dt=2026-08-14/x.parquet",
+    "logs/bioc/123.txt",
+    "prop/bioc/cas/abc123",
+    "prop/bioc/log/2026-08-14T00:00:00Z-edgeR_4.10.1.json",
+    "prop/bioc/pending/abc123.json",
+    "prop/bioc/blocked/abc123.json",
+  ]) assert.ok(writeOnce(k), k);
+
+  // These are rewritten in place; caching them serves a stale index.
+  for (const k of [
+    "prop/bioc/index.json",
+    "prop/bioc/seed/plan.json",
+    "prop/bioc/seed/official-versions.json",
+    "state/bioc/latest",
+    "state/bioc/logcursor",
+  ]) assert.ok(!writeOnce(k), k);
+});
+
+test("described: the one rule that decides whether R can see an entry", () => {
+  assert.ok(described({ desc: { License: "MIT" } }));
+  assert.ok(!described({}), "no desc at all");
+  assert.ok(!described({ desc: {} }), "empty desc means the data was never captured");
+});
+
+// ---------- propagation dependency gate (#34) ----------
+
+test("depConstraints: hard roles only, R and base packages dropped", () => {
+  assert.deepEqual(
+    depConstraints({
+      Depends: "R (>= 4.0.0), methods, BiocGenerics (>= 0.59.5), S4Vectors (>= 0.51.8)",
+      Imports: "stats, utils, Rcpp",
+      LinkingTo: "Rcpp (>= 1.0.0)",
+      Suggests: "testthat (>= 3.0.0)",
+    }),
+    [
+      { pkg: "BiocGenerics", op: ">=", ver: "0.59.5" },
+      { pkg: "S4Vectors", op: ">=", ver: "0.51.8" },
+      { pkg: "Rcpp", op: "", ver: "" },
+      { pkg: "Rcpp", op: ">=", ver: "1.0.0" },
+    ]
+  );
+  // No whitespace around the operator, and a bare > constraint.
+  assert.deepEqual(depConstraints({ Imports: "IRanges(>2.47.2)" }),
+    [{ pkg: "IRanges", op: ">", ver: "2.47.2" }]);
+  assert.deepEqual(depConstraints({}), []);
+});
+
+// The incident this gate exists for: IRanges 2.47.3 requires S4Vectors >= 0.51.8,
+// S4Vectors 0.51.8 failed its own checks so it is not a candidate, and the index
+// still publishes 0.51.7. Propagating IRanges would serve a pair that exists
+// nowhere and cannot install.
+test("approveByDeps: blocks a candidate whose published dependency is too old", () => {
+  const idx = { S4Vectors: { version: "0.51.7" } } as never;
+  const iranges = {
+    package: "IRanges", version: "2.47.3",
+    desc: { Depends: "S4Vectors (>= 0.51.8)" },
+  };
+  const { approved, blocked } = approveByDeps([iranges], idx);
+  assert.deepEqual(approved, []);
+  assert.deepEqual(blocked, [{
+    package: "IRanges", version: "2.47.3",
+    needs: "S4Vectors (>= 0.51.8), published 0.51.7",
+  }], "a stuck package must say what it is stuck on");
+});
+
+test("approveByDeps: coordinated bump lands, dependency ordered first", () => {
+  const idx = { S4Vectors: { version: "0.51.7" }, IRanges: { version: "2.47.2" } } as never;
+  // Deliberately listed dependent-first to prove the ordering is computed.
+  const { approved } = approveByDeps([
+    { package: "IRanges", version: "2.47.3", desc: { Depends: "S4Vectors (>= 0.51.8)" } },
+    { package: "S4Vectors", version: "0.51.8", desc: { Imports: "stats" } },
+  ], idx);
+  assert.deepEqual(approved.map((c) => c.package), ["S4Vectors", "IRanges"],
+    "a dependency must never be published after the package needing it");
+});
+
+test("approveByDeps: dependencies we do not publish are not our business", () => {
+  const idx = { S4Vectors: { version: "0.51.9" } } as never;
+  const { approved } = approveByDeps([{
+    package: "edgeR", version: "4.10.1",
+    // Rcpp is CRAN's, crisprScoreData has no build home until M2; neither is
+    // ours to vouch for, so neither may block.
+    desc: { Depends: "S4Vectors (>= 0.51.8)", Imports: "Rcpp (>= 99.0.0), crisprScoreData" },
+  }], idx);
+  assert.deepEqual(approved.map((c) => c.package), ["edgeR"]);
+});
+
+// #56: with the outside world's package names in hand, a dependency that is in
+// none of them -- removed from Bioconductor, archived on CRAN -- is not "someone
+// else's business", it is uninstallable. Measured 2026-09-28: Melissa needs
+// BPRMeth, which left Bioconductor; r-universe still builds Melissa.
+test("approveByDeps: a hard dependency nobody publishes blocks, once names are known", () => {
+  const idx = { S4Vectors: { version: "0.51.9" } } as never;
+  const known = new Set(["Rcpp", "crisprScoreData"]);
+  const melissa = { package: "Melissa", version: "1.26.0", desc: { Imports: "BPRMeth, Rcpp, S4Vectors" } };
+  const edger = {
+    package: "edgeR", version: "4.10.1",
+    desc: { Depends: "S4Vectors (>= 0.51.8)", Imports: "Rcpp (>= 99.0.0), crisprScoreData", Suggests: "Gone" },
+  };
+  const { approved, blocked } = approveByDeps([melissa, edger], idx, known);
+  assert.deepEqual(approved.map((c) => c.package), ["edgeR"], "Suggests never blocks");
+  assert.deepEqual(blocked, [{
+    package: "Melissa", version: "1.26.0",
+    needs: "BPRMeth, which is not in this repository, CRAN or Bioconductor's data repositories",
+  }]);
+  // Without the names (fetch failed, not refreshed yet) the old rule stands.
+  assert.deepEqual(approveByDeps([melissa], idx).approved.map((c) => c.package), ["Melissa"]);
+});
+
+test("approveByDeps: a dependency approved in the same wave counts as published", () => {
+  const { approved } = approveByDeps([
+    { package: "Ularcirc", version: "1.0.0", desc: { Imports: "Organism.dplyr" } },
+    { package: "Organism.dplyr", version: "1.40.0", desc: { Imports: "stats" } },
+  ], {} as never, new Set());
+  assert.deepEqual(approved.map((c) => c.package), ["Organism.dplyr", "Ularcirc"]);
+});
+
+test("packageNames: every Package: field of a PACKAGES file", () => {
+  const dcf = "Package: A3\nVersion: 1.0.0\nDepends: R (>= 2.15.0)\n\nPackage: abc.data\nVersion: 1.1\n";
+  assert.deepEqual(packageNames(dcf), ["A3", "abc.data"]);
+});
+
+test("approveByDeps: a mutual dependency cycle cannot deadlock the whole wave", () => {
+  const idx = { A: { version: "1.0.0" }, B: { version: "1.0.0" }, C: { version: "1.0.0" } } as never;
+  const { approved, blocked } = approveByDeps([
+    { package: "A", version: "2.0.0", desc: { Imports: "B (>= 2.0.0)" } },
+    { package: "B", version: "2.0.0", desc: { Imports: "A (>= 2.0.0)" } },
+    { package: "C", version: "2.0.0", desc: { Imports: "stats" } },
+  ], idx);
+  // A and B each need the other's new version before either is published, so
+  // neither can go first and both wait. C is unaffected.
+  assert.deepEqual(approved.map((c) => c.package), ["C"]);
+  assert.deepEqual(blocked.map((b) => b.package), ["A", "B"]);
+});
+
+// ---------- the consolidated gate ----------
+const GATE_CFG = { gating_r: "4.6", bioccheck: "advisory" as const, replace_seed: false };
+const LINUX_OK = [{ config: "linux-x86_64", r: "4.6.1", check: "OK" }];
+const cand = (o: Partial<Parameters<typeof gate>[0][number]> = {}) => ({
+  package: "msdata", version: "0.52.0", origin: "bioc-build" as const,
+  build_status: "success", jobs: LINUX_OK, desc: { Depends: "R (>= 4.1.0)" }, ...o,
+});
+const rules = (d: { reasons: { rule: string; ok: boolean }[] }) =>
+  Object.fromEntries(d.reasons.map((r) => [r.rule, r.ok]));
+
+test("gate: a clean first publication propagates and every rule reports", () => {
+  const { decisions, approved } = gate([cand()], GATE_CFG, {});
+  const d = decisions.msdata;
+  assert.equal(d.propagate, true);
+  assert.deepEqual(d.archs, ["linux"]);
+  assert.deepEqual(rules(d), {
+    "build-status": true, families: true, bioccheck: true, "version-parse": true,
+    "version-gate": true, deps: true,
+  });
+  assert.deepEqual(approved, ["msdata"]);
+});
+
+test("gate: version-gate is strict; replace_seed lets bioc-build replace a bioconductor seed once", () => {
+  const seeded = { msdata: { version: "0.52.0", sha256: "x", ts: "t", artifacts: [], origin: "bioconductor" as const } };
+  const ours = { msdata: { version: "0.52.0", sha256: "x", ts: "t", artifacts: [], origin: "bioc-build" as const } };
+  assert.equal(gate([cand()], GATE_CFG, seeded).decisions.msdata.propagate, false);
+  assert.equal(gate([cand()], { ...GATE_CFG, replace_seed: true }, seeded).decisions.msdata.propagate, true);
+  const d = gate([cand()], { ...GATE_CFG, replace_seed: true }, ours).decisions.msdata;
+  assert.equal(d.propagate, false);
+  assert.equal(rejectedRule(d), "version-gate");
+  assert.match(d.reasons.find((r) => r.rule === "version-gate")!.detail!, /not > 0.52.0 \(bioc-build\)/);
+});
+
+test("gate: the r-universe wave config lets a passing same-version build replace a seed, once", () => {
+  const seeded = { BiocFileCache: { version: "3.2.0", sha256: "x", ts: "t", artifacts: [], origin: "bioconductor" as const } };
+  const jobs = [
+    { config: "source", r: "4.6.1", check: "OK" },
+    { config: "linux-release-x86_64", r: "4.6.1", check: "OK" },
+    { config: "windows-release-x86_64", r: "4.6.1", check: "OK" },
+    { config: "macos-release-arm64", r: "4.6.1", check: "OK" },
+  ];
+  const c = cand({ package: "BiocFileCache", version: "3.2.0", origin: "r-universe", jobs });
+  const d = gate([c], waveGateConfig("4.6"), seeded).decisions.BiocFileCache;
+  assert.equal(d.propagate, true);
+  assert.deepEqual(d.archs, ["linux", "win", "mac"]);
+  // propagateBatch rewrites the entry with origin r-universe; the next wave at
+  // the same version must not propagate it again.
+  const replaced = { BiocFileCache: { ...seeded.BiocFileCache, origin: "r-universe" as const } };
+  const again = gate([c], waveGateConfig("4.6"), replaced).decisions.BiocFileCache;
+  assert.equal(again.propagate, false);
+  assert.equal(rejectedRule(again), "version-gate");
+});
+
+test("gate: families need a passing job on the gating R line; bioccheck is advisory unless configured", () => {
+  const wrongR = cand({ jobs: [{ config: "linux-x86_64", r: "4.7.0", check: "OK" }] });
+  assert.equal(rejectedRule(gate([wrongR], GATE_CFG, {}).decisions.msdata), "families");
+  const bcErr = cand({ jobs: [...LINUX_OK, { config: "bioc-checks", check: "ERROR" }] });
+  assert.equal(gate([bcErr], GATE_CFG, {}).decisions.msdata.propagate, true);
+  assert.equal(rejectedRule(gate([bcErr], { ...GATE_CFG, bioccheck: "blocking" }, {}).decisions.msdata), "bioccheck");
+  assert.equal(rejectedRule(gate([cand({ build_status: "failed:build" })], GATE_CFG, {}).decisions.msdata), "build-status");
+  assert.equal(rejectedRule(gate([cand({ version: "abc" })], GATE_CFG, {}).decisions.msdata), "version-parse");
+});
+
+test("gate: manifest rules apply only when a manifest block is present", () => {
+  const m = { state: "active", git_url: "https://git.bioconductor.org/packages/msdata",
+              streams: ["release", "devel"], component: "data-experiment", profile: "data-experiment" };
+  const ok = cand({ manifest: m, source_git_url: m.git_url, stream: "release" });
+  assert.equal(gate([ok], GATE_CFG, {}).decisions.msdata.propagate, true);
+  assert.equal(rejectedRule(gate([cand({ ...ok, manifest: null })], GATE_CFG, {}).decisions.msdata), "manifest");
+  assert.equal(rejectedRule(gate([cand({ ...ok, manifest: {} })], GATE_CFG, {}).decisions.msdata), "manifest-state");
+  assert.equal(rejectedRule(gate([cand({ ...ok, stream: "oldrel" })], GATE_CFG, {}).decisions.msdata), "manifest-stream");
+  assert.equal(rejectedRule(gate([cand({ ...ok, manifest: { ...m, git_url: "https://github.com/x/msdata" } })], GATE_CFG, {}).decisions.msdata), "manifest-git-url");
+  assert.equal(rejectedRule(gate([cand({ ...ok, manifest: { ...m, profile: "workflows" } })], GATE_CFG, {}).decisions.msdata), "manifest-component");
+  assert.ok(!("manifest-state" in rules(gate([cand()], GATE_CFG, {}).decisions.msdata)), "no manifest rules without a manifest block");
+});
+
+test("gate: deps rule is the wave fixpoint, ordered dependency-first, and blocks with the unmet requirement", () => {
+  const idx = { S4Vectors: { version: "0.50.1", sha256: "a", ts: "t", artifacts: [] } };
+  const iranges = cand({ package: "IRanges", version: "2.60.0", desc: { Imports: "S4Vectors (>= 0.51.0)" } });
+  const s4 = cand({ package: "S4Vectors", version: "0.51.0", desc: {} });
+  const alone = gate([iranges], GATE_CFG, idx).decisions.IRanges;
+  assert.equal(alone.propagate, false);
+  assert.equal(rejectedRule(alone), "deps");
+  assert.match(alone.reasons.at(-1)!.detail!, /S4Vectors \(>= 0.51.0\), published 0.50.1/);
+  const both = gate([iranges, s4], GATE_CFG, idx);
+  assert.deepEqual(both.approved, ["S4Vectors", "IRanges"]);
+  assert.equal(both.decisions.IRanges.propagate, true);
+});
+
+// ---------- binary top-up (#50) ----------
+
+const bin = (os: string, arch: string, sha: string, extra = {}) => ({
+  os, r: "4.6.1", version: "3.46.1", status: "success", arch,
+  fileid: `https://r2.ropensci.org/${sha}`, ...extra,
+});
+const published = () => ({
+  version: "3.46.1", sha256: "src1", ts: "2026-08-13T00:00:00Z",
+  archs: ["linux", "win"],
+  artifacts: [
+    { os: "src", r: "", sha256: "src1", file: "ChIPpeakAnno_3.46.1.tar.gz" },
+    { os: "win", r: "4.6.1", sha256: "win1", arch: "x86_64", file: "ChIPpeakAnno_3.46.1.zip" },
+  ],
+});
+const jobs = (mac: string) => [
+  { config: "source", r: "4.6.1", check: "OK" },
+  { config: "linux-release-x86_64", r: "4.6.1", check: "OK" },
+  { config: "windows-release-x86_64", r: "4.6.1", check: "OK" },
+  { config: "macos-release-arm64", r: "4.6.1", check: mac },
+];
+
+test("topUpBinaries adds a platform that passes on a same-version rebuild", () => {
+  const e = published();
+  const t = topUpBinaries(e, {
+    Package: "ChIPpeakAnno", Version: "3.46.1", _jobs: jobs("OK"),
+    _binaries: [bin("win", "x86_64", "win2"), bin("mac", "aarch64", "mac1"), bin("mac", "x86_64", "mac2")],
+  }, "4.6");
+  assert.deepEqual(t?.archs, ["linux", "win", "mac"]);
+  // Both mac chips ride the arm64 verdict; the rebuilt win binary does not
+  // displace the one already published for that slot.
+  assert.deepEqual(t?.artifacts.map((a) => a.sha256), ["mac1", "mac2"]);
+  assert.equal(t?.artifacts[0].file, "ChIPpeakAnno_3.46.1.tgz");
+  // The source and version are never touched.
+  assert.equal(e.sha256, "src1");
+  assert.equal(e.artifacts.length, 2);
+});
+
+test("topUpBinaries adds nothing for a platform that still fails", () => {
+  const t = topUpBinaries(published(), {
+    Package: "ChIPpeakAnno", Version: "3.46.1", _jobs: jobs("ERROR"),
+    _binaries: [bin("mac", "aarch64", "mac1")],
+  }, "4.6");
+  assert.equal(t, null);
+});
+
+test("topUpBinaries adds a binary built after the source was published", () => {
+  // SparseArray: published with archs win+mac but only src, binaries a day later.
+  const e = {
+    version: "1.13.3", sha256: "s", ts: "2026-09-23T07:01:14Z", archs: ["win", "mac"],
+    artifacts: [{ os: "src", r: "", sha256: "s", file: "SparseArray_1.13.3.tar.gz" }],
+  };
+  const v = { version: "1.13.3" };
+  const t = topUpBinaries(e, {
+    Package: "SparseArray", Version: "1.13.3",
+    _jobs: [{ config: "linux-release-x86_64", r: "4.6.1", check: "ERROR" }],
+    _binaries: [bin("win", "x86_64", "w", v), bin("mac", "aarch64", "m", v), bin("linux", "x86_64", "l", v),
+      bin("win", "x86_64", "fail", { ...v, status: "failure" })],
+  }, "4.6");
+  // A family passed once is kept (additive); linux never passed, so no linux binary.
+  assert.deepEqual(t?.archs, ["win", "mac"]);
+  assert.deepEqual(t?.artifacts.map((a) => a.sha256), ["w", "m"]);
+});
+
+test("topUpBinaries leaves other versions, seeds and bioc-build entries alone", () => {
+  const obs = { Package: "ChIPpeakAnno", _jobs: jobs("OK"), _binaries: [bin("mac", "aarch64", "mac1")] };
+  assert.equal(topUpBinaries(published(), { ...obs, Version: "3.46.2" }, "4.6"), null);
+  for (const origin of ["bioconductor", "bioc-build"] as const)
+    assert.equal(topUpBinaries({ ...published(), origin }, { ...obs, Version: "3.46.1" }, "4.6"), null);
+  // Nothing new: already up to date.
+  const done = topUpBinaries(published(), { ...obs, Version: "3.46.1", _jobs: jobs("ERROR"), _binaries: [] }, "4.6");
+  assert.equal(done, null);
+});
+
+test("binaryArtifacts keeps only successful builds of the version, for passing families or wasm", () => {
+  const a = binaryArtifacts("P", "1.0", [
+    { os: "win", r: "4.6.1", version: "1.0", status: "success", fileid: "x/a" },
+    { os: "mac", r: "4.6.1", version: "1.0", status: "success", fileid: "x/b" },
+    { os: "wasm", r: "4.6.0", version: "1.0", status: "success", fileid: "x/c" },
+    { os: "win", r: "4.6.1", version: "0.9", status: "success", fileid: "x/d" },
+    { os: "win", r: "4.6.1", version: "1.0", status: "success" },
+  ], ["win"]);
+  assert.deepEqual(a.map((x) => [x.sha256, x.file]), [["a", "P_1.0.zip"], ["c", "P_1.0.tar.gz"]]);
+});
+
+test("seedBinaryTopUp fetches only binaries that caught up to the seeded version, into empty slots", () => {
+  const e = {
+    version: "1.54.0", sha256: "s", ts: "t", archs: [], origin: "bioconductor" as const,
+    artifacts: [
+      { os: "src", r: "", sha256: "s", file: "AnnotationForge_1.54.0.tar.gz" },
+      { os: "mac", r: "4.6", arch: "arm64", sha256: "m", file: "AnnotationForge_1.54.0.tgz" },
+    ],
+  };
+  const want = seedBinaryTopUp(e, "AnnotationForge", "4.6", { win: true, macArm: true, macX86: false });
+  assert.deepEqual(want.map((a) => a.path), ["bin/windows/contrib/4.6/AnnotationForge_1.54.0.zip"]);
+  assert.deepEqual(seedBinaryTopUp({ ...e, origin: undefined }, "AnnotationForge", "4.6", { win: true }), []);
+});
+
+test("topUpBinaries matches slots on real index shapes: no distro recorded, no archs recorded", () => {
+  // limma: published under the all-green gate (no archs), linux artifacts
+  // recorded without distro; the observation reports distro and rebuilt shas.
+  const e = {
+    version: "3.68.5", sha256: "s", ts: "t",
+    artifacts: [
+      { os: "src", r: "", sha256: "s" },
+      { os: "linux", r: "4.6.1", arch: "x86_64", sha256: "l1" },
+      { os: "win", r: "4.6.1", arch: "x86_64", sha256: "w1" },
+    ],
+  };
+  const obs = (bins: object[]) => ({ Package: "limma", Version: "3.68.5", _jobs: jobs("OK"), _binaries: bins as any });
+  const v = { version: "3.68.5" };
+  assert.equal(topUpBinaries(e, obs([
+    bin("linux", "x86_64", "l2", { ...v, distro: "resolute" }), bin("win", "x86_64", "w2", v),
+  ]), "4.6"), null);
+  // A genuinely missing slot is still added, and archs stays unrecorded-equivalent.
+  const t = topUpBinaries(e, obs([bin("mac", "aarch64", "m", v)]), "4.6");
+  assert.deepEqual(t?.artifacts.map((a) => a.sha256), ["m"]);
+  assert.deepEqual(t?.archs, ["linux", "win", "mac"]);
+});
