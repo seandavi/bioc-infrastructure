@@ -2,8 +2,8 @@
 
 Serving `bioconductor.org` from Cloudflare R2 behind a Worker.
 
-[![test](https://github.com/seandavi/bioc-edge/actions/workflows/test.yml/badge.svg)](https://github.com/seandavi/bioc-edge/actions/workflows/test.yml)
-[![health](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml/badge.svg)](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml)
+[![test](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-test.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-test.yml)
+[![health](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-health.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-health.yml)
 ![storage](https://img.shields.io/badge/storage-Cloudflare%20R2-F38020)
 ![runtime](https://img.shields.io/badge/runtime-Workers-F38020)
 ![BiocManager](https://img.shields.io/badge/BiocManager%3A%3Ainstall()-verified-2EA043)

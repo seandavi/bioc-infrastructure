@@ -44,7 +44,7 @@ A written triage protocol and automated first-pass triage are planned in
 
 Report vulnerabilities privately by email to Sean Davis
 ([seandavi@gmail.com](mailto:seandavi@gmail.com)), as
-[bioc-edge's SECURITY.md](https://github.com/seandavi/bioc-edge/blob/main/SECURITY.md)
+[bioc-edge's SECURITY.md](https://github.com/seandavi/bioc-infrastructure/blob/main/packages/edge/SECURITY.md)
 describes. It says to expect a reply within a few days and asks you to allow time for a fix
 before public disclosure. The same route applies to problems found in the legacy
 bioconductor.org infrastructure; the maintainer coordinates disclosure with the Bioconductor

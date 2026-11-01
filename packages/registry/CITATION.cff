@@ -9,7 +9,7 @@ authors:
     email: seandavi@gmail.com
   - name: The Bioconductor Core Team
     website: https://bioconductor.org/about/core-team/
-repository-code: https://github.com/seandavi/bioc-registry
+repository-code: https://github.com/seandavi/bioc-infrastructure/tree/main/packages/registry
 url: https://bioc-registry.seandavi.workers.dev
 abstract: >-
   An HTTP API and data plane producer for Bioconductor package metadata:

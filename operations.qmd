@@ -17,14 +17,14 @@ access to the Cloudflare account, the sync host, or the credentials the sync use
 
 | Component | Where it runs | Operated by | How a failure is noticed |
 |---|---|---|---|
-| `bioconductor.org` DNS zone, `bioc-site` Worker, R2 bucket `bioc-site` | Cloudflare, on a personal account. Moving to a Bioconductor account is [deferred](cloudflare-account-migration.qmd) | Sean Davis | bioc-edge [`health.yml`](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml), daily, from GitHub Actions |
+| `bioconductor.org` DNS zone, `bioc-site` Worker, R2 bucket `bioc-site` | Cloudflare, on a personal account. Moving to a Bioconductor account is [deferred](cloudflare-account-migration.qmd) | Sean Davis | bioc-edge [`health.yml`](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-health.yml), daily, from GitHub Actions |
 | Registrar and the Route53 zone kept as the DNS rollback target | AWS | Not recorded on this site | None |
-| `bioc-sync` (hourly), `bioc-reconcile` (weekly, Sunday 04:00) | systemd user units on onclappc02, running from the dev checkout `~/Documents/git/bioc-edge` | Sean Davis | A GitHub issue in bioc-edge titled `bioc-sync.service is failing` (or `bioc-reconcile…`), opened or commented on by `bioc-notify@` |
-| `bioc-logpush-check` (daily 07:15 local) | systemd user unit on onclappc02, from `~/Documents/git/bioc-traffic` | Sean Davis | The same `bioc-notify@` issue in bioc-edge |
+| `bioc-sync` (hourly), `bioc-reconcile` (weekly, Sunday 04:00) | systemd user units on onclappc02, running from the ops clone `/data/davsean/bioc-ops/bioc-infrastructure/packages/edge` | Sean Davis | A GitHub issue in bioc-infrastructure titled `bioc-sync.service is failing` (or `bioc-reconcile…`), opened or commented on by `bioc-notify@` |
+| `bioc-logpush-check` (daily 07:15 local) | systemd user unit on onclappc02, from `/data/davsean/bioc-ops/bioc-infrastructure/packages/traffic` | Sean Davis | The same `bioc-notify@` issue in bioc-infrastructure |
 | Site build and publish (`site/<sha>`, `site/latest`) | bioc-website GitHub Actions, on every push to `main` | Sean Davis | The [site badge](https://github.com/seandavi/bioc-website/actions/workflows/site.yml) |
 | Site data snapshot (`_ci/site-data.tar.zst`: prose and package data the build reads) | R2. Prose and assets refreshed by `bioc-site-refresh` on every upstream push; package data by hand | Sean Davis | `bioc-site-refresh` failures open an issue; stale package data fails no check |
-| bioc-registry Worker (not in the serving path) | Cloudflare, deployed by hand with `wrangler deploy` | Sean Davis | bioc-registry [`freshness.yml`](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml), daily |
-| master.bioconductor.org and the Bioconductor Build System (BBS) | Legacy servers | Bioconductor core team | bioc-edge [`parity.yml`](https://github.com/seandavi/bioc-edge/actions/workflows/parity.yml) compares production with master daily |
+| bioc-registry Worker (not in the serving path) | Cloudflare, deployed by hand with `wrangler deploy` | Sean Davis | bioc-registry [`freshness.yml`](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-freshness.yml), daily |
+| master.bioconductor.org and the Bioconductor Build System (BBS) | Legacy servers | Bioconductor core team | bioc-edge [`parity.yml`](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-parity.yml) compares production with master daily |
 
 The failure notices go to one GitHub issue per unit; a repeat failure adds a comment rather
 than a new issue. Nothing closes the issue when the unit recovers, so close it by hand. The

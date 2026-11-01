@@ -6,7 +6,7 @@ OnFailure=bioc-notify@%N.service
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/davsean/Documents/git/bioc-traffic
-ExecStart=/home/davsean/.local/bin/uv run --script /home/davsean/Documents/git/bioc-traffic/ipref.py
+WorkingDirectory=/data/davsean/bioc-ops/bioc-infrastructure/packages/traffic
+ExecStart=/home/davsean/.local/bin/uv run --script /data/davsean/bioc-ops/bioc-infrastructure/packages/traffic/ipref.py
 # ~12 MB from DB-IP and ~10 s to build, measured 2026-10-23; allow for a slow network.
 TimeoutStartSec=30min

@@ -41,6 +41,6 @@ any of them by prefix without merging codebases.
 
 | producer | artifacts | home |
 |---|---|---|
-| bioc-registry | observations, jobs parquet, prop index + CAS, PACKAGES/VIEWS, GHA logs | this repo |
-| download stats | monthly parquet of raw access logs; per-package count artifacts (planned publish step) | private infra repo (ingestion is bound to private logging config) |
-| site data snapshots | `astro/data` + assets tarballs consumed by site CI | published from pipeline runs (bioconductor-website) |
+| bioc-registry | observations, jobs parquet, prop index + CAS, PACKAGES/VIEWS, GHA logs | bioc-infrastructure `packages/registry` |
+| download stats | monthly parquet of raw access logs; per-package count artifacts (planned publish step) | bioc-infrastructure `packages/traffic` |
+| site data snapshots | `astro/data` + assets tarballs consumed by site CI | bioc-website (`ops/refresh-content.sh`, `ops/refresh-packages.sh`) |

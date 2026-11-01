@@ -11,8 +11,8 @@ Contributions are accepted under the [Apache License 2.0](LICENSE).
 ## Getting set up
 
 ```bash
-git clone https://github.com/seandavi/bioc-edge
-cd bioc-edge
+git clone https://github.com/seandavi/bioc-infrastructure
+cd bioc-infrastructure/packages/edge
 ./test-itemize.sh          # sync itemize logic
 ./test-cutover-diff.sh     # diff tooling
 node --test worker/test.ts # the Worker (Node 22+, native TS)
@@ -44,7 +44,7 @@ maintainer (<seandavi@gmail.com>) rather than opening an issue. See the
 
 ## Reporting bugs
 
-Open an [issue](https://github.com/seandavi/bioc-edge/issues). Useful things to
+Open an [issue](https://github.com/seandavi/bioc-infrastructure/issues). Useful things to
 include: the URL you hit, what you expected, what you got, and the response
 headers (`curl -sI`) if it looks like a caching or routing problem — see the
 [edge cache page](https://seandavi.github.io/bioc-infrastructure/cache.html)

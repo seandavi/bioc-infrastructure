@@ -20,6 +20,7 @@ defaults:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: registry
     steps:
       - uses: actions/checkout@v4
 

@@ -5,7 +5,7 @@ date-modified: 2026-09-30
 ---
 
 r-universe and bioc-build build Bioconductor packages. Only some of those builds become what
-[bioc-registry](https://github.com/seandavi/bioc-registry) publishes: installable repositories
+[bioc-registry](https://github.com/seandavi/bioc-infrastructure/tree/main/packages/registry) publishes: installable repositories
 at `https://bioc-registry.seandavi.workers.dev/repo/{bioc,bioc-release}`, and the propagation
 index that the [`/next/` preview pages](astro-site-build.qmd) are built from. This page states
 the rule that decides, read from the code that runs it.
@@ -227,7 +227,7 @@ this gate answers it explicitly (`families`: yes).
 
 ## Sources
 
-- [`seandavi/bioc-registry`](https://github.com/seandavi/bioc-registry) at `f10719e`: `src/repo.ts` (`gate`, `passingFamilies`, `approveByDeps`, `topUpBinaries`, `seedBinaryTopUp`, `verGt`), `src/index.ts` (`evaluate`, `gatingRMinor`, `poll`, `topUp`, `seedPlan`, `/gate`), `wrangler.jsonc`
+- [`seandavi/bioc-registry`](https://github.com/seandavi/bioc-infrastructure/tree/main/packages/registry) at `f10719e`: `src/repo.ts` (`gate`, `passingFamilies`, `approveByDeps`, `topUpBinaries`, `seedBinaryTopUp`, `verGt`), `src/index.ts` (`evaluate`, `gatingRMinor`, `poll`, `topUp`, `seedPlan`, `/gate`), `wrangler.jsonc`
 - [ADR 0011](adr/0011-one-propagation-gate-for-every-producer.md): one propagation gate for every producer
 - [`r-universe-org/frontend`](https://github.com/r-universe-org/frontend): `routes/packages.js`, `routes/universe.js`; [`r-universe-org/workflows`](https://github.com/r-universe-org/workflows): `build.yml`, `deploy.yml`; [`r-universe-org/control-room`](https://github.com/r-universe-org/control-room): `sync.yml`, `rebuilds.yml`
 - Live endpoints: `bioc-release.r-universe.dev/api/{packages,files}`, `bioc.r-universe.dev/api/packages/limma` (2026-08-04); `bioc-registry.seandavi.workers.dev/data/prop/{bioc,bioc-release}/index.json` and `/gate` (2026-09-30)

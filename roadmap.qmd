@@ -26,7 +26,7 @@ contributable, tested, and watched. Mostly done 2026-08-21.
 - [x] Four public repos under the `bioc-*` convention, each with LICENSE, CONTRIBUTING, CODE_OF_CONDUCT (the original four: bioc-website, bioc-edge, bioc-registry, bioc-infrastructure; bioc-build and bioc-manifest, added since, have all three as of 2026-09-30)
 - [x] Histories verified free of credentials and undisclosed findings
 - [x] CI with badges on every repo
-- [x] Daily black-box health checks with status badges — serving ([health](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml)) and data plane ([freshness](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml))
+- [x] Daily black-box health checks with status badges — serving ([health](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-health.yml)) and data plane ([freshness](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-freshness.yml))
 - [ ] CD: the workers deploy from CI on `main`, not from laptops
 - [x] This roadmap, with umbrella issues
 

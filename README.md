@@ -3,9 +3,10 @@
 Documentation for the infrastructure behind bioconductor.org: what runs today,
 what replaces it, and the contracts between the repos that do the work.
 
-The rendered site is the point — this repo is its source. It is deliberately
-separate from the repos it documents, so that no one of them is the privileged
-place where the estate gets described.
+The rendered site is the point. Since [ADR 0014](adr/0014-one-platform-repo-the-website-build-and-manifest-stay-separate.md)
+this repo also holds the platform's code: `packages/registry`, `packages/edge` and
+`packages/traffic`, with one issue tracker for all of it. bioc-website, bioc-build and
+bioc-manifest stay separate repos.
 
 ## Status
 
@@ -22,12 +23,12 @@ through for the failing run.
 |---|---|---|---|
 | [bioc-website](https://github.com/seandavi/bioc-website) | build + deploy to R2; PR link/a11y checks ride along | [![site](https://github.com/seandavi/bioc-website/actions/workflows/site.yml/badge.svg)](https://github.com/seandavi/bioc-website/actions/workflows/site.yml) | [a11y latest](https://nightly.link/seandavi/bioc-website/workflows/site/main/a11y-report.zip)¹ · [per-PR](https://github.com/seandavi/bioc-website/actions/workflows/site.yml?query=event%3Apull_request) |
 | [bioc-website](https://github.com/seandavi/bioc-website) | daily link-rot check of the maintained pages, against the served site | [![links](https://github.com/seandavi/bioc-website/actions/workflows/links.yml/badge.svg)](https://github.com/seandavi/bioc-website/actions/workflows/links.yml) | [latest report](https://nightly.link/seandavi/bioc-website/workflows/links/main/links-report.zip)¹ |
-| [bioc-registry](https://github.com/seandavi/bioc-registry) | tests | [![test](https://github.com/seandavi/bioc-registry/actions/workflows/test.yml/badge.svg)](https://github.com/seandavi/bioc-registry/actions/workflows/test.yml) | |
-| [bioc-registry](https://github.com/seandavi/bioc-registry) | daily: worker up, observations fresh | [![freshness](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml/badge.svg)](https://github.com/seandavi/bioc-registry/actions/workflows/freshness.yml) | |
-| [bioc-registry](https://github.com/seandavi/bioc-registry) | daily: packages actually install | [![install](https://github.com/seandavi/bioc-registry/actions/workflows/install.yml/badge.svg)](https://github.com/seandavi/bioc-registry/actions/workflows/install.yml) | [run summaries](https://github.com/seandavi/bioc-registry/actions/workflows/install.yml) |
-| [bioc-edge](https://github.com/seandavi/bioc-edge) | tests | [![test](https://github.com/seandavi/bioc-edge/actions/workflows/test.yml/badge.svg)](https://github.com/seandavi/bioc-edge/actions/workflows/test.yml) | |
-| [bioc-edge](https://github.com/seandavi/bioc-edge) | daily black-box serving probe | [![health](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml/badge.svg)](https://github.com/seandavi/bioc-edge/actions/workflows/health.yml) | |
-| [bioc-edge](https://github.com/seandavi/bioc-edge) | daily parity vs bioconductor.org (dies at cutover) | [![parity](https://github.com/seandavi/bioc-edge/actions/workflows/parity.yml/badge.svg)](https://github.com/seandavi/bioc-edge/actions/workflows/parity.yml) | |
+| [bioc-registry](https://github.com/seandavi/bioc-infrastructure/tree/main/packages/registry) | tests | [![test](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-test.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-test.yml) | |
+| [bioc-registry](https://github.com/seandavi/bioc-infrastructure/tree/main/packages/registry) | daily: worker up, observations fresh | [![freshness](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-freshness.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-freshness.yml) | |
+| [bioc-registry](https://github.com/seandavi/bioc-infrastructure/tree/main/packages/registry) | daily: packages actually install | [![install](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-install.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-install.yml) | [run summaries](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-install.yml) |
+| [bioc-edge](https://github.com/seandavi/bioc-infrastructure/tree/main/packages/edge) | tests | [![test](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-test.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-test.yml) | |
+| [bioc-edge](https://github.com/seandavi/bioc-infrastructure/tree/main/packages/edge) | daily black-box serving probe | [![health](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-health.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-health.yml) | |
+| [bioc-edge](https://github.com/seandavi/bioc-infrastructure/tree/main/packages/edge) | daily parity vs bioconductor.org (dies at cutover) | [![parity](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-parity.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-parity.yml) | |
 | bioc-infrastructure | docs render + publish | [![docs](https://github.com/seandavi/bioc-infrastructure/actions/workflows/docs.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/docs.yml) | |
 
 ¹ Direct artifact download via [nightly.link](https://nightly.link) (GitHub has

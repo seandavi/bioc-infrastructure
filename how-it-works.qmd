@@ -5,7 +5,7 @@ description: "How a request to bioconductor.org is answered, how packages and si
 
 Reference page, checked 2026-09-30. It describes the running system; if something here is
 wrong, that is a bug in this page. Sources: the Worker in
-[bioc-edge](https://github.com/seandavi/bioc-edge) (`worker/src/index.ts`, `keys.ts`,
+[bioc-edge](https://github.com/seandavi/bioc-infrastructure/tree/main/packages/edge) (`worker/src/index.ts`, `keys.ts`,
 `sync.sh`), bioc-website's `site.yml`, and live responses from `bioconductor.org`.
 
 Since 2026-09-28 (about 20:09 UTC) `bioconductor.org` is answered by a Cloudflare Worker,
@@ -29,7 +29,7 @@ Other pages use these words with these meanings.
 | **the sync** | `bioc-sync`, the hourly systemd job that copies master into the mirror. |
 | **BBS** | The Bioconductor Build System on the legacy build machines. It builds the source tarballs. |
 | **r-universe** | r-universe.dev's `bioc` and `bioc-release` universes. They build most of the Windows and macOS binaries on bioconductor.org. |
-| **the registry** | [bioc-registry](https://github.com/seandavi/bioc-registry): observes r-universe, applies the [propagation gate](propagation-gate.qmd), and publishes its own repository at its own `workers.dev` host. Not in the serving path. |
+| **the registry** | [bioc-registry](https://github.com/seandavi/bioc-infrastructure/tree/main/packages/registry): observes r-universe, applies the [propagation gate](propagation-gate.qmd), and publishes its own repository at its own `workers.dev` host. Not in the serving path. |
 | **parity** | The daily comparison of `bioconductor.org` with master, path by path (bioc-edge `parity.yml`). |
 | **the manifest** | The mirror's file list at `/api/v1/manifest/`, used by [mirror operators](mirror-how-to.qmd). |
 
@@ -73,7 +73,7 @@ version 3d1ad785, deployed 2026-09-29):
 
 1. Anything other than `GET` or `HEAD` gets `405`.
 2. `/packages/stats/...`: the `.tab` files, the HTML pages and `static/barchart.js` are read
-   from R2, where [bioc-traffic](https://github.com/seandavi/bioc-traffic) uploads them daily.
+   from R2, where [bioc-traffic](https://github.com/seandavi/bioc-infrastructure/tree/main/packages/traffic) uploads them daily.
    A key missing from R2 is a 404 ([download stats](download-stats.qmd)).
 3. `/_pr/<n>/...` serves that PR's preview, and `/_latest/...` serves the latest build.
    Paths the preview lacks fall back to production. Neither is cached, and links in the HTML

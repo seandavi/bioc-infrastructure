@@ -7,8 +7,8 @@ OnFailure=bioc-notify@%N.service
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/davsean/Documents/git/bioc-traffic
-ExecStart=/home/davsean/Documents/git/bioc-traffic/check-logpush.sh
+WorkingDirectory=/data/davsean/bioc-ops/bioc-infrastructure/packages/traffic
+ExecStart=/data/davsean/bioc-ops/bioc-infrastructure/packages/traffic/check-logpush.sh
 # One GCS listing; anything past a few minutes is a stuck network call.
 TimeoutStartSec=10m
 

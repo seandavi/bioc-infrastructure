@@ -1,11 +1,11 @@
 # Defaults for health/collect.py. Edit freely; every threshold the rules use is here.
 owner = "seandavi"
-repos = ["bioc-edge", "bioc-traffic", "bioc-infrastructure", "bioc-registry",
-         "bioc-website", "bioc-build", "bioc-manifest", "bioc-intelligence"]
+repos = ["bioc-infrastructure", "bioc-website", "bioc-build", "bioc-manifest",
+         "bioc-intelligence"]
 # Prototypes, not production (ci-inventory.py NOTES): Actions failures cap at warn.
 experimental_repos = ["bioc-build", "bioc-manifest"]
-# Where bioc-notify@ (bioc-edge/notify-failure.sh) files "<unit> is failing" issues.
-failure_issue_repo = "bioc-edge"
+# Where bioc-notify@ (packages/edge/notify-failure.sh) files "<unit> is failing" issues.
+failure_issue_repo = "bioc-infrastructure"
 activity_window_days = 7
 
 [systemd]
@@ -24,7 +24,7 @@ top_paths = 10
 
 [host]
 disk_paths = ["/data/davsean", "~"]
-log_globs = ["~/Documents/git/bioc-edge/sync-*.log*"]
+log_globs = ["/data/davsean/bioc-ops/bioc-infrastructure/packages/edge/sync-*.log*"]
 
 # The live bioc year file ({year} is filled in; January also reads last year's). Its current
 # month must keep pace with the last one (stats_month_* thresholds; bioc-infrastructure#114).

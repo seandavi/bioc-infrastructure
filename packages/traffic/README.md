@@ -60,7 +60,7 @@ Details in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
 
 ## Related
 
-- [bioc-edge](https://github.com/seandavi/bioc-edge): the Cloudflare Worker that serves
+- [bioc-edge](../edge/): the Cloudflare Worker that serves
   bioconductor.org and writes the access records.
 - [bioc-infrastructure](https://github.com/seandavi/bioc-infrastructure): the decisions
   behind it (ADRs), and how this fits with the package registry

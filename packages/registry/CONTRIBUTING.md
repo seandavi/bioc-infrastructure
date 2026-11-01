@@ -9,8 +9,8 @@ Contributions are accepted under the [Apache License 2.0](LICENSE).
 ## Getting set up
 
 ```bash
-git clone https://github.com/seandavi/bioc-registry
-cd bioc-registry
+git clone https://github.com/seandavi/bioc-infrastructure
+cd bioc-infrastructure/packages/registry
 npm install
 npm test        # node --test, no framework, no fixtures
 npm run dev     # wrangler dev --test-scheduled, on http://localhost:8787
@@ -75,7 +75,7 @@ to contribute.
 
 ## Reporting bugs and asking for features
 
-Open an [issue](https://github.com/seandavi/bioc-registry/issues). Useful
+Open an [issue](https://github.com/seandavi/bioc-infrastructure/issues). Useful
 things to include: the URL you hit, what you expected, what you got, and — if
 it is about a specific package — the universe (`bioc` or `bioc-release`) and
 package name, so the report can be checked against
