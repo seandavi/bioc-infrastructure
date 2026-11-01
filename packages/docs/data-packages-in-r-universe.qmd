@@ -7,7 +7,7 @@ date: 2026-09-02
 ## A dated measurement, not a live view
 Numbers are from **2026-09-02** against Bioconductor **3.23** (release, R 4.6). Package
 sizes move every release; the script that produced these figures is
-[`package-sizes.py`](https://github.com/seandavi/bioc-infrastructure/blob/main/package-sizes.py)
+[`package-sizes.py`](https://github.com/seandavi/bioc-infrastructure/blob/main/packages/docs/package-sizes.py)
 in this repository, so they can be regenerated rather than trusted.
 :::
 

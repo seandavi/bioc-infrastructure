@@ -16,6 +16,9 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/docs
     steps:
       - uses: actions/checkout@v4
       - name: Check, and file or close the issue

@@ -1,6 +1,6 @@
 # bioc-traffic
 
-**Who actually uses Bioconductor?** This repo turns every request to
+**Who actually uses Bioconductor?** This package turns every request to
 [bioconductor.org](https://bioconductor.org) since 2020 into answers: which packages get
 installed, by whom, and how much of the traffic is people at all.
 
@@ -39,11 +39,11 @@ rules improve.
 - **Package download statistics, 2009 to today.** From 2020, computed from the logs across
   both eras, on the long-published `/packages/stats/` definition, plus separate human,
   package-client and automated columns. Before 2020, the published figures themselves,
-  mirrored whole ([#24](../../issues/24)); where and why the two differ since 2020 is in
+  mirrored whole ([bioc-traffic#24](https://github.com/seandavi/bioc-traffic/issues/24)); where and why the two differ since 2020 is in
   [docs/published-comparison.md](docs/published-comparison.md).
 - **A traffic dashboard's worth of rollups.** Per minute, hour and day, by class, status,
   country, page, referrer and package. A public dashboard built from them is next
-  ([#6](../../issues/6)).
+  ([#131](https://github.com/seandavi/bioc-infrastructure/issues/131)).
 
 ## Privacy
 
@@ -58,12 +58,17 @@ ASN and country by address, for the CloudFront years that logged only the addres
 2026-09 on. Plus the IP ranges Google, Bing, OpenAI and Anthropic publish for their crawlers.
 Details in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
 
+## Running it
+
+The scripts run as systemd units on onclappc02, from the operations clone of `main` at
+`/data/davsean/bioc-ops/bioc-infrastructure`; their unit files are in [`systemd/`](systemd).
+Each script has a `--self-check`; CI (`traffic / test`) runs them all.
+
 ## Related
 
-- [bioc-edge](../edge/): the Cloudflare Worker that serves
-  bioconductor.org and writes the access records.
-- [bioc-infrastructure](https://github.com/seandavi/bioc-infrastructure): the decisions
-  behind it (ADRs), and how this fits with the package registry
-  ([#67](https://github.com/seandavi/bioc-infrastructure/issues/67)).
+- [edge](../edge/): the Cloudflare Worker that serves bioconductor.org and writes the access
+  records.
+- [docs](../docs/): the decisions behind it (ADRs), and how this fits with the package
+  registry ([#67](https://github.com/seandavi/bioc-infrastructure/issues/67)).
 
-Apache 2.0.
+[Apache 2.0](LICENSE).

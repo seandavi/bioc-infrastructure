@@ -4,7 +4,7 @@
 [![freshness](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-freshness.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-freshness.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![API docs](https://img.shields.io/badge/API-docs-informational)](https://bioc-registry.seandavi.workers.dev/docs)
-[![Code of Conduct](https://img.shields.io/badge/Code%20of%20Conduct-Bioconductor-brightgreen)](CODE_OF_CONDUCT.md)
+[![Code of Conduct](https://img.shields.io/badge/Code%20of%20Conduct-Bioconductor-brightgreen)](../../CODE_OF_CONDUCT.md)
 
 **The Bioconductor package registry** — package metadata, propagated versions,
 installable artifacts, provenance, and build/check state, behind one HTTP API.
@@ -103,7 +103,7 @@ The gate is one function, `gate()` in `src/repo.ts`, for every producer:
 r-universe waves in `evaluate()`, bioc-build candidates in `POST /publish`, and
 read-only for anyone via `POST /gate` — each rule reports pass or fail, so a
 non-propagation is one record, not a re-derivation
-([ADR 0011](https://github.com/seandavi/bioc-infrastructure/blob/main/adr/0011-one-propagation-gate-for-every-producer.md)).
+([ADR 0011](https://seandavi.github.io/bioc-infrastructure/adr/0011-one-propagation-gate-for-every-producer.html)).
 
 ### Two ways in
 
@@ -216,14 +216,16 @@ tick or two. `wrangler tail` reports
 spurious "code had hung" errors for workflow runs — check instance status
 instead, they complete fine.
 
-The publisher (`.github/workflows/publish.yml`, `scripts/publish.sh`, SPEC-014
-issue #13) is separate from the worker and runs as a GitHub Actions cron in
-*this* repo, not on Cloudflare — it needs its own four repository secrets
+The publisher (`.github/workflows/registry-publish.yml` at the repository root,
+`scripts/publish.sh`; SPEC-014,
+[bioc-build#13](https://github.com/seandavi/bioc-build/issues/13)) is separate from the
+worker and runs as a GitHub Actions cron, not on Cloudflare. Its four secrets
 (`MAINT_KEY`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ACCOUNT_ID`, from
 GSM `cdsci-bioc-registry-maint-key`, `cdsci-r2-access-key-id`,
-`cdsci-r2-secret-access-key`, `cdsci-r2-account-id`) and skips itself with a
+`cdsci-r2-secret-access-key`, `cdsci-r2-account-id`) are in the `registry` GitHub
+environment, which only `main` can use. It skips itself with a
 `::notice::` when `MAINT_KEY` is unset, so an unconfigured fork's cron is a
-no-op rather than a failure. Run it manually with `gh workflow run publish.yml`,
+no-op rather than a failure. Run it manually with `gh workflow run "registry / publish"`,
 or locally against the real bioc-build runs with
 `MAINT_KEY=… R2_ACCESS_KEY_ID=… R2_SECRET_ACCESS_KEY=… R2_ACCOUNT_ID=… GH_TOKEN=$(gh auth token) bash scripts/publish.sh --dry-run`
 (drop `--dry-run` to actually upload and POST). Its state lives entirely in the
@@ -235,6 +237,6 @@ clobbered).
 
 ## Citing, licence, conduct
 
-- Cite via [CITATION.cff](CITATION.cff) (GitHub's "Cite this repository")
+- Cite via [CITATION.cff](CITATION.cff)
 - [Apache License 2.0](LICENSE)
-- [Bioconductor Code of Conduct](CODE_OF_CONDUCT.md)
+- [Bioconductor Code of Conduct](../../CODE_OF_CONDUCT.md)

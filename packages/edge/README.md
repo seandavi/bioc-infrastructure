@@ -8,7 +8,8 @@ Serving `bioconductor.org` from Cloudflare R2 behind a Worker.
 ![runtime](https://img.shields.io/badge/runtime-Workers-F38020)
 ![BiocManager](https://img.shields.io/badge/BiocManager%3A%3Ainstall()-verified-2EA043)
 
-A working prototype at **`bioc-dev.cancerdatasci.org`**. No production traffic.
+Serving **bioconductor.org** since 2026-09-28 (the Worker is named `bioc-site`); `bioc-dev.cancerdatasci.org`
+is the same Worker on a second hostname, used for PR previews.
 
 ---
 
@@ -143,7 +144,7 @@ Measured, not projected.
 | `BiocManager::install()` | 8/8 against the mirror |
 | Cost | ~$80/month, of which the archive is ~$70 |
 
-## Repo layout
+## Layout
 
 | Path | |
 |---|---|
@@ -158,7 +159,7 @@ Measured, not projected.
 | `test-biocmanager.R` | Acceptance test for the R install path |
 | `inventory/` | Snapshots of upstream and R2, plus a DuckDB query layer over both |
 | `inventory/db.sh` | One command for reconciliation queries — see `inventory/views.sql` |
-| `systemd/` | Sync and reconcile timers, committed but not enabled |
+| `systemd/` | Sync, reconcile and failure-notice units; installed on onclappc02 from the ops clone (see `systemd/README.md`) |
 
 Tests: `./test-itemize.sh`, `./test-cutover-diff.sh`, `node --test worker/test.ts`, and
 `cd worker && npm run typecheck`. CI runs all four.
@@ -169,13 +170,15 @@ which is not on the CI runner.
 ## Not in scope
 
 - **AnnotationHub (10.1 TiB) and ExperimentHub (593 GiB)**, despite sharing the OSN bucket.
-  Different service, fetched by their own R packages through a metadata database. See #28.
+  Different service, fetched by their own R packages through a metadata database. See
+  [bioc-cloudflare#28](https://github.com/seandavi/bioc-cloudflare/issues/28).
 - **Anything dynamic** — search, BiocViews queries, live build reports.
 
 ## Note
 
 Findings about the upstream site go to the Bioconductor team first, before being
-discussed in this repository — see the `upstream` label.
+discussed here: see the `upstream` label in the
+[issue tracker](https://github.com/seandavi/bioc-infrastructure/issues?q=label%3Aupstream).
 
 Credentials never live here; `./make-env.sh` pulls them from Secret Manager into a
 gitignored `.env`.

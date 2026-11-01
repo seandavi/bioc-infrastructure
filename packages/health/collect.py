@@ -5,10 +5,10 @@
 # ///
 """Collect a read-only health snapshot of the bioc-* stack into bundle.json + report.md.
 
-    ./health/collect.py [--config PATH] [--out DIR] [--only a,b,...] [--now ISO8601]
+    ./collect.py [--config PATH] [--out DIR] [--only a,b,...] [--now ISO8601]
 
 Exit 0: nothing worse than warn. Exit 1: at least one fail or error finding.
-Exit 2: bad command line or config; no source ran. See health/README.md.
+Exit 2: bad command line or config; no source ran. See README.md.
 """
 
 from __future__ import annotations
