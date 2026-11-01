@@ -1,9 +1,15 @@
-name: test
+name: edge / test
 
 on:
   pull_request:
+    paths: ['packages/edge/**', '.github/workflows/edge-*.yml']
   push:
+    paths: ['packages/edge/**', '.github/workflows/edge-*.yml']
     branches: [main]
+
+defaults:
+  run:
+    working-directory: packages/edge
 
 jobs:
   test:
@@ -26,7 +32,7 @@ jobs:
       # esbuild strips types without resolving whether a name is bound. Only a
       # real typecheck reports it: TS2304 Cannot find name 'logQuery'.
       - name: worker typecheck
-        working-directory: worker
+        working-directory: packages/edge/worker
         run: npm install --no-audit --no-fund && npm run typecheck
 
       - name: worker key mapping and link resolution

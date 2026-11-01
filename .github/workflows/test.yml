@@ -2,7 +2,9 @@ name: test
 
 on:
   pull_request:
+    paths-ignore: ['packages/**']
   push:
+    paths-ignore: ['packages/**']
     branches: [main]
 
 jobs:

@@ -2,12 +2,16 @@
 # this proves what it serves actually *installs* into a real R session.
 # The badge is the status light: red means the repo surface is broken for
 # the pinned canaries. (#27)
-name: install
+name: registry / install
 
 on:
   schedule:
     - cron: "27 8 * * *"
   workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: packages/registry
 
 jobs:
   canary:

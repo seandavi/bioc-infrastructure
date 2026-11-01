@@ -4,12 +4,16 @@
 # (unit-tested by test-parity.sh); known, explained differences are in
 # parity-known.tsv. The badge is the alert: red means a NEW unexplained
 # difference, and the log also names known entries that are now FIXED.
-name: parity
+name: edge / parity
 
 on:
   schedule:
     - cron: "52 6 * * *"
   workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: packages/edge
 
 jobs:
   probe:

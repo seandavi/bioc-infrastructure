@@ -1,8 +1,14 @@
-name: test
+name: registry / test
 on:
   push:
+    paths: ['packages/registry/**', '.github/workflows/registry-*.yml']
     branches: [main]
   pull_request:
+    paths: ['packages/registry/**', '.github/workflows/registry-*.yml']
+defaults:
+  run:
+    working-directory: packages/registry
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -12,6 +18,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: packages/registry/package-lock.json
       - run: npm ci
       - run: npm test
       # Worker deploys stay manual (wrangler deploy) until the repo settles

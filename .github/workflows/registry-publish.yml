@@ -1,4 +1,4 @@
-name: publish
+name: registry / publish
 # The bioc-build publisher (issue #13, SPEC-014). Sweeps completed build.yml
 # runs on seandavi/bioc-build, verifies each staged package, and publishes it
 # through the guarded POST /publish route — see scripts/publish.sh for the
@@ -12,6 +12,10 @@ on:
 
 permissions:
   contents: read
+
+defaults:
+  run:
+    working-directory: packages/registry
 
 jobs:
   publish:

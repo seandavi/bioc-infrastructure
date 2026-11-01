@@ -1,4 +1,4 @@
-name: freshness
+name: registry / freshness
 # Daily probe of the live registry: is the worker up, and has the observer
 # actually observed something recently? The 15-minute poll previously had no
 # alerting at all — a silent stop was detected by someone remembering to look.
@@ -7,6 +7,10 @@ on:
   schedule:
     - cron: "43 6 * * *"
   workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: packages/registry
 
 jobs:
   probe:

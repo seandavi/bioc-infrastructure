@@ -1,10 +1,14 @@
-name: health
+name: edge / health
 # Daily black-box probe of the serving stack at bioconductor.org.
 # The badge on this workflow is the status light: red means a probe failed.
 on:
   schedule:
     - cron: "17 6 * * *"
   workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: packages/edge
 
 jobs:
   probe:
