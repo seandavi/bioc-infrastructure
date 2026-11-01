@@ -5,7 +5,7 @@ replacement: a Cloudflare Worker, an R2 bucket, and the shell scripts that keep
 them in sync with upstream. Start with the [README](README.md) for the
 architecture, and [MIGRATION.md](MIGRATION.md) for why it is shaped this way.
 
-By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
+By participating you agree to the [Code of Conduct](../../CODE_OF_CONDUCT.md).
 Contributions are accepted under the [Apache License 2.0](LICENSE).
 
 ## Getting set up

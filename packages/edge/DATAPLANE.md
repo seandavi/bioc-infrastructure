@@ -1,7 +1,7 @@
 # A data plane for bioconductor.org
 
 Status: design note, 2026-08-08. One pilot exists in code and is undeployed
-(`worker/src/workflows/release-roll.ts`, [ADR 0007](docs/adr/0007-cloudflare-workflows-for-the-release-roll-guard.md));
+(`worker/src/workflows/release-roll.ts`, [ADR 0007](https://seandavi.github.io/bioc-infrastructure/adr/0007-cloudflare-workflows-for-the-release-roll-guard.html));
 everything else here is a sketch, not a commitment.
 
 Root-level and deliberately not part of the public site: it names internal hosts, unit names and
@@ -273,7 +273,7 @@ because manual deploys are what make every other item on this list harder to ver
 
 ### 5. Download-stats scheduling and staleness alert [not started]
 
-[ADR 0004](docs/adr/0004-download-statistics-are-generated-static-files.md):
+[ADR 0004](https://seandavi.github.io/bioc-infrastructure/adr/0004-download-statistics-are-generated-static-files.html):
 *"An alert on stamp age is the one guard this design requires."* No such alert exists — a search
 for stamp-age, `generated_at` or staleness logic across the shell, Python, TypeScript, CI and unit
 files returns nothing [V, 2026-08-08] — and no scheduled trigger for the generation itself was

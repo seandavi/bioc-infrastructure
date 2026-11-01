@@ -3,7 +3,7 @@
 Thanks for helping. This is a small codebase on purpose — a Cloudflare Worker,
 a Workflow, an R2 bucket, and no framework. Please keep it that way.
 
-By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
+By participating you agree to the [Code of Conduct](../../CODE_OF_CONDUCT.md).
 Contributions are accepted under the [Apache License 2.0](LICENSE).
 
 ## Getting set up

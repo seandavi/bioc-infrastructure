@@ -7,7 +7,8 @@ Two timers, deliberately shipped as a pair.
 | `bioc-sync` | hourly | `RSYNC_SRC=... ./sync.sh` — pull the delta, push what moved, purge those URLs |
 | `bioc-reconcile` | weekly | `RECONCILE=1 ./sync.sh` — `rclone check --checksum`, report drift |
 
-The two mirror jobs share a lock (`flock` on `$XDG_RUNTIME_DIR/bioc-mirror.lock`): the hourly sync skips its run with exit 0 if the reconcile holds it, and the reconcile waits up to 2 h for a running sync before starting. They used to declare `Conflicts=` on each other, which made systemd *kill* whichever was running when the other started; the multi-hour reconcile never survived the next hourly sync (#5, #6).
+The two mirror jobs share a lock (`flock` on `$XDG_RUNTIME_DIR/bioc-mirror.lock`): the hourly sync skips its run with exit 0 if the reconcile holds it, and the reconcile waits up to 2 h for a running sync before starting. They used to declare `Conflicts=` on each other, which made systemd *kill* whichever was running when the other started; the multi-hour reconcile never survived the next hourly sync
+([bioc-edge#5](https://github.com/seandavi/bioc-edge/issues/5), [#6](https://github.com/seandavi/bioc-edge/issues/6)).
 
 Both carry `OnFailure=bioc-notify@%N.service`, so a failed run files (or comments on)
 a GitHub issue titled `<unit> is failing` via `../notify-failure.sh` — full journal for
@@ -22,34 +23,30 @@ diverges silently and permanently. Scheduling the sync without the check would b
 shipping the failure mode without the detector; scheduling the check without the sync
 would reconcile a mirror nothing is updating.
 
-## Not installed
+## Installed
 
-These are committed but **not enabled**, on purpose. Three things have to be true first,
-and none of them is true yet:
-
-1. **The initial load has to be validated.** Until the bucket matches the docroot once,
-   an hourly delta sync is computing differences against an unknown baseline.
-2. **This host has to be the permanent one.** The units hardcode paths under
-   `/data/davsean/`; the mirror is 453 GB and lives on bulk storage that happens to be
-   here. If the sync moves to a server, these move with it.
-3. **Unattended SSH has to work.** `the upstream docroot host` is reached over SSH, and a systemd user
-   unit has no terminal and no inherited agent. Either the key is passphrase-free and
-   readable by the unit, or `SSH_AUTH_SOCK` has to be plumbed in. A timer that silently
-   fails every hour on an agent prompt is worse than no timer, because it looks
-   scheduled.
-
-## Install, once those hold
+On onclappc02 since 2026-09, and since 2026-11-01 from the operations clone of `main` at
+`/data/davsean/bioc-ops/bioc-infrastructure`, not from a development checkout. The unit files
+hard-code that path. Each unit in `~/.config/systemd/user` is a symlink to its file here:
 
 ```sh
-mkdir -p ~/.config/systemd/user
-cp systemd/bioc-*.{service,timer} ~/.config/systemd/user/
+O=/data/davsean/bioc-ops/bioc-infrastructure/packages/edge/systemd
+for u in bioc-sync.service bioc-sync.timer bioc-reconcile.service bioc-reconcile.timer bioc-notify@.service; do
+  ln -sfn "$O/$u" ~/.config/systemd/user/"$u"
+done
 systemctl --user daemon-reload
 systemctl --user enable --now bioc-sync.timer bioc-reconcile.timer
 loginctl enable-linger "$USER"     # timers must survive logout
 ```
 
 `enable-linger` is not optional: without it user timers stop when the last session ends,
-so the sync would run only while someone is logged in.
+so the sync would run only while someone is logged in. The units read
+`packages/edge/.env` in the ops clone (gitignored; `../make-env.sh` writes it), and reach the
+upstream docroot host over SSH with a key the unit can read without an agent.
+
+To deploy a change to these units or to `sync.sh`: merge to `main`, then
+`git -C /data/davsean/bioc-ops/bioc-infrastructure pull` and, for unit-file changes,
+`systemctl --user daemon-reload`.
 
 ## Verify
 
