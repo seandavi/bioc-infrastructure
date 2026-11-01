@@ -1,0 +1,21 @@
+# Daily parity probe: does bioconductor.org (the new stack) answer like
+# master.bioconductor.org (the legacy origin)? master stays up until parity is
+# reached; this is the gate for turning it off. The logic is in parity.sh
+# (unit-tested by test-parity.sh); known, explained differences are in
+# parity-known.tsv. The badge is the alert: red means a NEW unexplained
+# difference, and the log also names known entries that are now FIXED.
+name: parity
+
+on:
+  schedule:
+    - cron: "52 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare bioconductor.org with master.bioconductor.org
+        run: ./parity.sh

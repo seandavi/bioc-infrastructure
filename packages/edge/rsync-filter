@@ -1,0 +1,41 @@
+# What the mirror pulls from the upstream docroot host. Passed to rsync as a merge file, so
+# these are rsync filter rules: first match wins, order matters.
+#
+# This file is the scope decision, in one place. Editing it changes what R2
+# holds; nothing in sync.sh needs to change with it.
+
+# --- checkResults/: mirrored in full -------------------------------------------
+#
+# 2,607,459 files for 38.3 GB -- 70% of every object in the docroot. Used to be
+# LATEST-only for 3.23/3.24 (251,078 files) because R2 bills per operation and
+# these builds run nightly. That cost is churn, not size, and it only applies
+# to the two live releases.
+#
+# 2026-08-07 (ADR 0006): releases <=3.22 are decided archival -- inert since
+# 2025, nothing left to regenerate. checkResults for those releases carries
+# the same terminal state and gets the same treatment already given the OSN
+# archive: a one-time load, not an ongoing sync cost. 3.23/3.24 keep churning
+# nightly regardless; this only removes the exclusion for everything else.
++ /checkResults/
++ /checkResults/***
+
+# --- abandoned staging in the live docroot -----------------------------------
+#
+# 6.1 GB / 2,701 files. The name is upstream's. Contains symlinks pointing at
+# absolute paths under the live docroot/, so it never resolved cleanly anyway.
+- /LoriTempToRemove/***
+
+# --- rsync/filesystem noise --------------------------------------------------
+#
+# Unanchored: there is a lost+found under packages/ as well as at the root, and
+# the rsync user cannot read either, so anchoring to / just moves the
+# permission-denied error rather than removing it.
+- lost+found/
+- .*.??????
+
+# Seven 2013 course-material files are unreadable by the rsync user
+# (help/course-materials/2013/EMBOBGI/...). Deliberately NOT excluded: they
+# return 403 from the live site too, so Apache cannot read them either. The
+# mirror loses nothing, and leaving them to error keeps the condition visible
+# rather than silently normalising an upstream permissions bug. Reported in
+# the upstream-findings issue.

@@ -1,0 +1,58 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bioc-site",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-27",
+  "observability": { "enabled": true },
+
+  // Trace events -- and with them the access record this Worker console.logs --
+  // are only shipped to Logpush for Workers that opt in here. The account-wide
+  // workers_trace_events job has no filter and every field selected, and still
+  // captured nothing from this script until this flag was set. A missing opt-in
+  // is silent on both sides: the job reports success, the bucket fills with
+  // other Workers' events, and this one is simply absent.
+  "logpush": true,
+
+  // Bucket stays private — reachable only through this Worker's binding.
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "bioc-site" }],
+
+  // Answers "is the bot traffic legitimate?"; queryable via the AE SQL API.
+  // Analytics Engine fixes a dataset's schema at creation, so every added
+  // field means a new dataset name -- v1 was created with 5 blobs and
+  // silently dropped the 6th, which is how we learned. v3 adds the query
+  // string as blob7. v1 and v2 stay queryable by name; only new rows land here.
+  "analytics_engine_datasets": [{ "binding": "LOGS", "dataset": "bioc_site_requests_v3" }],
+
+  // The release-roll guard (docs/adr/0007). The entrypoint class is in
+  // src/index.ts (a Workflow class must be exported from `main`); its decision
+  // logic is in src/workflows/release-roll.ts where `node --test` can reach it.
+  "workflows": [
+    { "binding": "RELEASE_ROLL", "name": "bioc-release-roll", "class_name": "ReleaseRollWorkflow" }
+  ],
+
+  // The guard's clock. scheduled() reads the two 4-byte version files upstream
+  // and creates at most one Workflow instance per distinct pair; every other
+  // fire is a no-op. Cron Triggers do not retry a failed invocation, so the
+  // cadence is also the retry interval.
+  "triggers": { "crons": ["*/15 * * * *"] },
+
+  "vars": { "NOT_FOUND_KEY": "help/404/index.html" },
+
+  // custom_domain lets wrangler create the DNS record itself, rather than
+  // needing one to pre-exist as it would for a plain route pattern.
+  //
+  // next.bioconductor.org is the production-cutover rehearsal host: a plain
+  // route on the bioconductor.org zone, fronted by a *proxied* CNAME to the
+  // apex. It uses the same mechanism the flip will (route + proxy toggle, see
+  // bioc-infrastructure dns-cutover.qmd step 3), so it exercises the real
+  // hostname, zone settings and certificate. `wrangler deploy` replaces this
+  // Worker's routes with this list, so every route must be declared here.
+  "routes": [
+    { "pattern": "bioc-dev.cancerdatasci.org", "custom_domain": true },
+    { "pattern": "next.bioconductor.org/*", "zone_name": "bioconductor.org" },
+    // Production since the 2026-09-28 cutover, when the apex and www records
+    // were switched to Proxied. Rollback: switch them back to DNS only.
+    { "pattern": "bioconductor.org/*", "zone_name": "bioconductor.org" },
+    { "pattern": "www.bioconductor.org/*", "zone_name": "bioconductor.org" }
+  ]
+}

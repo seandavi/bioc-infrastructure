@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+#
+# The only non-obvious logic in sync.sh: turning `rsync --out-format` into the
+# set of R2 keys to upload and delete. Everything else is rclone and curl.
+# Runs against a local rsync, no network.
+#
+#   ./test-itemize.sh
+set -euo pipefail
+
+t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
+src=$t/src dst=$t/dst log=$t/log
+mkdir -p "$src/sub" "$dst"
+
+pull() {
+  rsync -a --delete --out-format='%i|%n' "$src/" "$dst/" > "$log"
+  awk -F'|' '$1 ~ /^>f/         {print $2}' "$log" | sort > "$t/up"
+  awk -F'|' '$1 ~ /^\*deleting/ && $2 !~ /\/$/ {print $2}' "$log" | sort > "$t/gone"
+}
+expect() { # expect <label> <up|gone> <expected lines...>
+  local label=$1 which=$2; shift 2
+  local want; want=$(printf '%s\n' "$@" | sed '/^$/d' | sort)
+  local got; got=$(cat "$t/$which")
+  [[ $want == "$got" ]] ||
+    { echo "FAIL $label ($which)"; diff <(echo "$want") <(echo "$got"); exit 1; }
+}
+
+# 1. First pull: every file is new.
+echo hello > "$src/a.txt"
+echo world > "$src/sub/b.txt"
+ln -s a.txt "$src/link"
+pull
+expect "initial" up a.txt sub/b.txt
+expect "initial" gone
+# A symlink is `cL`, not `>f`, so it never reaches the upload list -- R2 has no
+# symlinks and the Worker resolves them.
+[[ -L $dst/link ]] || { echo "FAIL symlink not mirrored locally"; exit 1; }
+
+# 2. Content change only.
+echo changed > "$src/a.txt"
+pull
+expect "content change" up a.txt
+expect "content change" gone
+
+# 3. The one that bites: rsync's quick check is size+mtime, so touching a file
+#    without changing a byte still itemizes `>f..t......` and enters the
+#    candidate list. This is why sync.sh runs `rclone copy --checksum` over the
+#    candidates instead of uploading them -- and why the purge list comes from
+#    rclone's log, not from this list. Assert the superset, so nobody "fixes"
+#    the checksum pass away later.
+touch -d '2020-01-01' "$src/a.txt"
+pull
+expect "mtime-only is a candidate, not a change" up a.txt
+grep -q '^>f..t' "$log" || { echo "FAIL expected >f..t itemize"; exit 1; }
+
+# 4. Attribute-only really is `.f`, and stays out of the candidate list.
+chmod 600 "$src/a.txt"
+pull
+expect "perms only" up
+expect "perms only" gone
+
+# 5. Deletion of a file, and of a whole directory. The directory itself carries
+#    a trailing slash and must not become a delete key.
+rm "$src/a.txt"
+rm -r "$src/sub"
+pull
+expect "deletion" up
+expect "deletion" gone a.txt sub/b.txt
+
+# 6. Nothing changed: both lists empty. This is the hourly steady state, and
+#    the case where sync.sh must not purge anything.
+pull
+expect "no-op" up
+expect "no-op" gone
+
+# 7. The scope filter. rsync filter rules are order-sensitive and fail quietly
+#    in both directions -- dropping wanted content, or silently pulling
+#    unwanted objects. Build the real directory shapes and assert both sides.
+#    checkResults is mirrored in full (ADR 0006) -- archival releases (3.20,
+#    3.11) are included alongside the live ones (3.23, 3.24), only
+#    LoriTempToRemove/ stays excluded.
+filt=$(dirname "$(readlink -f "$0")")/rsync-filter
+[[ -f $filt ]] || { echo "FAIL no rsync-filter next to this script"; exit 1; }
+
+f=$t/f; mkdir -p "$f/src" "$f/dst"
+mkdir -p "$f/src/checkResults/3.23/bioc-LATEST" "$f/src/checkResults/3.23/books-LATEST" \
+         "$f/src/checkResults/3.24/bioc-LATEST" "$f/src/checkResults/3.20/bioc-LATEST" \
+         "$f/src/checkResults/3.11/bioc-20201017" "$f/src/LoriTempToRemove" \
+         "$f/src/packages/3.23/bioc/html" "$f/src/help"
+echo x > "$f/src/checkResults/3.23/bioc-LATEST/pkg.html"
+echo x > "$f/src/checkResults/3.23/books-LATEST/b.html"
+echo x > "$f/src/checkResults/3.24/bioc-LATEST/dev.html"
+echo x > "$f/src/checkResults/3.20/bioc-LATEST/old.html"
+echo x > "$f/src/checkResults/3.11/bioc-20201017/dated.html"
+# The landing page. A real file, not an autoindex, and the `- ***` rule dropped
+# it along with the build output -- so /checkResults/ 404'd while everything it
+# links to was present.
+echo x > "$f/src/checkResults/index.html"
+echo x > "$f/src/LoriTempToRemove/junk.txt"
+echo x > "$f/src/packages/3.23/bioc/html/DESeq2.html"
+echo x > "$f/src/help/index.html"
+ln -s 3.23 "$f/src/checkResults/release"
+ln -s 3.24 "$f/src/checkResults/devel"
+
+rsync -a --delete --filter="merge $filt" "$f/src/" "$f/dst/" >/dev/null
+got=$(cd "$f/dst" && find . \( -type f -o -type l \) -printf '%P\n' | sort)
+want=$(printf '%s\n' \
+  checkResults/3.23/bioc-LATEST/pkg.html \
+  checkResults/3.23/books-LATEST/b.html \
+  checkResults/3.24/bioc-LATEST/dev.html \
+  checkResults/3.20/bioc-LATEST/old.html \
+  checkResults/3.11/bioc-20201017/dated.html \
+  checkResults/devel \
+  checkResults/index.html \
+  checkResults/release \
+  help/index.html \
+  packages/3.23/bioc/html/DESeq2.html | sort)
+[[ $want == "$got" ]] || { echo "FAIL scope filter"; diff <(echo "$want") <(echo "$got"); exit 1; }
+
+# 8. Extensionless split. rclone types by extension, so these need an explicit
+#    Content-Type or they upload as octet-stream and download rather than
+#    render -- and the Worker cannot repair it, because contentType() only
+#    fires when the type is missing, not when it is wrong. 35,743 of them in
+#    the real tree, so getting the predicate wrong is not a rounding error.
+#    This is the same awk sync.sh uses.
+ext_split() { awk -F/ '$NF !~ /\./'; }
+got=$(printf '%s\n' \
+  packages/3.23/bioc/news/DESeq2/NEWS \
+  packages/3.23/bioc/src/contrib/PACKAGES \
+  packages/3.23/bioc/VIEWS \
+  help/index.html \
+  packages/3.23/bioc/src/contrib/DESeq2_1.44.0.tar.gz \
+  style/base/colors.css \
+  some.dir/README | ext_split | sort)
+want=$(printf '%s\n' \
+  packages/3.23/bioc/news/DESeq2/NEWS \
+  packages/3.23/bioc/src/contrib/PACKAGES \
+  packages/3.23/bioc/VIEWS \
+  some.dir/README | sort)
+[[ $want == "$got" ]] || { echo "FAIL extensionless split"; diff <(echo "$want") <(echo "$got"); exit 1; }
+
+# 9. rsync exit codes. 23 (unreadable) and 24 (vanished) are the normal case
+#    against a live docroot, not failures -- a dozen upstream files have been
+#    unreadable for years. Under `set -e` an unhandled 23 aborts the caller the
+#    moment rsync returns, so the whole sync silently degrades into a pull that
+#    uploads nothing. A real run did exactly that for 21 minutes.
+u=$t/u; mkdir -p "$u/src" "$u/dst"
+echo readable > "$u/src/ok.txt"
+echo secret   > "$u/src/locked.txt"
+chmod 000 "$u/src/locked.txt"
+
+set +e
+rsync -a --out-format='%i|%n' "$u/src/" "$u/dst/" > "$u/log" 2> "$u/err"
+rc=$?
+set -e
+
+if [[ $EUID -eq 0 ]]; then
+  note="running as root, which can read mode-000 files"
+  echo "  SKIP unreadable-source exit code ($note)"
+else
+  [[ $rc -eq 23 ]] || { echo "FAIL expected rsync exit 23 for an unreadable source, got $rc"; exit 1; }
+  # The readable file must still transfer -- a partial failure is not a total one.
+  [[ -f $u/dst/ok.txt ]] || { echo "FAIL readable file did not transfer alongside the unreadable one"; exit 1; }
+  # And the itemize output must still be usable, since it drives everything downstream.
+  grep -q '^>f.*|ok.txt$' "$u/log" || { echo "FAIL itemize output missing the transferred file"; exit 1; }
+fi
+
+# The policy sync.sh applies: 0/23/24 continue, anything else aborts.
+for code in 0 23 24; do
+  case $code in 0|23|24) ;; *) echo "FAIL $code should be tolerated"; exit 1 ;; esac
+done
+for code in 1 12 30; do
+  case $code in 0|23|24) echo "FAIL $code should abort"; exit 1 ;; *) ;; esac
+done
+
+echo "ok"

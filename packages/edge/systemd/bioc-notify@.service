@@ -1,0 +1,7 @@
+[Unit]
+Description=Report failure of %i to GitHub
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/davsean/Documents/git/bioc-edge
+ExecStart=/home/davsean/Documents/git/bioc-edge/notify-failure.sh %i.service
