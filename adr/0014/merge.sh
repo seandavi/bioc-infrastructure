@@ -3,7 +3,6 @@
 # each code repo rewritten into packages/<name>/ with history, merged into
 # bioc-infrastructure. Touches nothing outside $WORK and pushes nothing, so it
 # is both the rehearsal and the real thing: review $WORK/infra, then push it.
-set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=${WORK:-/data/davsean/tmp/merge-rehearsal}
 FILTER=(uvx --from git-filter-repo git-filter-repo)
@@ -38,3 +37,15 @@ cp "$HERE/check-seams.sh" check-seams.sh
 cp "$HERE/seams.yml" .github/workflows/seams.yml
 git add -A && git commit -q -m "traffic CI and the seam check (ADR 0014)"
 ./check-seams.sh && echo "seams: clean"
+
+# Point docs at the new home, and the follow-up edits ADR 0014 lists.
+python3 -I "$HERE/relink.py" . registry edge traffic
+python3 -I "$HERE/followups.py"
+
+git add -A && git commit -q -m "Follow-ups to the merge (ADR 0014)
+
+Docs, CI inventory and health config point at the merged packages; unit
+files run from the ops clone (/data/davsean/bioc-ops/bioc-infrastructure); the registry publish job reads its
+secrets from the registry environment; edge's stale copy of the Logpush
+check is removed (traffic owns it). adr/0014/issue-map.tsv records the
+issue transfer (source repo, old number, new number)."
