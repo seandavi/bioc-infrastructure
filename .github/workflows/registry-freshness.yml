@@ -8,10 +8,6 @@ on:
     - cron: "43 6 * * *"
   workflow_dispatch:
 
-defaults:
-  run:
-    working-directory: packages/registry
-
 jobs:
   probe:
     runs-on: ubuntu-latest
