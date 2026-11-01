@@ -19,6 +19,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - name: self-checks
+        env:
+          TMPDIR: ${{ runner.temp }}   # scripts default to the host's /data/davsean/tmp
         run: |
           for s in $(grep -l -- '--self-check' *.py); do
             echo "::group::$s"; ./"$s" --self-check; echo "::endgroup::"

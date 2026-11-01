@@ -68,7 +68,7 @@ import argparse, datetime as dt, functools, json, os, pathlib, re, runpy, shutil
 
 HERE = pathlib.Path(__file__).resolve().parent
 OUT = pathlib.Path("/data/davsean/bioc-traffic-stats")
-SCRATCH = pathlib.Path("/data/davsean/tmp")   # /tmp is small on onclappc02
+SCRATCH = pathlib.Path(os.environ.get("TMPDIR", "/data/davsean/tmp"))   # /tmp is small on onclappc02
 PUBLISHED = pathlib.Path("/data/davsean/bioc-published-stats/published_month.parquet")
 JOIN = "2020-01-01"   # the first month of the logs; published numbers before it
 CLOUDFRONT = pathlib.Path("/data/davsean/bioc-cf-parquet")

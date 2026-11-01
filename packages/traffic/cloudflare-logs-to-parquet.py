@@ -47,7 +47,7 @@ FIELDS = runpy.run_path(str(HERE / "cloudfront-logs-to-parquet.py"))["FIELDS"]
 SOURCE = "gs1:bioc-u24-logs/cloudflare/bioc-access-logs"
 OUT = pathlib.Path("/data/davsean/bioc-cloudflare-parquet")
 R2_DEST = "r2:bioc-access-logs/parquet/cloudflare"
-SCRATCH = pathlib.Path("/data/davsean/tmp")   # /tmp is small on onclappc02
+SCRATCH = pathlib.Path(os.environ.get("TMPDIR", "/data/davsean/tmp"))   # /tmp is small on onclappc02
 SALT_SECRET = ["--secret", "bioc-logs-ip-salt", "--project", "cdsci-infra"]
 
 HOUR = dt.timedelta(hours=1)

@@ -29,12 +29,13 @@ cross-check (sql/ipref_agreement.sql). Queried through sql/ipref.sql.
    CloudFront-era stand-in for cf.verifiedBotCategory.
 """
 
+import os
 import argparse, datetime as dt, gzip, ipaddress, json, pathlib, sys, tempfile, urllib.error, urllib.request
 import duckdb
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = pathlib.Path("/data/davsean/bioc-traffic-ipref")
-SCRATCH = pathlib.Path("/data/davsean/tmp")
+SCRATCH = pathlib.Path(os.environ.get("TMPDIR", "/data/davsean/tmp"))
 DBIP = "https://download.db-ip.com/free/dbip-{kind}-lite-{release}.csv.gz"
 # Cloudflare-fronted sites answer 403 to Python-urllib's default User-Agent.
 UA = "Mozilla/5.0 (compatible; bioc-traffic ipref; +https://github.com/seandavi/bioc-traffic)"

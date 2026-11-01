@@ -38,13 +38,14 @@ Re-snapshot: `just published-crawl` (today's date), then upload and normalise. R
 snapshots are never edited; a new date is a new directory.
 """
 
+import os
 import argparse, collections, concurrent.futures as cf, datetime as dt, gzip, hashlib, json, pathlib, re, sys, time
 import urllib.error, urllib.parse, urllib.request
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = pathlib.Path("/data/davsean/bioc-published-stats")
 STATS = pathlib.Path("/data/davsean/bioc-traffic-stats")
-SCRATCH = pathlib.Path("/data/davsean/tmp")
+SCRATCH = pathlib.Path(os.environ.get("TMPDIR", "/data/davsean/tmp"))
 SITE = "https://bioconductor.org"
 TREES = ("/packages/stats/", "/packages/oldstats/")
 # Cloudflare answers 403 to Python-urllib's default User-Agent.
