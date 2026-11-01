@@ -10,10 +10,10 @@ This is the detectors-plus-digest slice of #43.
 Run it on onclappc02, where the units, the Parquet and the checkouts live.
 
 ```sh
-./health/collect.py                          # every source
-./health/collect.py --only systemd,issues    # a subset
-./health/collect.py --now 2026-10-03T12:00Z  # pretend time, for reproducible reruns
-./health/collect.py --config my.toml --out /some/dir
+./collect.py                                # every source
+./collect.py --only systemd,issues          # a subset
+./collect.py --now 2026-10-03T12:00Z        # pretend time, for reproducible reruns
+./collect.py --config my.toml --out /some/dir
 ```
 
 It is a `uv run --script` (Python ≥ 3.11, duckdb). Output goes to
@@ -56,5 +56,5 @@ is still failing is attached to that unit's finding as a ref.
 - `bioc_health/sources/<name>.py`: one module per source, each `collect(cfg, now) -> SourceResult`.
 - `bioc_health/report.py`: renders `bundle.json` to `report.md`.
 
-Tests: `uv run --python 3.12 --with pytest pytest health/tests -q` (also the `health` job
-in `.github/workflows/test.yml`).
+Tests: `uv run --python 3.12 --with pytest pytest tests -q` from `packages/health` (also the `health / test` workflow
+in `.github/workflows/health-test.yml`).

@@ -1,5 +1,3 @@
-/.quarto/
-/_site/
 **/*.quarto_ipynb
 .env
 *.env
@@ -8,7 +6,7 @@ _site/
 ._*
 .DS_Store
 ci-inventory.md
-dns/verify.log
+packages/docs/dns/verify.log
 # Local working sources for proposals (grant PDFs, vendor material); not published.
 search-proposal/
 __pycache__/

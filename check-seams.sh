@@ -8,6 +8,8 @@ cd "$(dirname "$0")"
 pkgs=$(ls packages)
 bad=0
 for a in $pkgs; do
+  # docs and health describe and monitor the other packages; naming their paths is their job.
+  case $a in docs|health) continue ;; esac
   for b in $pkgs; do
     [ "$a" = "$b" ] && continue
     if hits=$(git grep -n -E "(\.\./)+$b/|packages/$b/" -- "packages/$a" ':!*.md' ':!**/package-lock.json'); then

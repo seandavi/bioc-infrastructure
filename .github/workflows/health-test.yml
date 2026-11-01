@@ -1,0 +1,21 @@
+name: health / test
+
+on:
+  pull_request:
+    paths: ['packages/health/**', '.github/workflows/health-*.yml']
+  push:
+    paths: ['packages/health/**', '.github/workflows/health-*.yml']
+    branches: [main]
+
+defaults:
+  run:
+    working-directory: packages/health
+
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: health collector rules
+        run: uv run --python 3.12 --with pytest pytest tests -q

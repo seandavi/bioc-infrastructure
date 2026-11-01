@@ -1,0 +1,21 @@
+name: docs / test
+
+on:
+  pull_request:
+    paths: ['packages/docs/**', '.github/workflows/docs-*.yml']
+  push:
+    paths: ['packages/docs/**', '.github/workflows/docs-*.yml']
+    branches: [main]
+
+defaults:
+  run:
+    working-directory: packages/docs
+
+jobs:
+  mirror-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y rclone
+      - name: mirror-sync.sh against a local fake site
+        run: ./test-mirror-sync.sh

@@ -5,7 +5,7 @@ description: "Every GitHub Actions workflow in the public bioc repos, what it te
 
 One page for the question "what is red, and does it matter?" Status badges are
 live. The table under [Workflows](#workflows) is generated at site build by
-[`ci-inventory.py`](https://github.com/seandavi/bioc-infrastructure/blob/main/ci-inventory.py)
+[`ci-inventory.py`](https://github.com/seandavi/bioc-infrastructure/blob/main/packages/docs/ci-inventory.py)
 from the GitHub API, so it matches the workflows in each repo; the
 description column is each workflow's leading comment block, so a workflow with
 no header comment shows only its name. Everything else on this page is

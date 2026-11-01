@@ -103,7 +103,7 @@ The gate is one function, `gate()` in `src/repo.ts`, for every producer:
 r-universe waves in `evaluate()`, bioc-build candidates in `POST /publish`, and
 read-only for anyone via `POST /gate` — each rule reports pass or fail, so a
 non-propagation is one record, not a re-derivation
-([ADR 0011](https://github.com/seandavi/bioc-infrastructure/blob/main/adr/0011-one-propagation-gate-for-every-producer.md)).
+([ADR 0011](https://seandavi.github.io/bioc-infrastructure/adr/0011-one-propagation-gate-for-every-producer.html)).
 
 ### Two ways in
 
