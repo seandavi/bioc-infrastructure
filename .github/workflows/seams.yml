@@ -1,0 +1,14 @@
+name: seams
+# ADR 0014: no package reaches into another package's source. Runs on every
+# change, since a seam can be crossed from either side.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  seams:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./check-seams.sh
