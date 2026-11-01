@@ -1,7 +1,7 @@
 # 0014 — One platform repo; the website, build and manifest stay separate
 
-- **Status:** Proposed
-- **Date:** 2026-10-16, revised 2026-10-30
+- **Status:** Accepted
+- **Date:** 2026-10-16, revised 2026-10-30, accepted 2026-11-01
 - **Revisits:** [ADR 0008](0008-three-repos-and-a-strangler-migration.md) (repo layout only; its
   strangler migration stands) and [ADR 0010](0010-two-new-repos-for-the-build-system-and-the-manifest-name.md)
   (one argument corrected below)
@@ -78,7 +78,7 @@ One argument in ADR 0010 needs correcting: it says bioc-registry's "name is its 
 The public URL comes from the Worker's `name` in `wrangler.jsonc`, not from the repo name;
 bioc-edge already deploys a Worker named `bioc-site`.
 
-## Decision (proposed)
+## Decision
 
 **1. One platform repo: this one.** bioc-registry, bioc-edge and bioc-traffic move in as
 `packages/registry`, `packages/edge` and `packages/traffic`, beside the docs, `health/` and the
