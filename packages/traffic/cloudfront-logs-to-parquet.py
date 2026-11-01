@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["duckdb>=1.4"]
+# ///
 """Mirror the raw CloudFront access logs for bioconductor.org into Parquet.
 
 Background: the published download stats at /packages/stats/ are produced by two
