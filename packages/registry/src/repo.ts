@@ -1090,14 +1090,21 @@ export const isLogEntry = (name: string) =>
 // "already captured" state — no per-job HEAD (26k+ per snapshot) and no key listing.
 // ponytail: watermark captures forward only. Jobs predating the first capture run
 // are skipped permanently; add a descending backfill sweep if those turn out to matter.
+// A failed build of a newer commit is not in _jobs: r-universe keeps showing the
+// last good build there and reports the failure only in _failure.job. Those are the
+// logs people most want, so both walks read both.
+type JobsOf = { job?: number; artifact?: string };
+const jobsOf = (p: { _jobs?: JobsOf[]; _failure?: { job?: JobsOf | null } }): JobsOf[] =>
+  p._failure?.job ? [...(p._jobs ?? []), p._failure.job] : p._jobs ?? [];
+
 export function pendingJobIds(
-  pkgs: { _jobs?: { job?: number }[] }[],
+  pkgs: { _jobs?: JobsOf[]; _failure?: { job?: JobsOf | null } }[],
   cursor: number,
   limit: number
 ): number[] {
   const ids = new Set<number>();
   for (const p of pkgs)
-    for (const j of p._jobs ?? []) {
+    for (const j of jobsOf(p)) {
       const n = Number(j.job);
       if (Number.isFinite(n) && n > cursor) ids.add(n);
     }
@@ -1108,13 +1115,13 @@ export function pendingJobIds(
 // addressed by artifact while the cursor is over job ids. A job with no artifact
 // id is skipped rather than counted — there is nothing to fetch for it.
 export function pendingArtifacts(
-  pkgs: { _jobs?: { job?: number; artifact?: string }[] }[],
+  pkgs: { _jobs?: JobsOf[]; _failure?: { job?: JobsOf | null } }[],
   cursor: number,
   limit: number
 ): { job: number; artifact: string }[] {
   const found = new Map<number, string>();
   for (const p of pkgs)
-    for (const j of p._jobs ?? []) {
+    for (const j of jobsOf(p)) {
       const n = Number(j.job);
       if (Number.isFinite(n) && n > cursor && j.artifact) found.set(n, j.artifact);
     }
