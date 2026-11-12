@@ -21,6 +21,8 @@ jobs:
           cache-dependency-path: packages/registry/package-lock.json
       - run: npm ci
       - run: npm test
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --script scripts/package_changes.py --selftest
       # Worker deploys stay manual (wrangler deploy) until the repo settles
       # into its public home; type noise from workers-types is pre-existing,
       # so gate on src/ diagnostics only.

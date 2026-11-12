@@ -508,6 +508,7 @@ All addressable through `/data/<key>`.
 |---|---|
 | `obs/{universe}/dt=YYYY-MM-DD/{ts}-{digest12}.json` | full observation: array of package records (`Package`, `Version`, `_sha256`, `_status`, `_jobs`, `_binaries`, `_created`, `_expires`, `_fileid`, `_commit`, `_failure`, and the reproduction fields below) |
 | `state/{universe}/latest` | `{digest, key, ts}` of the newest observation |
+| `history/package_changes.parquet` | every change to a package record, both universes, one file (schema below); rewritten daily |
 | `parquet/jobs/universe={u}/dt=…/{ts}-{digest12}.parquet` | jobs table for that observation (schema below) |
 | `parquet/jobs/universe={u}/dt=…/{ts}-m.parquet` | same schema, holding several observations of a closed day merged together |
 | `state/{universe}/logcursor` | `{job}` high-water mark for log capture |
@@ -611,6 +612,58 @@ observation — see [Rows are stored as changes](#rows-are-stored-as-changes-not
 
 Hive partitioning (`universe=`, `dt=` in paths) is redundant with the columns,
 so globbing with or without `hive_partitioning` both work.
+
+## Package history (`history/package_changes.parquet`)
+
+One file holds the build history of every package in both universes: a row each
+time a package's r-universe record changes, or the package disappears. The record is
+kept whole, so everything r-universe reports is in it: every platform's job and
+verdict (`_jobs`), the failed build of a newer commit (`_failure`), packages that
+never built (`_type: "failure"`), the commit, the maintainer and BiocCheck's counts.
+A rerun gets a new job id, so it changes the record and gets its own row.
+
+Built daily by `scripts/package_changes.py` (workflow `registry / package changes`)
+from the snapshots in `obs/`, which stay the source of truth; the file can always be
+rebuilt from them. It is replaced in one upload, around 05:30 UTC.
+
+| column | type | notes |
+|---|---|---|
+| `universe` | VARCHAR | `bioc` \| `bioc-release` |
+| `obs_ts` | TIMESTAMPTZ | the snapshot the change was first seen in |
+| `package` | VARCHAR | |
+| `version` | VARCHAR | `Version`; null on removals and on records that never built |
+| `sha256` | VARCHAR | `_sha256`, the source tarball |
+| `record_md5` | VARCHAR | md5 of `record`, which is what decides that something changed |
+| `removed` | BOOLEAN | true: the package is absent from the snapshot at `obs_ts` (then `record` is null) |
+| `record` | VARCHAR | the package's whole record as archived (`FIELDS` in `src/index.ts`), as JSON text: `record->>'Maintainer'` in DuckDB, `jsonlite::fromJSON()` in R |
+
+Rows are sorted by `universe, package, obs_ts` in row groups of 4,096, so a reader
+after one package reads only that package's part of the file by range.
+
+**Stability.** The columns and the row rule are a stable contract. What is inside
+`record` is r-universe's shape and changes when theirs does; read it defensively.
+
+**Logs.** Each `record._jobs[].job` (and `record._failure.job.job`) is the key for
+`/logs/{universe}/{job}`, `/checks/{universe}/{job}` and `/builds/{universe}/{job}`.
+
+**Current status** for all packages is the latest snapshot itself
+(`state/{universe}/latest` → `obs/…`), not a query over this file.
+
+```r
+library(arrow)
+h <- read_parquet("https://bioc-registry.seandavi.workers.dev/data/history/package_changes.parquet")
+```
+
+```sql
+-- DuckDB: one row per job, for one package, straight off the URL
+SELECT obs_ts, j.config, j.check, j.job
+FROM 'https://bioc-registry.seandavi.workers.dev/data/history/package_changes.parquet',
+     unnest(from_json(record->'_jobs', '[{"job":"BIGINT","config":"VARCHAR","check":"VARCHAR"}]')) AS t(j)
+WHERE universe = 'bioc' AND package = 'limma'
+ORDER BY obs_ts;
+```
+
+The `workers.dev` hostname will change before a released package should depend on it.
 
 ## Index entry shape
 

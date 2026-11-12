@@ -1,0 +1,39 @@
+name: registry / package changes
+# Rebuilds history/package_changes.parquet from the obs/ snapshots
+# (scripts/package_changes.py, docs/api.md "Package history"). Incremental and
+# idempotent: a run takes only snapshots newer than the file's newest row.
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "At most this many snapshots per universe (blank: all)"
+        required: false
+
+permissions:
+  contents: read
+
+# The file is read, extended and replaced whole, so two runs must never overlap.
+concurrency:
+  group: registry-package-changes
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: packages/registry
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: registry
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: build package history
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          LIMIT: ${{ inputs.limit }}
+        run: uv run --script scripts/package_changes.py ${LIMIT:+--limit "$LIMIT"}
