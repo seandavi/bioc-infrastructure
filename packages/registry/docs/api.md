@@ -36,11 +36,13 @@ parquet observation into an observation × config check-status table.
 
 ### `GET /logs/{universe}/{job}`
 
-Plain-text GHA job log (`job` ids come from `_jobs[].job`), served from
+Plain-text GHA job log (`job` ids come from `_jobs[].job`, and from `_failure.job.job`
+for a newer commit whose build failed), served from
 `logs/{universe}/{job}.txt` in the bucket — not proxied, so no token sits on a
 public route and the log stays readable after GitHub deletes it at ~90 days.
 
 This is the *runner's* log: docker pulls, dependency installs, compiler output.
+Logs are stored whole; the largest seen is 226MB (a flood of compiler warnings).
 It does not contain R CMD check's verdict — for that see
 [`/checks/{universe}/{job}`](#get-checksuniversejob).
 

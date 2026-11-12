@@ -108,6 +108,9 @@ async function poll(universe: string, env: Env): Promise<string> {
 // ~1,600 + ~800; a cron invocation makes ~1,200 subrequests here and ~1,600 there,
 // against the 10,000 default on Workers paid.
 const LOGS_PER_RUN = 200;
+// Job logs above this are streamed to R2 instead of read as text (captureLog).
+const LOG_TEXT_MAX = 16_000_000;
+const MANIFEST_SCAN = 8_000_000;
 
 async function captureLogs(universe: string, env: Env): Promise<string> {
   // Trimmed because the obvious way to set this secret — piping `gcloud secrets
@@ -157,8 +160,23 @@ async function captureLog(universe: string, job: number, token: string, env: Env
   // two months of logs, saving none (#69).
   if (gh.status === 404 || gh.status === 410) return false;
   if (!gh.ok) throw new Error(`HTTP ${gh.status}`);
-  const log = await gh.text();
-  await env.ARCHIVE.put(`logs/${universe}/${job}.txt`, log);
+  const key = `logs/${universe}/${job}.txt`;
+  const len = Number(gh.headers.get("content-length"));
+  let log: string;
+  if (gh.body && len > LOG_TEXT_MAX) {
+    // Streamed, so the log is kept whole without being held in memory. A flood of
+    // compiler warnings reaches 226MB (bioc job 121603050065, RcppEigen templates),
+    // and reading that as text exceeded the isolate's 128MB on every run, wedging
+    // the bioc cursor from 2026-10-26 to 2026-11-12. The manifest is read from the
+    // head, which is where the dependency installs are.
+    const { readable, writable } = new FixedLengthStream(len);
+    gh.body.pipeTo(writable);
+    await env.ARCHIVE.put(key, readable);
+    log = (await (await env.ARCHIVE.get(key, { range: { offset: 0, length: MANIFEST_SCAN } }))?.text()) ?? "";
+  } else {
+    log = await gh.text();
+    await env.ARCHIVE.put(key, log);
+  }
   const manifest = buildManifest(log);
   // Skipped when it found nothing: a log with no install section says nothing
   // about the build, and an empty manifest would read as "no dependencies"
@@ -1146,7 +1164,9 @@ type FullPkg = {
     arch?: string; distro?: string;
   }[];
   _jobs?: { job?: number; config: string; r?: string; check?: string; time?: number; artifact?: string }[];
-  _failure?: { version?: string; commit?: { id?: string; time?: number }; buildurl?: string };
+  // job is the failed build's own job entry (config "source"), or null when r-universe
+  // did not record one.
+  _failure?: { version?: string; commit?: { id?: string; time?: number }; job?: { job?: number; artifact?: string } | null };
   // The workflow run that _jobs came from. Needed to link a job on github.com,
   // which has no URL form that takes a job id alone.
   _buildurl?: string;
@@ -1507,7 +1527,7 @@ async function pkgPage(env: Env, universe: string, name: string, now: number): P
 
   const failure = p._failure
     ? `<p class="warn">newer commit failed to build${p._failure.version ? ` (version ${esc(p._failure.version)})` : ""} —
-       shown results are the last successful build.${p._failure.buildurl ? ` <a href="${esc(p._failure.buildurl)}">build log</a>` : ""}</p>`
+       shown results are the last successful build.${p._failure.job?.job ? ` <a href="/logs/${universe}/${p._failure.job.job}">build log</a>` : ""}</p>`
     : "";
 
   // A seeded entry never faced the gate, so saying "propagated" of it would be a

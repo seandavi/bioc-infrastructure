@@ -305,6 +305,16 @@ test("pendingJobIds walks forward from the cursor, deduped and rate-capped", () 
     [9366692196, 93666921965]);
 });
 
+test("both capture walks include a newer commit's failed build", () => {
+  const pkgs = [
+    { _jobs: [{ job: 10, artifact: "a10" }], _failure: { job: { job: 40, artifact: "a40" } } },
+    { _failure: { job: { job: 30 } } }, // never built: no _jobs at all
+    { _jobs: [{ job: 20 }], _failure: { job: null } }, // failure with no job recorded
+  ];
+  assert.deepEqual(pendingJobIds(pkgs, 0, 50), [10, 20, 30, 40]);
+  assert.deepEqual(pendingArtifacts(pkgs, 0, 50), [{ job: 10, artifact: "a10" }, { job: 40, artifact: "a40" }]);
+});
+
 test("gateFamily maps BBS-equivalent configs and nothing else", () => {
   assert.equal(gateFamily("source"), "linux");
   assert.equal(gateFamily("linux-release-x86_64"), "linux");

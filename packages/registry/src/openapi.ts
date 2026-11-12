@@ -254,7 +254,7 @@ export const OPENAPI = {
         summary: "Captured build log",
         description:
           "The GitHub Actions job log, served from our archive rather than proxied. Job ids " +
-          "come from `_jobs[].job` in an observation, or from the package page.\n\n" +
+          "come from `_jobs[].job` (or `_failure.job.job` for a failed newer build) in an observation, or from the package page.\n\n" +
           "Capture walks forward from when it was switched on, so jobs older than that are " +
           "404 here, as are recent jobs capture has not reached yet or missed during an outage " +
           "(drained from a backlog). GitHub deletes logs at ~90 days, which is the reason for capturing at all.",
