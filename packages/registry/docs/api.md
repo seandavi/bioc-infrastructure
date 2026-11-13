@@ -665,6 +665,56 @@ ORDER BY obs_ts;
 
 The `workers.dev` hostname will change before a released package should depend on it.
 
+## BiocBuildDB-shaped views (`scripts/bbs_views.sql`)
+
+DuckDB views that present `history/package_changes.parquet` in the shape of
+BiocBuildDB's tables, so [BiocBuildReporter](https://github.com/lshep/BiocBuildReporter)
+and code written for BBS results can read r-universe results. They are SQL over the
+public file, nothing is published separately.
+
+| view | grain |
+|---|---|
+| `build_summary` | one row per r-universe job, i.e. one run of one platform config; a rerun is a new job |
+| `info` | one row per change to a package record |
+| `current_summary` | `build_summary` limited to the jobs in each package's newest record |
+
+`build_summary` and `info` carry BiocBuildReporter's columns in its order, then
+`source` (`r-universe`), `universe`, and for `build_summary` the raw `check`,
+`r_version`, `job` and `log_url`. There is no `propagation_status`: r-universe does
+not propagate, the registry gate does, and its decisions are not in the history file.
+
+How r-universe values map to BBS columns:
+
+| column | value |
+|---|---|
+| `node` | the r-universe config (`linux-devel-x86_64`, `source`, …): a platform, not a machine |
+| `stage` | `source` → `buildsrc`; `bioc-checks` → `bioccheck` (no BBS equivalent); `wasm-*` → `buildbin`; every other config → `checksrc` |
+| `status` | `OK`, `NOTE` → `OK`; `WARNING` → `WARNINGS`; `ERROR`, `FAIL`, `FAILURE` → `ERROR` |
+| `version` | the record's `Version`; for `_failure` jobs, the failed commit's version |
+| `startedat`, `endedat` | approximate: `endedat` is the first snapshot that showed the job, `startedat` that minus the job's duration |
+| `command` | null; use `log_url` |
+| `report_md5` | `record_md5` |
+| `git_branch` | `RemoteRef` (`HEAD` → `devel`); records without it take the universe's last known ref |
+| `git_last_commit` | `_commit.id`, first 7 characters |
+| `MaintainerEmail` | written `x at y`, as BBS writes it |
+
+r-universe rebuilds a package when it changes, not nightly, so counts of runs are far
+lower than BBS's for the same period.
+
+```sh
+duckdb -c ".read scripts/bbs_views.sql" -c "FROM current_summary WHERE universe = 'bioc' AND status = 'ERROR'"
+```
+
+```r
+library(DBI)
+con <- dbConnect(duckdb::duckdb())
+# The R client doesn't autoload extensions.
+for (e in c("httpfs", "json", "icu")) dbExecute(con, paste("INSTALL", e, "; LOAD", e))
+sql <- paste(readLines("https://raw.githubusercontent.com/seandavi/bioc-infrastructure/main/packages/registry/scripts/bbs_views.sql"), collapse = "\n")
+for (s in strsplit(sql, ";\\s*\n")[[1]]) if (nzchar(trimws(s))) dbExecute(con, s)
+build_summary <- dbGetQuery(con, "FROM build_summary")
+```
+
 ## Index entry shape
 
 ```json
