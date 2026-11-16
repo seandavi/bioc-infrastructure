@@ -524,6 +524,8 @@ All addressable through `/data/<key>`.
 | `prop/{universe}/index.json` | `{ [package]: {version, sha256, ts, bioccheck, artifacts[], desc, meta, archs} }` — the propagated set |
 | `prop/{universe}/cas/{sha256}` | artifact bytes (source tarball or platform binary), keyed by content hash |
 | `prop/{universe}/pending/{digest12}.json` | gate output for one observation: array of candidates |
+| `prop/{universe}/blocked/{digest12}.json` | candidates the version gate let in that another rule blocked: `[{package, version, reasons[]}]`; written only when there are any |
+| `prop/{universe}/decisions/{digest12}.json` | the gate's decision on every package in one observation: `[{package, version, published, propagate, archs[], reasons[]}]`. `published` is the version the index held when the gate ran; a package without a source tarball gets `propagate: false` and the rule `source-tarball` |
 | `prop/{universe}/seed/plan.json` | what a `/seed` run intends to seed: package, version, desc, meta, artifact paths |
 | `prop/{universe}/seed/official-versions.json` | every package version the official Bioconductor repo ships, for the seeded-drift count |
 | `prop/{universe}/log/{ts}-{pkg}_{ver}.json` | propagation ledger entry |
@@ -616,15 +618,17 @@ so globbing with or without `hive_partitioning` both work.
 ## Package history (`history/package_changes.parquet`)
 
 One file holds the build history of every package in both universes: a row each
-time a package's r-universe record changes, or the package disappears. The record is
+time a package's r-universe record or the registry's gate decision on it changes, or
+the package disappears. The record is
 kept whole, so everything r-universe reports is in it: every platform's job and
 verdict (`_jobs`), the failed build of a newer commit (`_failure`), packages that
 never built (`_type: "failure"`), the commit, the maintainer and BiocCheck's counts.
 A rerun gets a new job id, so it changes the record and gets its own row.
 
 Built daily by `scripts/package_changes.py` (workflow `registry / package changes`)
-from the snapshots in `obs/`, which stay the source of truth; the file can always be
-rebuilt from them. It is replaced in one upload, around 05:30 UTC.
+from the snapshots in `obs/` and each snapshot's `prop/{u}/decisions/` file, which
+stay the source of truth; the file can always be rebuilt from them. A snapshot is
+read once it is an hour old, so its wave has written its decisions. It is replaced in one upload, around 05:30 UTC.
 
 | column | type | notes |
 |---|---|---|
@@ -636,6 +640,7 @@ rebuilt from them. It is replaced in one upload, around 05:30 UTC.
 | `record_md5` | VARCHAR | md5 of `record`, which is what decides that something changed |
 | `removed` | BOOLEAN | true: the package is absent from the snapshot at `obs_ts` (then `record` is null) |
 | `record` | VARCHAR | the package's whole record as archived (`FIELDS` in `src/index.ts`), as JSON text: `record->>'Maintainer'` in DuckDB, `jsonlite::fromJSON()` in R |
+| `decision` | VARCHAR | the gate's decision on the package in that snapshot's wave, as JSON text: `{version, published, propagate, archs[], reasons[]}`, one entry of `prop/{u}/decisions/` without `package`. Null on removals and before decisions were recorded (November 2026). A row whose only change is its decision repeats the previous `record` |
 
 Rows are sorted by `universe, package, obs_ts` in row groups of 4,096, so a reader
 after one package reads only that package's part of the file by range.
@@ -677,11 +682,21 @@ public file, nothing is published separately.
 | `build_summary` | one row per r-universe job, i.e. one run of one platform config; a rerun is a new job |
 | `info` | one row per change to a package record |
 | `current_summary` | `build_summary` limited to the jobs in each package's newest record |
+| `propagation_status` | one row per change in a package's gate decision |
 
 `build_summary` and `info` carry BiocBuildReporter's columns in its order, then
 `source` (`r-universe`), `universe`, and for `build_summary` the raw `check`,
-`r_version`, `job` and `log_url`. There is no `propagation_status`: r-universe does
-not propagate, the registry gate does, and its decisions are not in the history file.
+`r_version`, `job` and `log_url`.
+
+`propagation_status` carries BBS's `package`, `process`, `propagate` and `report_md5`.
+r-universe doesn't propagate; these are the registry gate's decisions. The gate
+decides a package as a whole, so `process` is always `source`, and the binaries that
+ride along are for the families in `archs`. `propagate` is `YES`, `UNNEEDED, same
+version is already published`, or `NO, <rule>: <detail>` naming the first rule that
+failed. Extras: `source`, `universe`, `git_branch`, `version`, `published`, `archs`,
+`rule` (the first failed rule), `reasons` (every rule, as JSON) and `obs_ts`. BBS
+writes a row for every package every night; here a row is written only when the
+decision changes, so a package's current decision is its newest row.
 
 How r-universe values map to BBS columns:
 
