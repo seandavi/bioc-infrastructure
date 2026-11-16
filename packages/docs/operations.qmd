@@ -21,8 +21,8 @@ access to the Cloudflare account, the sync host, or the credentials the sync use
 | Registrar and the Route53 zone kept as the DNS rollback target | AWS | Not recorded on this site | None |
 | `bioc-sync` (hourly), `bioc-reconcile` (weekly, Sunday 04:00) | systemd user units on onclappc02, running from the ops clone `/data/davsean/bioc-ops/bioc-infrastructure/packages/edge` | Sean Davis | A GitHub issue in bioc-infrastructure titled `bioc-sync.service is failing` (or `bioc-reconcile…`), opened or commented on by `bioc-notify@` |
 | `bioc-logpush-check` (daily 07:15 local) | systemd user unit on onclappc02, from `/data/davsean/bioc-ops/bioc-infrastructure/packages/traffic` | Sean Davis | The same `bioc-notify@` issue in bioc-infrastructure |
-| Site build and publish (`site/<sha>`, `site/latest`) | bioc-website GitHub Actions, on every push to `main` | Sean Davis | The [site badge](https://github.com/seandavi/bioc-website/actions/workflows/site.yml) |
-| Site data snapshot (`_ci/site-data.tar.zst`: prose and package data the build reads) | R2. Prose and assets refreshed by `bioc-site-refresh` on every upstream push; package data by hand | Sean Davis | `bioc-site-refresh` failures open an issue; stale package data fails no check |
+| Site build and publish (`site/<id>`, `site/latest`) | GitHub Actions on the `astro` branch of seandavi/bioconductor.org (`astro.yml`), on every push to `astro`, every sync from `devel` and the nightly data refresh. bioc-website's `site.yml` still builds as the fallback, with its `PUBLISH_LATEST` off | Sean Davis | A red [`astro.yml` run](https://github.com/seandavi/bioconductor.org/actions/workflows/astro.yml); a conflicted or failing `devel` sync opens a PR in seandavi/bioconductor.org |
+| Site data snapshot (`_ci/site-data.tar.zst`: the package data the build reads) | R2. Package data refreshed nightly by `bioc-site-packages`; prose for the fallback build by `bioc-site-refresh` on every upstream push | Sean Davis | Both open an issue on failure |
 | bioc-registry Worker (not in the serving path) | Cloudflare, deployed by hand with `wrangler deploy` | Sean Davis | bioc-registry [`freshness.yml`](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-freshness.yml), daily |
 | master.bioconductor.org and the Bioconductor Build System (BBS) | Legacy servers | Bioconductor core team | bioc-edge [`parity.yml`](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-parity.yml) compares production with master daily |
 
@@ -74,19 +74,27 @@ Deploys are manual; there is no deploy from CI yet (an open M0 item).
 ### Roll back the site build {#rollback-site}
 
 The Worker serves whichever build `_routes.json` names. `"latest"` follows the `site/latest`
-pointer that bioc-website CI moves on every `main` build.
+pointer, which `astro.yml` on seandavi/bioconductor.org moves on every `astro` build while that
+repository's `PUBLISH_LATEST` variable is `true`.
 
-1. Find the last good build sha: `gh run list -R seandavi/bioc-website -w site.yml -b main`
-   (each successful run published `site/<headSha>/`).
+1. Find the last good build id. Each successful run names it in its summary
+   (`Published s3://bioc-site/site/<id>`): `gh run list -R seandavi/bioconductor.org -w astro.yml -b astro`.
+   For bioc-website's fallback builds, use `gh run list -R seandavi/bioc-website -w site.yml`.
+   An id is `<sha>-<snapshot hash>`.
 2. Write the route table with that sha pinned:
    ```sh
-   echo '{"build": "<good sha>", "prefixes": ["/"]}' > routes.json
+   echo '{"build": "<good id>", "prefixes": ["/"]}' > routes.json
    npx wrangler r2 object put bioc-site/_routes.json --file routes.json --remote
    ```
 3. Within about a minute, `curl -sI https://bioconductor.org/ | grep x-bioc-build` shows the
-   pinned sha. No purge is needed: build pages are cached under their build's sha.
+   pinned id. No purge is needed: build pages are cached under their build's id.
 4. To undo, write `{"build": "latest", "prefixes": ["/"]}` the same way. While the pin is in
-   place, new `main` builds publish but are not served.
+   place, new builds publish but are not served.
+
+To hand production back to bioc-website rather than pin one build, set
+`PUBLISH_LATEST` to `false` on seandavi/bioconductor.org and `true` on seandavi/bioc-website,
+then write a bioc-website build id to `site/latest`
+([Building the site](astro-site-build.qmd#how-a-build-reaches-production)).
 
 An empty `prefixes` list, or no `_routes.json`, makes the mirror serve everything: the
 legacy pages copied from master. That is the fallback if no build is good.

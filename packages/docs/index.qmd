@@ -27,7 +27,8 @@ can proceed — or be replaced — without stopping the others.
 | Repo | What it is | Retires | Status |
 |---|---|---|---|
 | [bioc-registry](https://github.com/seandavi/bioc-infrastructure/tree/main/packages/registry) | The data plane: an r-universe observer plus the propagation gate that decides *which build is fit to publish and what is true about a package*, exposed as an installable repository and a Parquet archive. It publishes at its own host; bioconductor.org does not serve from it yet ([registry switch](registry-switch.qmd)) | Planned: the three builders and the legacy build system. Today bioconductor.org's packages still come from BBS and r-universe through master ([how it works](how-it-works.qmd#publishing)) | [![freshness](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-freshness.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-freshness.yml) |
-| [bioc-website](https://github.com/seandavi/bioc-website) | The builder: a Python pipeline and an Astro static build that render package truth into ~93,000 pages, published immutably by CI | The master and staging webservers | [![site](https://github.com/seandavi/bioc-website/actions/workflows/site.yml/badge.svg)](https://github.com/seandavi/bioc-website/actions/workflows/site.yml) |
+| [bioconductor.org, `astro` branch](https://github.com/seandavi/bioconductor.org/tree/astro) | The site build: Bioconductor/bioconductor.org's own source with an Astro build in place of nanoc, published immutably by CI. Serves production since 2026-11-16; merges back into `devel` when the core team is ready ([#440](https://github.com/Bioconductor/bioconductor.org/issues/440)) | The master and staging webservers, and nanoc | [![astro](https://github.com/seandavi/bioconductor.org/actions/workflows/astro.yml/badge.svg)](https://github.com/seandavi/bioconductor.org/actions/workflows/astro.yml) |
+| [bioc-website](https://github.com/seandavi/bioc-website) | The package-data pipeline: Python that renders package truth into the data snapshot the site build reads. Its own Astro build served production from 2026-09-28 to 2026-11-16 and is now the fallback | Nothing on its own | [![site](https://github.com/seandavi/bioc-website/actions/workflows/site.yml/badge.svg)](https://github.com/seandavi/bioc-website/actions/workflows/site.yml) |
 | [bioc-edge](https://github.com/seandavi/bioc-infrastructure/tree/main/packages/edge) | The serving side: a Cloudflare Worker and the R2 mirror behind `bioconductor.org`, owner of the route table that decides *what is served where* | CloudFront, the S3 bucket, the Open Storage Network buckets | [![health](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-health.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-health.yml) |
 | [bioc-traffic](https://github.com/seandavi/bioc-infrastructure/tree/main/packages/traffic) | Downstream of the request logs. Today: the daily check that yesterday's logs arrived, log analysis, and a first (v0) traffic classification ([bioc-traffic#5](https://github.com/seandavi/bioc-traffic/issues/5), still open). Planned: download statistics from it. Published statistics still come from the legacy pipelines ([download stats](download-stats.qmd)) | The legacy download-stats pipelines | Not yet producing statistics |
 | [bioc-build](https://github.com/seandavi/bioc-build) and [bioc-manifest](https://github.com/seandavi/bioc-manifest) | The standalone build system for the packages r-universe doesn't build, and the reviewed manifest that authorizes what it builds ([ADR 0010](adr/0010-two-new-repos-for-the-build-system-and-the-manifest-name.md)) | The legacy build machines, for data and workflow packages | Proof of concept |
@@ -62,7 +63,8 @@ flowchart TB
   bbs["BBS<br/>source tarballs"] --> master["master.bioconductor.org"]
   ru["r-universe<br/>builds packages"] -- "most binaries" --> master
   master -- "bioc-sync, hourly" --> mir[("R2: the mirror")]
-  site["bioc-website<br/>static build, CI"] --> b[("R2: site/&lt;sha&gt;")]
+  pipe["bioc-website<br/>package-data pipeline"] -- "snapshot, nightly" --> site
+  site["bioconductor.org astro branch<br/>static build, CI"] --> b[("R2: site/&lt;sha&gt;")]
   mir --> wk["bioc-edge Worker<br/>build first, else mirror"]
   b --> wk
   wk --> v(["bioconductor.org"])
@@ -79,8 +81,8 @@ registry's own outputs and the [planned switch](registry-switch.qmd). Detail:
 [how bioconductor.org works](how-it-works.qmd).
 
 The organising principle is one idea applied at two scales: **define where the data comes
-from once, and let every consumer render it.** Inside `bioc-website` that shows up as the
-`astro/data/` seam between its pipeline and its renderer. Across the estate it shows up as
+from once, and let every consumer render it.** Inside the site that shows up as the
+`astro/data/` seam between bioc-website's pipeline and the Astro renderer. Across the estate it shows up as
 the table above. The website is one consumer of package truth. It is deliberately not the
 place where "what is true about a package" gets decided.
 
@@ -89,8 +91,9 @@ place where "what is true about a package" gets decided.
 Everything above holds together at five seams. They are worth stating in one place, because
 each is a place where a change in one repo can quietly break another.
 
-**1. `astro/data/` — pipeline to renderer**, inside `bioc-website`. JSON written to
-disk by a Python pipeline, read by an Astro build. Nothing downstream knows where the data
+**1. `astro/data/` — pipeline to renderer**, from bioc-website to the site build. JSON written
+to disk by a Python pipeline, shipped as the snapshot `_ci/site-data.tar.zst`, and read by an
+Astro build. Nothing downstream knows where the data
 came from; nothing upstream knows how it is rendered. That seam is what let the same
 component render both the legacy-parity pages and the new data-plane-fed pages unchanged.
 
@@ -99,11 +102,13 @@ component render both the legacy-parity pages and the new data-plane-fed pages u
 `/prop/{universe}/cas/{sha256}`. This is what the `/next/` pages render: what *propagated*,
 not whatever r-universe last built.
 
-**3. The R2 object layout — build to serving.** The website's CI writes immutable
-`site/<sha>/` builds, a `site/latest` pointer, and `preview/pr-<n>/` for every pull request
-(served at `/_pr/<n>/`).
-The Worker reads them. **The build side publishes; the serving side decides what is served** —
-write access to the website repo never implies the power to change production.
+**3. The R2 object layout — build to serving.** The site's CI writes immutable
+`site/<sha>-<snapshot hash>/` builds, a `site/latest` pointer, and `preview/pr-<n>/` for every
+pull request (served at `/_pr/<n>/`).
+The Worker reads them. **The build side publishes and moves `site/latest`; the serving side
+decides which prefixes go to a build at all**, and pinning a build in the route table
+overrides the pointer. Two repositories can build (seandavi/bioconductor.org's `astro` and the
+fallback bioc-website). Each moves the pointer only while its `PUBLISH_LATEST` variable is on.
 
 **4. The route table — `_routes.json`, an object in R2, not code.** Flipping a route from
 mirrored legacy content to a static build is a data write; rolling it back is the same write

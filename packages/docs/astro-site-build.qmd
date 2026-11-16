@@ -1,14 +1,26 @@
 ---
 title: "Building the site from primary sources"
 date: 2026-08-04
-date-modified: 2026-09-30
+date-modified: 2026-11-16
 ---
 
-bioconductor.org's pages are built by
-[bioc-website](https://github.com/seandavi/bioc-website): a Python pipeline that
-fetches data from primary sources into `astro/data/`, and an Astro build that renders it.
-Since the 2026-09-28 cutover the `bioc-site` Worker serves this build first on every path
-and falls back to the mirror (the R2 copy of the legacy site) where the build has no file.
+bioconductor.org's pages are built from the `astro` branch of
+[seandavi/bioconductor.org](https://github.com/seandavi/bioconductor.org/tree/astro), a copy of
+the site's own source repository,
+[Bioconductor/bioconductor.org](https://github.com/Bioconductor/bioconductor.org), with an
+Astro build in place of nanoc. Package data comes from
+[bioc-website](https://github.com/seandavi/bioc-website)'s Python pipeline as a snapshot in R2.
+The `bioc-site` Worker serves the build first on every path and falls back to the mirror (the
+R2 copy of the legacy site) where the build has no file.
+
+Two dates matter. From 2026-09-28 until 2026-11-16 the build was bioc-website's own:
+the same Astro renderer, reading the prose from a pipeline-made snapshot. Since 2026-11-16
+22:13 UTC (build `6865ded4`) it is the `astro` branch, tracked in
+[Bioconductor/bioconductor.org#443](https://github.com/Bioconductor/bioconductor.org/issues/443).
+bioc-website still builds as the fallback. The branch merges back into `devel` when the core team
+is ready ([#440](https://github.com/Bioconductor/bioconductor.org/issues/440)), and editors keep
+working on `devel` until then.
+
 This page describes how a build reaches production, how a content edit gets there, and what
 the build does not cover yet. The measurements from the August build are kept further down
 as a [dated record](#the-2026-08-04-build-record).
@@ -19,115 +31,131 @@ data-source analysis, [Edge cache](cache.qmd) for caching and purges,
 
 ## How a build reaches production
 
-`.github/workflows/site.yml` in bioc-website runs on every push to `main`:
+`.github/workflows/astro.yml` on the `astro` branch runs on every push to `astro`, every pull
+request into it, and on dispatch:
 
-1. Run the pipeline's unit tests (`pipeline/test_*.py`). The pipeline itself does not run.
-2. Pull the data snapshot `s3://bioc-site/_ci/site-data.tar.zst` from R2 and unpack it into
-   `astro/`.
-3. `npm run build`, which is `astro build && pagefind --site dist`.
-4. Upload `astro/dist` to `site/<sha>-<snapshot hash>/` in the `bioc-site` bucket, then write that id to
-   `site/latest` (before 2026-10-06 the id was the bare sha; see [the site](how-it-works.qmd#the-site)).
+1. YAML lint, then the pipeline and renderer tests (`just test`).
+2. `just build`: pull the package-data snapshot (`https://bioconductor.org/_ci/site-data.tar.zst`),
+   convert this checkout's `content/`, `etc/` and `config.yaml` into `astro/data/`, copy `assets/`
+   into `astro/public/`, then `astro build` and Pagefind.
+3. Checks: parity with what nanoc would publish (`pipeline/parity.py`), canonical links, the
+   sitemap and robots.txt, offline internal links on the template pages, `astro check`, and a dry
+   run of the one-time freeze conversion.
+4. Only if all of that passes: upload `astro/dist` to `site/<sha>-<snapshot hash>/` in the
+   `bioc-site` bucket. The snapshot hash is the first 8 hex digits of the tarball's sha256.
+5. Write that id to `site/latest`, but only while the repository variable `PUBLISH_LATEST` is
+   `true`.
 
 The Worker does the rest. Its route table `_routes.json` is
-`{"build":"latest","prefixes":["/"]}`: every path tries `site/<latest sha>/` first, then the
+`{"build":"latest","prefixes":["/"]}`: every path tries `site/<latest id>/` first, then the
 mirror. The Worker caches the `site/latest` pointer for 60 seconds per isolate. Build pages
-are edge-cached under keys that contain the build sha, so a new build needs no purge. Every
-response served from the build carries an `x-bioc-build: <sha>` header; a page without that
+are edge-cached under keys that contain the build id, so a new build needs no purge. Every
+response served from the build carries an `x-bioc-build: <id>` header; a page without that
 header came from the mirror.
 
-| Measured 2026-09-29 (run for `360bb87`) | |
+| Measured 2026-11-16 | |
 |---|---|
-| Pull snapshot | 5 s |
-| Astro build + Pagefind | 27 s |
-| Upload to `site/<sha>/` | 17 min 43 s |
-| Whole run | 19 min |
-| Published build | 17,787 files, 254 MiB |
+| Push run for `6865ded4`, checks and upload | 25 min (21:17 to 21:42 UTC) |
+| The first upload to an empty prefix (dispatch for `4a9ca4cf`) | 58 min |
+| Published build | 19,484 files |
 
-The run before it (`de0c708`, same day) took 11 min 30 s; the upload is most of the time and
-varies. The build is small because CI builds only the live releases (3.23 and 3.24), the prose
+The upload is most of the time. CI builds only the live releases (3.23 and 3.24), the prose
 pages and `/next/`. Releases 2.5 to 3.22 are archival
-([ADR 0006](adr/0006-old-releases-and-their-checkresults-are-archival.md)) and are served
-from the mirror.
+([ADR 0006](https://seandavi.github.io/bioc-infrastructure/adr/0006-old-releases-and-their-checkresults-are-archival.html))
+and are served from the mirror.
 
-**Rollback.** Set `"build"` in `_routes.json` to an earlier sha instead of `"latest"`, or
-write the earlier sha to `site/latest`. Either reaches every isolate within 60 seconds.
-Earlier builds stay in R2 (12 `site/<sha>/` prefixes on 2026-09-30); there is no retention
+**Two builders, one pointer.** bioc-website's `site.yml` uses the same gate: it writes
+`site/latest` only while bioc-website's `PUBLISH_LATEST` is `true`. Today that's `true` on
+seandavi/bioconductor.org and `false` on bioc-website. Both keep building, so either one can
+take production back.
+
+**Rollback.** Pick a build: an earlier `astro` one, or bioc-website's last (`gh run list -R
+seandavi/bioc-website -w site.yml`). Write its id to `site/latest`, or set `"build"` in
+`_routes.json` to it. To hand production back to bioc-website for good, also flip the two
+`PUBLISH_LATEST` variables, or the next `astro` build moves the pointer again. Either change
+reaches every isolate within 60 seconds. Earlier builds stay in R2; there is no retention
 policy yet ([bioc-website#2](https://github.com/seandavi/bioc-website/issues/2)).
 
 ### The data snapshot
 
-CI does not fetch from primary sources. It builds from a snapshot of `astro/data/` (the live
-releases plus `site/`) and `astro/public/`, made by running the pipeline on a workstation and
-uploading the result, as the bioc-website README describes:
+The build reads package data from a snapshot, `_ci/site-data.tar.zst` in R2, rather than
+fetching from primary sources. bioc-website's pipeline makes it. The snapshot holds the live
+releases (`data/3.23`, `data/3.24`), `data/site` and `public/`. The `astro` build overwrites
+`data/site` and `public/` with its own checkout's content, so it only uses the package data.
 
-```sh
-just data
-tar -C astro -cf - data/site data/3.23 data/3.24 public | zstd -T0 -8 \
-  | rclone rcat r2:bioc-site/_ci/site-data.tar.zst
-```
+- **Package data** is refreshed nightly by `bioc-site-packages` (06:00 UTC, up to 30 minutes of
+  random delay; bioc-website `ops/refresh-packages.sh`). It rebuilds `data/<release>`, uploads
+  the snapshot, and dispatches both builds.
+- **Prose** in the snapshot (`data/site`, `public/`) is refreshed by `bioc-site-refresh` every
+  20 minutes when `devel` moves. Only bioc-website's fallback build reads it.
 
-The refresh is manual and no one is named to do it; scheduling it is
-[bioc-website#5](https://github.com/seandavi/bioc-website/issues/5) (open). The
-snapshot in use is 30 MB, uploaded 2026-09-29 12:40 UTC. The one before it dated from
-2026-08-13. The full 35-release data, including the 2.5 to 3.22 snapshot that no live source
-can regenerate, is `_ci/site-data-full.tar.zst` (2026-08-13).
+A changed snapshot gets a new build id even on the same commit, because the edge cache treats a
+build id as immutable.
 
 Two things follow from the snapshot:
 
-- A change to `pipeline/*.py` reaches production only when someone regenerates and uploads
-  the snapshot. Merging it changes nothing served.
+- A change to bioc-website's `pipeline/*.py` reaches production only after the next snapshot
+  refresh and a build.
 - Package landing pages for 3.23 and 3.24 show the version and download links from the
   repository's own `PACKAGES` indexes as they were when the snapshot was made
-  ([bioc-website#31](https://github.com/seandavi/bioc-website/pull/31)). The hourly
-  `bioc-sync` updates the package files themselves; it does not update the landing pages.
+  ([bioc-website#31](https://github.com/seandavi/bioc-website/pull/31)), so at most a day old.
+  The hourly `bioc-sync` updates the package files themselves; it does not update the landing
+  pages.
 
 `/next/` pages are different: the Astro build fetches bioc-registry's propagation index over
-HTTP while it runs, so they are as current as the last build on `main`.
+HTTP while it runs, so they are as current as the last build. If that fetch fails, the whole
+build fails ([#447](https://github.com/Bioconductor/bioconductor.org/issues/447)).
 
 ### Previews
 
-Every pull request is built the same way and uploaded to `preview/pr-<n>/` in R2. The URL is
-`https://bioc-dev.cancerdatasci.org/_pr/<n>/`; CI posts it as a comment on the PR, and
-`preview-cleanup.yml` deletes the prefix when the PR closes. The R2 key and the URL path
-differ (`preview/pr-<n>/` versus `/_pr/<n>/`). `/_pr/<n>/` also answers on
-bioconductor.org today ([bioc-edge#48](https://github.com/seandavi/bioc-edge/issues/48)).
-Internal links in a preview are root-absolute and leave the preview
+Every pull request into `astro` is built the same way and uploaded to `preview/pr-<n>/` in R2.
+The URL is `https://bioc-dev.cancerdatasci.org/_pr/<n>/`; CI posts it as a comment on the PR,
+and `preview-cleanup.yml` deletes the prefix when the PR closes. Pull requests from forks get no
+preview, since they have no secrets. bioc-website's pull requests publish to the same
+`preview/pr-<n>/` keys. The two repositories' numbers don't overlap yet (bioc-website is past 84,
+seandavi/bioconductor.org is under 20), but they would collide if they ever reach the same
+number. Internal links in a preview are root-absolute and leave the preview
 ([bioc-website#4](https://github.com/seandavi/bioc-website/issues/4)).
 
 ## Editing content: where, and how long it takes
 
 | To change | Edit | Reaches bioconductor.org |
 |---|---|---|
-| Layout, components, `/next/` pages | a PR to bioc-website | on the next `main` build after merge |
-| Pipeline code (how data is fetched or transformed) | a PR to bioc-website | after the merge, a snapshot refresh **and** a `main` build |
-| Prose pages (text of `/about/`, `/help/`, `/developers/`, ...) | [Bioconductor/bioconductor.org](https://github.com/Bioconductor/bioconductor.org), as before | after a snapshot refresh **and** a `main` build |
-| Package titles, descriptions, maintainers | the package's own `DESCRIPTION` | after a snapshot refresh **and** a `main` build |
+| Prose pages, events, courses, `config.yaml`, assets | [Bioconductor/bioconductor.org](https://github.com/Bioconductor/bioconductor.org) `devel`, as before | through the `devel` sync, then a build: about 30 minutes plus 25 |
+| Layout, components, `/next/` pages | a PR into `astro` on seandavi/bioconductor.org | on the build after merge, about 25 minutes |
+| Pipeline code (how package data is fetched or transformed) | a PR to bioc-website | after the merge, at the next nightly snapshot refresh and build |
+| Package titles, descriptions, maintainers | the package's own `DESCRIPTION` | after the next nightly snapshot refresh and build |
 
-The prose still lives in Bioconductor/bioconductor.org, which the core team edits. The pipeline
-reads it when the snapshot is made. A one-time import of the prose into bioc-website is
-planned in its `CONTRIBUTING.md`; there is no tracking issue or date for it.
+**The `devel` sync.** `.github/workflows/sync.yml` on `astro` runs every 30 minutes. When
+`devel` has moved, it merges `devel` into `astro` with a merge commit and runs `astro.yml`'s
+checks on the result. If they pass, it pushes to `astro` and dispatches `astro.yml` to publish.
+If the merge conflicts or the checks fail, it opens a pull request from `sync/devel-<sha>`
+instead and publishes nothing. While that PR is open, the sync merges nothing more. Expected
+conflicts are `devel` edits to files `astro` deleted (nanoc's layouts and helpers), and new ERB
+in content. The sync can't push a `devel` change to `.github/workflows/`, because the token it
+uses isn't allowed to; that run fails visibly and a person merges it.
+
+Content stays in nanoc's form on `astro` (a page body plus a `.yaml` sidecar, the course TSV),
+converted at build time, so merges from `devel` stay free of conflicts. The one-time conversion
+happens at the merge back (`FREEZE.md` on the branch is the runbook).
 
 Latency, once someone acts:
 
-- **Snapshot refresh.** No automatic trigger. After uploading a new snapshot, a build must
-  run: `site.yml` runs only on push and pull request, so either push to `main` or re-run the
-  latest `main` run (`gh run rerun`).
-- **Build.** 11 to 19 minutes on the two runs measured 2026-09-29.
+- **Build.** About 25 minutes from push to upload, mostly the upload.
 - **Serving.** Up to 60 seconds for the Worker to see the new pointer, and up to 5 minutes
   for browsers holding the old page (build pages are sent with
   `cache-control: public, max-age=300, s-maxage=31536000`).
 
-A prose edit merged upstream today is therefore not live until the next manual refresh, which
-has no schedule.
+### Differences from nanoc
 
-### Divergences from upstream
-
-Wherever the build renders Bioconductor/bioconductor.org content differently from nanoc, or
-works around something in it, bioc-website records it in
-[`UPSTREAM.md`](https://github.com/seandavi/bioc-website/blob/main/UPSTREAM.md), with
-the upstream change that would remove the workaround. Any PR that changes
-`pipeline/content.py` updates that file. It is the list to work through before the prose moves
-into bioc-website.
+`pipeline/parity.py` lists every path nanoc's Rules would publish from the checkout and fails the
+build if one is missing, apart from a documented exclusion list. It doesn't see files nanoc's
+`Rakefile` wrote outside the Rules (`config.yaml` at the site root, `js/versions.js`), so those
+are tracked separately in
+[#446](https://github.com/Bioconductor/bioconductor.org/issues/446). Until then `/config.yaml`
+comes from the mirror. Before 2026-11-16, bioc-website recorded its workarounds for upstream
+content in
+[`UPSTREAM.md`](https://github.com/seandavi/bioc-website/blob/main/UPSTREAM.md).
 
 ## The seam
 
@@ -138,26 +166,26 @@ flowchart LR
   RU["r-universe API<br/>(software metadata)"] --> P
   PK["PACKAGES indexes<br/>on bioconductor.org<br/>(versions, downloads)"] --> P
   TB["source tarballs<br/>(DESCRIPTION)"] --> P
-  GH["Bioconductor/bioconductor.org<br/>git repo (prose)"] --> P
   BV["Bioconductor/biocViews<br/>vocabulary"] --> P
   CR["CRAN PACKAGES"] --> P
   WS["/packages/stats/<br/>(Rank, .tab from R2)"] -.-> P
-  P["./bioc.py<br/>pipeline"] --> D["astro/data/"]
-  D --> S["R2: _ci/site-data.tar.zst<br/>(uploaded by hand)"]
-  S --> A["CI: astro build<br/>+ Pagefind"]
+  P["bioc-website pipeline<br/>(./bioc.py)"] --> S["R2: _ci/site-data.tar.zst<br/>(nightly, bioc-site-packages)"]
+  GH["Bioconductor/bioconductor.org devel<br/>(prose, events, assets)"] -- "sync.yml, 30 min" --> AB["astro branch<br/>seandavi/bioconductor.org"]
+  S --> A["CI: astro.yml<br/>astro build + Pagefind"]
+  AB --> A
   REG["bioc-registry<br/>propagation index"] -->|/next/ only| A
-  A --> O["R2: site/&lt;sha&gt;/"]
+  A --> O["R2: site/&lt;id&gt;/<br/>+ site/latest"]
   O --> W["bioc-site Worker"]
 
   classDef ok fill:#f3fbf4,stroke:#3d8b47,color:#12263f
   classDef q fill:#fff8e8,stroke:#b8860b,color:#12263f
-  class RU,PK,TB,GH,BV,CR,P,D,A,O,W,REG ok
-  class WS,S q
+  class RU,PK,TB,GH,BV,CR,P,AB,A,O,W,REG,S ok
+  class WS q
 ```
 
-The pipeline decides *where data comes from*; the Astro build decides *how it is rendered*.
-`astro/data/` is the contract between them. Locally, everything is driven from one CLI, with
-`just` recipes over the top:
+The pipeline decides *where package data comes from*; the Astro build decides *how it is
+rendered*. `astro/data/` is the contract between them. In bioc-website, the pipeline is driven
+from one CLI with `just` recipes over the top:
 
 ```bash
 just data          # fetch the live releases from primary sources
@@ -165,32 +193,34 @@ just build         # astro build + Pagefind index -> astro/dist/
 just coverage      # compare against bioconductor.org
 ```
 
+On the `astro` branch, `just build` does the whole site build from the published snapshot
+(`AGENTS.md` there lists the recipes).
+
 `just coverage` still requests `https://bioconductor.org` (`SITE` in `pipeline/coverage.py`).
-Since 2026-09-28 that host serves this build first, so coverage no longer compares against an
+Since 2026-09-28 that host serves the build first, so coverage no longer compares against an
 independent legacy site. For pages the build lacks, it still measures the mirror.
 
 ## What the build does not cover
 
-Checked 2026-09-30 against the snapshot and build `360bb87`:
+Checked 2026-11-16 against build `6865ded4`:
 
-- **17 prose pages with ERB the pipeline cannot evaluate.** The pipeline flags them
-  `erbUnresolved` and does not render them, so the Worker serves the mirror copy. Three need
-  build or live services (`/dashboard/`, `/developers/help_wanted/`, `/developers/gitlog/`),
-  four need data the pipeline could supply (`/developers/new_packages/`,
-  `/about/annual-reports/`, `/about/mirrors/`, `/help/publications/`), and ten are under
-  `/help/course-materials/`: the index page and the nine year pages 2010 to 2018, which are
-  all blocked on the `_course_year_summary` partial.
-- **`/help/events/` shows raw ERB.** Its two `<%= render(...)` calls span two lines each, the
-  single-line detector misses them, and the page is built with the tags as text. The live page
-  (from build `360bb87`) shows both. No open bioc-website issue covers it.
+- **Three dropped pages.** `/dashboard/`, `/developers/gitlog/` and `/help/publications/` were
+  dropped on purpose (Bioconductor/bioconductor.org#435); publications links now point to
+  <https://impact.bioconductor.org/>. The build has no file for them, so the mirror's old copy
+  answers until the edge redirects are applied
+  ([#187](https://github.com/seandavi/bioc-infrastructure/issues/187)). `/developers/help_wanted/`
+  was dropped in the same change and later restored (Bioconductor/bioconductor.org#444). Every
+  other prose page renders, with no ERB left unresolved.
+- **Files nanoc's `Rakefile` wrote:** `/config.yaml` and `/js/versions.js` still come from the
+  mirror. The `packages/release` and `packages/devel` aliases come from the edge's symlink map
+  ([#446](https://github.com/Bioconductor/bioconductor.org/issues/446)).
 - **`Rank`** is read from the `*_pkg_scores.tab` files under `/packages/stats/` on
   bioconductor.org. The Worker serves them from R2, where bioc-traffic uploads them daily, so
   `Rank` no longer depends on master.
 - **Check results, vignettes, manuals** and the other per-package artifacts are served from the
   mirror; the build does not produce them.
-- **Search.** Site search is a Pagefind index built from `dist/` at build time (bioc-website
-  `1c92ffb`, 2026-08-14): 4,445 files in build `360bb87`. There is no server-side search;
-  `/solr` is not served.
+- **Search.** Site search is a Pagefind index built from `dist/` at build time. There is no
+  server-side search; `/solr` is not served.
 
 ## The 2026-08-04 build (record)
 

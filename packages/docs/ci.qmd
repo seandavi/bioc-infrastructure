@@ -32,7 +32,8 @@ flowchart LR
   end
   M -. read by .-> D
   D -. attested tarballs .-> P[publish] -.-> GT
-  W[bioc-website<br/>site] -- static site --> R2[(R2)]
+  BO[bioconductor.org astro<br/>astro.yml · sync.yml] -- static site --> R2[(R2)]
+  W[bioc-website<br/>site.yml, fallback] -. package-data snapshot .-> BO
   S[systemd bioc-sync<br/>master.bioconductor.org → R2<br/>+ purge, manifest] --> R2
   R2 --> E[bioc-edge worker]
   E --> H[health] & PA[parity<br/>vs master] & L[bioc-website<br/>links]
@@ -67,8 +68,8 @@ Reading a red badge:
 The systemd `--user` timers on onclappc02, following the platform
 [scheduling convention](https://github.com/seandavi/monode/blob/main/infrastructure/SCHEDULING.md).
 All of them run on that one host, from operations clones of `main`, not development
-checkouts: `/data/davsean/bioc-ops/bioc-infrastructure` for the edge and traffic units, and `bioc-site-refresh`'s own clone of
-bioc-website ([#43](https://github.com/seandavi/bioc-infrastructure/issues/43), ADR 0014).
+checkouts: `/data/davsean/bioc-ops/bioc-infrastructure` for the edge and traffic units, and a dedicated clone of
+bioc-website for `bioc-site-refresh` and `bioc-site-packages` ([#43](https://github.com/seandavi/bioc-infrastructure/issues/43), ADR 0014).
 There is no live status column: these alert on failure only (a GitHub issue
 or an ntfy push), and the heartbeat that would prove "ran OK today" is not
 set up yet.
@@ -76,7 +77,8 @@ set up yet.
 | Unit | Repo | Cadence | What it does | On failure |
 |---|---|---|---|---|
 | [`bioc-sync`](https://github.com/seandavi/bioc-infrastructure/blob/main/packages/edge/systemd/bioc-sync.service) | bioc-edge | hourly | rsync from master.bioconductor.org to the local mirror, upload changes to R2, purge them from the edge cache, regenerate the mirror manifest | GitHub issue |
-| [`bioc-site-refresh`](https://github.com/seandavi/bioc-website/blob/main/ops/systemd/bioc-site-refresh.service) | bioc-website | every 20 min | When Bioconductor/bioconductor.org `devel` moves: regenerate prose and assets into the site data snapshot, upload it, dispatch the site build. Keeps replaced snapshots in `/data/davsean/bioc-site-refresh/snapshots` | GitHub issue |
+| [`bioc-site-packages`](https://github.com/seandavi/bioc-website/blob/main/ops/systemd/bioc-site-packages.service) | bioc-website | daily, 06:00 UTC (up to 30 min delay) | Refresh the live releases' package data in the site data snapshot, upload it, and dispatch both site builds: `astro.yml` on seandavi/bioconductor.org, which serves production, and bioc-website's fallback `site.yml` | GitHub issue |
+| [`bioc-site-refresh`](https://github.com/seandavi/bioc-website/blob/main/ops/systemd/bioc-site-refresh.service) | bioc-website | every 20 min | When Bioconductor/bioconductor.org `devel` moves: regenerate prose and assets into the site data snapshot, upload it, dispatch bioc-website's build. Since 2026-11-16 only that fallback build reads this part of the snapshot; production gets `devel` through `sync.yml` on seandavi/bioconductor.org. Keeps replaced snapshots in `/data/davsean/bioc-site-refresh/snapshots` | GitHub issue |
 | [`bioc-reconcile`](https://github.com/seandavi/bioc-infrastructure/blob/main/packages/edge/systemd/bioc-reconcile.service) | bioc-edge | weekly, Sun 04:00 | Checksum drift check: does R2 match the local mirror | GitHub issue |
 | [`bioc-logpush-check`](https://github.com/seandavi/bioc-infrastructure/blob/main/packages/traffic/systemd/bioc-logpush-check.service) | traffic | daily 07:15 | Alert if yesterday's Logpush access-log delivery to GCS is missing | GitHub issue |
 | [`biocintel-refresh`](https://github.com/seandavi/bioc-intelligence/blob/main/systemd/biocintel-refresh.service) | bioc-intelligence | monthly, 1st 06:00 UTC | Enrichment pipeline: extract → link → enrich → marts → publish | ntfy |
