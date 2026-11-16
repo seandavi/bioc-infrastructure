@@ -30,7 +30,7 @@ Click any box to go to the page that explains it.
 | OSN archive bucket | Holds package archives for releases 3.22 and older. `packages.bioconductor.org` redirects to it | [R2 migration](r2-migration.qmd) |
 | GCS `bioc-u24-logs`, Analytics Engine | Per-request logs delivered by Logpush, and request metrics | [ADR 0003](adr/0003-request-logging-after-the-cloudflare-cutover.md) |
 | `bioc-sync`, `bioc-reconcile` | Hourly copy of master into R2, and a weekly checksum check of R2 against the local copy | [Publishing](how-it-works.qmd#publishing), [Scheduled jobs](ci.qmd#scheduled-jobs-outside-github-actions) |
-| `bioc-website` CI | Builds the site with Astro on every push and pull request, and publishes it to R2 | [The site](how-it-works.qmd#the-site) |
+| Site CI (`astro.yml` on seandavi/bioconductor.org) | Builds the site with Astro on every push to `astro`, every pull request, every sync from Bioconductor/bioconductor.org `devel` and the nightly data refresh, and publishes it to R2. bioc-website's CI still builds the fallback | [The site](how-it-works.qmd#the-site) |
 | Health and parity checks | Daily comparison of `bioconductor.org` with master, and a health check | [Scheduled jobs](ci.qmd#scheduled-jobs-outside-github-actions) |
 | `bioc-traffic` | Classifies requests in the logs by traffic class and computes package download statistics and traffic rollups from them. It writes the `/packages/stats/` file tree on a daily timer and uploads it, `.tab` files and HTML pages, to R2, where the Worker serves them | [Traffic report](traffic-2026-09-30.qmd) |
 

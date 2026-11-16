@@ -9,7 +9,7 @@ import base64, json, re, subprocess, sys
 OWNER = "seandavi"
 # ponytail: hand-kept group map; a repo not listed here is not on the page.
 GROUPS = {
-    "New system pipeline": ["bioc-infrastructure", "bioc-website"],
+    "New system pipeline": ["bioc-infrastructure", "bioconductor.org", "bioc-website"],
     "Platform services": ["bioc-intelligence"],
     "Experimental": ["bioc-manifest", "bioc-build"],
 }
