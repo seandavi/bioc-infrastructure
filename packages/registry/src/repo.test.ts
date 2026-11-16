@@ -1,7 +1,7 @@
 // node --test --experimental-strip-types src/repo.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { approveByDeps, packageNames, binaryArtifacts, seedBinaryTopUp, topUpBinaries, buildManifest, gate, rejectedRule, depConstraints, described, describe, findArtifact, gateFamily, isLogEntry, macArmDir, metaOf, originOf, packagesDcf, parseDcf, parseGitmodules, parseRepoDir, parseZipCentral, passingFamilies, matchSel, pendingArtifacts, pendingJobIds, planCompaction, mergeMeta, mergeRows, seedArtifacts, seedDesc, seedMeta, verGt, viewsDcf, waveGateConfig, writeOnce } from "./repo.ts";
+import { approveByDeps, packageNames, binaryArtifacts, seedBinaryTopUp, topUpBinaries, buildManifest, decisionLedger, gate, rejectedRule, depConstraints, described, describe, findArtifact, gateFamily, isLogEntry, macArmDir, metaOf, originOf, packagesDcf, parseDcf, parseGitmodules, parseRepoDir, parseZipCentral, passingFamilies, matchSel, pendingArtifacts, pendingJobIds, planCompaction, mergeMeta, mergeRows, seedArtifacts, seedDesc, seedMeta, verGt, viewsDcf, waveGateConfig, writeOnce } from "./repo.ts";
 
 const IDX = {
   S4Vectors: {
@@ -663,6 +663,7 @@ test("writeOnce: only immutable objects may be cached", () => {
     "prop/bioc/log/2026-08-14T00:00:00Z-edgeR_4.10.1.json",
     "prop/bioc/pending/abc123.json",
     "prop/bioc/blocked/abc123.json",
+    "prop/bioc/decisions/abc123.json",
   ]) assert.ok(writeOnce(k), k);
 
   // These are rewritten in place; caching them serves a stale index.
@@ -998,4 +999,14 @@ test("topUpBinaries matches slots on real index shapes: no distro recorded, no a
   const t = topUpBinaries(e, obs([bin("mac", "aarch64", "m", v)]), "4.6");
   assert.deepEqual(t?.artifacts.map((a) => a.sha256), ["m"]);
   assert.deepEqual(t?.archs, ["linux", "win", "mac"]);
+});
+
+test("the decision ledger covers every observed package, untarballed ones too", () => {
+  const idx = { A: { version: "1.0", sha256: "x", ts: "t", artifacts: [] } };
+  const decisions = { A: { propagate: false, archs: [], reasons: [{ rule: "version-gate", ok: false }] } };
+  const got = decisionLedger([{ Package: "A", Version: "1.0" }, { Package: "B" }, {}], decisions, idx);
+  assert.deepEqual(got.map((e) => [e.package, e.version, e.published, e.propagate, e.reasons[0].rule]), [
+    ["A", "1.0", "1.0", false, "version-gate"],
+    ["B", null, null, false, "source-tarball"],
+  ]);
 });

@@ -86,10 +86,13 @@ What propagates for an r-universe package that passes: the **source tarball alwa
 status `success`. `wasm` binaries ride along with no gate of their own. The passing families
 are recorded on the index entry as `archs`, the BiocCheck verdict as `bioccheck`.
 
-Every new version that fails (its `version-gate` passed, something else did not) is written
-to `prop/{universe}/blocked/` with its full list of rule verdicts. To ask why a package did
-not propagate, or whether it would, `POST /gate` runs the same function against the live
-index and writes nothing:
+Every wave writes its decision on every observed package, with the full list of rule
+verdicts, to `prop/{universe}/decisions/`. Each new version that fails (its `version-gate`
+passed, something else did not) is also written to `prop/{universe}/blocked/`. The daily
+package history (`history/package_changes.parquet`) carries each decision in its `decision`
+column, and the `propagation_status` view in `scripts/bbs_views.sql` presents those decisions
+in BBS's shape. To ask whether a package would propagate now, `POST /gate` runs the same
+function against the live index and writes nothing:
 
 ```bash
 curl -s -X POST https://bioc-registry.seandavi.workers.dev/gate \

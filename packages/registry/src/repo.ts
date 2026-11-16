@@ -49,7 +49,7 @@ export function metaOf(p: Partial<Record<(typeof META_FIELDS)[number], string>> 
 // pointers, prop/*/index.json, the seed plan — is rewritten in place, and
 // serving those with a long immutable cache hands out a stale index.
 export const writeOnce = (key: string) =>
-  /^(obs|parquet|logs|checks|builds)\/|\/(cas|log|pending|blocked|topup)\//.test(key);
+  /^(obs|parquet|logs|checks|builds)\/|\/(cas|log|pending|blocked|decisions|topup)\//.test(key);
 
 // Fresh metadata from an observation replaces what was stored, so a field the
 // package dropped upstream disappears here too. git_url is the exception: it
@@ -767,6 +767,27 @@ export function gateInputFromStaged(
 
 // The first failed rule, for attempts.json's rejected:<rule> vocabulary.
 export const rejectedRule = (d: Decision) => d.reasons.find((r) => !r.ok)?.rule ?? "unknown";
+
+export type LedgerEntry = Decision & {
+  package: string; version: string | null; published: string | null;
+};
+
+// Every observed package's decision in one wave, steady state included, so
+// "why did or didn't X propagate?" has an answer for each observation (#128).
+// `published` is the version the index held when the gate ran: a failed
+// version-gate with version === published means nothing new to propagate.
+// A package with nothing to gate (no source tarball) still gets an entry.
+export function decisionLedger(
+  observed: { Package?: string; Version?: string }[],
+  decisions: Record<string, Decision>, idx: PropIndex
+): LedgerEntry[] {
+  return observed.filter((p) => p.Package).map((p) => ({
+    package: p.Package!, version: p.Version ?? null, published: idx[p.Package!]?.version ?? null,
+    ...(decisions[p.Package!] ?? {
+      propagate: false, archs: [], reasons: [{ rule: "source-tarball", ok: false, detail: "no source tarball" }],
+    }),
+  }));
+}
 
 // CRAN renamed the macOS arm64 directory at R 4.6 (big-sur-arm64 -> sonoma-arm64)
 // and Bioconductor followed; verified 2026-08-14, big-sur-arm64/4.6 is a 404 on

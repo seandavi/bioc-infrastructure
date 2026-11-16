@@ -2,7 +2,8 @@
 --
 -- build_summary and info have BiocBuildReporter's columns, in its order, with extra
 -- columns on the right. current_summary is build_summary limited to each package's
--- current jobs. Mapping and caveats: docs/api.md, "BiocBuildDB-shaped views".
+-- current jobs. propagation_status has the registry gate's decisions in BBS's shape.
+-- Mapping and caveats: docs/api.md, "BiocBuildDB-shaped views".
 --
 -- DuckDB:  .read bbs_views.sql
 -- R:       see docs/api.md (the R client needs httpfs, json and icu loaded first)
@@ -75,7 +76,30 @@ SELECT DISTINCT ON (universe, package, record_md5)
   to_timestamp((record->'_commit'->>'time')::BIGINT) AS git_last_commit_date,
   record_md5 AS report_md5,
   'r-universe' AS source, universe, obs_ts
-FROM ru_changes;
+FROM ru_changes
+-- a record repeats when only its gate decision changed: keep the row that first showed it
+ORDER BY universe, package, record_md5, obs_ts;
+
+-- One row per change in a package's gate decision. The gate decides a package as a whole
+-- (process = 'source'); binaries ride along for the families in archs.
+CREATE OR REPLACE VIEW propagation_status AS
+WITH d AS (
+  SELECT *, [r FOR r IN from_json(decision->'reasons', '[{"rule":"VARCHAR","ok":"BOOLEAN","detail":"VARCHAR"}]')
+             IF NOT r.ok][1] AS failed
+  FROM ru_changes WHERE decision IS NOT NULL
+)
+SELECT
+  package,
+  'source' AS process,
+  CASE WHEN (decision->>'propagate')::BOOLEAN THEN 'YES'
+       WHEN (decision->>'version') = (decision->>'published') THEN 'UNNEEDED, same version is already published'
+       ELSE 'NO, ' || failed.rule || coalesce(': ' || failed.detail, '') END AS propagate,
+  record_md5 AS report_md5,
+  -- extras
+  'r-universe' AS source, universe, git_branch, decision->>'version' AS version,
+  decision->>'published' AS published, array_to_string(from_json(decision->'archs', '["VARCHAR"]'), ',') AS archs,
+  failed.rule AS rule, decision->'reasons' AS reasons, obs_ts
+FROM d;
 
 -- Current state: each package's newest record (packages since removed are dropped), and its jobs.
 CREATE OR REPLACE VIEW latest_records AS

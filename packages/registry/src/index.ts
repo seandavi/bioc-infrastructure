@@ -9,7 +9,7 @@ import {
   invisible, mergeMeta, mergeRows, seedArtifacts, seedDesc, seedMeta, verGt,
   viewsDcf, writeOnce, JobRow, RowState,
   validatePublish, upsertEntry, mergeAttempt, AttemptRecord,
-  gate, packageNames, rejectedRule, R_VER, waveGateConfig, GateConfig, GateInput, GateManifest, gateInputFromStaged,
+  gate, decisionLedger, packageNames, rejectedRule, R_VER, waveGateConfig, GateConfig, GateInput, GateManifest, gateInputFromStaged,
   binaryArtifacts, topUpBinaries, seedBinaryTopUp, GATE_FAMILIES,
 } from "./repo.js";
 import { DOCS_PAGE, OPENAPI } from "./openapi.js";
@@ -711,6 +711,11 @@ async function evaluate(env: Env, universe: string, obsKey: string, digest: stri
       `prop/${universe}/blocked/${digest.slice(0, 12)}.json`,
       JSON.stringify(blocked)
     );
+  // The whole wave, for the package history (scripts/package_changes.py).
+  await env.ARCHIVE.put(
+    `prop/${universe}/decisions/${digest.slice(0, 12)}.json`,
+    JSON.stringify(decisionLedger(pkgs, decisions, idx))
+  );
   return { pendingKey, count: candidates.length, blocked: blocked.length };
 }
 
