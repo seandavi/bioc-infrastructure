@@ -98,7 +98,7 @@ blocks AS150436 and AS4229 on `/talks/`, the crawler found on 2026-09-28
 Detail, keys and the purge procedure are on [Edge cache](cache.qmd). In short:
 
 - **Cached at the edge:** package files and repository metadata (`PACKAGES`, `VIEWS`,
-  `config.yaml`, tarballs), pages from the build (keyed by build sha, so a new build
+  tarballs), pages from the build (keyed by build sha, so a new build
   invalidates them), old-release files from the archive copy (never purged), and `404`s for
   10 minutes (keyed by build sha).
 - **Not cached:** HTML that comes from the mirror (`checkResults`, old-release pages),

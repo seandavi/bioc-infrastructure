@@ -149,11 +149,10 @@ Latency, once someone acts:
 ### Differences from nanoc
 
 `pipeline/parity.py` lists every path nanoc's Rules would publish from the checkout and fails the
-build if one is missing, apart from a documented exclusion list. It doesn't see files nanoc's
-`Rakefile` wrote outside the Rules (`config.yaml` at the site root, `js/versions.js`), so those
-are tracked separately in
-[#446](https://github.com/Bioconductor/bioconductor.org/issues/446). Until then `/config.yaml`
-comes from the mirror. Before 2026-11-16, bioc-website recorded its workarounds for upstream
+build if one is missing, apart from a documented exclusion list. It also lists what nanoc's
+`Rakefile` wrote outside the Rules: `/config.yaml`, `/js/versions.js`, `/bioc-version`,
+`/bioc-devel-version` and `/packages/<version>/index.html`
+([#446](https://github.com/Bioconductor/bioconductor.org/issues/446)). Before 2026-11-16, bioc-website recorded its workarounds for upstream
 content in
 [`UPSTREAM.md`](https://github.com/seandavi/bioc-website/blob/main/UPSTREAM.md).
 
@@ -211,9 +210,12 @@ Checked 2026-11-16 against build `6865ded4`:
   ([#187](https://github.com/seandavi/bioc-infrastructure/issues/187)). `/developers/help_wanted/`
   was dropped in the same change and later restored (Bioconductor/bioconductor.org#444). Every
   other prose page renders, with no ERB left unresolved.
-- **Files nanoc's `Rakefile` wrote:** `/config.yaml` and `/js/versions.js` still come from the
-  mirror. The `packages/release` and `packages/devel` aliases come from the edge's symlink map
-  ([#446](https://github.com/Bioconductor/bioconductor.org/issues/446)).
+- **Files nanoc's `Rakefile` wrote:** the build emits them
+  ([#446](https://github.com/Bioconductor/bioconductor.org/issues/446)), and the edge serves
+  `/config.yaml` and `/js/versions.js` from it. `/bioc-version` and `/bioc-devel-version` still
+  come from the mirror, because the edge doesn't look up extensionless paths in the build. The
+  `packages/release` and `packages/devel` aliases come from the edge's symlink map, which
+  `bioc-sync` reads from the mirror's symlinks, which nanoc writes.
 - **`Rank`** is read from the `*_pkg_scores.tab` files under `/packages/stats/` on
   bioconductor.org. The Worker serves them from R2, where bioc-traffic uploads them daily, so
   `Rank` no longer depends on master.

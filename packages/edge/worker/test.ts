@@ -796,8 +796,7 @@ test("mirror-only keys: package files, checkResults, repo metadata; never HTML (
     "packages/3.23/bioc/bin/windows/contrib/4.6/PACKAGES.rds",
     "books/3.23/src/contrib/OSCA_1.0.tar.gz",
     "checkResults/3.23/bioc-LATEST/index.html",
-    "config.yaml",
-    "BiocInstaller.dcf",
+    "bioc-version",
     // Old releases come from the archive copy (archiveFallback).
     "archive.bioconductor.org/packages/3.22/bioc/src/contrib/PACKAGES.rds",
   ]) assert.equal(mirrorOnly(k), true, k);
@@ -808,7 +807,11 @@ test("mirror-only keys: package files, checkResults, repo metadata; never HTML (
     "books/3.23/OSCA/index.html",
     // Build-owned assets and pages.
     "js/bioconductor.js",
+    "js/versions.js",
     "style/main.css",
+    // The build emits these too (Bioconductor/bioconductor.org#446).
+    "config.yaml",
+    "BiocInstaller.dcf",
     "index.html",
     "help/index.html",
     "site/039eb70b/packages/3.23/bioc/html/limma.html",
