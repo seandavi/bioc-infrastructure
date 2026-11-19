@@ -85,7 +85,7 @@ numbered version first.
 - **Pages from the new site build** are keyed by the build's commit, so publishing a new
   build moves every page to new keys without a purge.
 - **Package files and other mirror-only content** (tarballs, `PACKAGES*`, `VIEWS`,
-  binaries, `checkResults/`, `config.yaml`, and the same inside the archive of old
+  binaries, `checkResults/`, `bioc-version`, and the same inside the archive of old
   releases) are cached under their plain key, which is exactly what the sync purges when a
   package changes.
 - **Legacy HTML the build doesn't have yet** is served from storage every time, uncached.

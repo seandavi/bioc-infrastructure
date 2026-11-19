@@ -710,10 +710,13 @@ export interface Routes {
  * Cached under the plain key, which is what sync.sh purges on every change,
  * so package updates still expire them. Deliberately a short explicit list: a
  * wrong "no" costs only a miss, a wrong "yes" can serve a stale page.
+ * config.yaml and BiocInstaller.dcf left the list when the build began
+ * emitting them (Bioconductor/bioconductor.org#446): a cached mirror copy,
+ * hours behind devel, would shadow the build's. bioc-version and
+ * bioc-devel-version stay, because buildKeys never looks up an extensionless
+ * path as-is.
  */
 const MIRROR_ROOT_FILES = new Set([
-  "config.yaml",
-  "BiocInstaller.dcf",
   "bioc-version",
   "bioc-devel-version",
   "BioC_mirrors.csv",
