@@ -144,6 +144,7 @@ test("extensionless keys stay reachable (flattened redirects)", () => {
 test("content type falls back rather than serving none", () => {
   assert.match(contentType("style/base/colors.css"), /^text\/css/);
   assert.equal(contentType("packages/x_1.0.tar.gz"), "application/gzip");
+  assert.match(contentType("site/abc/BiocInstaller.dcf"), /^text\/plain/);
   assert.match(contentType("books/OSCA"), /^text\/html/); // extensionless
   assert.match(contentType("packages/3.24/bioc"), /^text\/html/); // dot is a dir
 });
