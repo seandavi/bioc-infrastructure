@@ -453,6 +453,8 @@ const TYPES: Record<string, string> = {
   pdf: "application/pdf",
   txt: "text/plain; charset=utf-8",
   tab: "text/plain; charset=utf-8",
+  // BiocInstaller.dcf: the build uploads it untyped, and it is not HTML.
+  dcf: "text/plain; charset=utf-8",
   xml: "application/xml",
   gz: "application/gzip",
   tgz: "application/gzip",
