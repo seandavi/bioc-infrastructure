@@ -25,6 +25,7 @@ jobs:
     timeout-minutes: 120
     env:
       REPO_URL: https://bioc-registry.seandavi.workers.dev/repo/${{ matrix.universe }}
+      UNIVERSE: ${{ matrix.universe }}
     steps:
       - name: gh CLI for attestation verify (not in the image)
         # From GitHub's own apt repo: Ubuntu's packaged gh predates
@@ -120,9 +121,22 @@ jobs:
               if (!length(bb)) quit(save = "no", status = 0)
               # Software comes from the registry (BioCsoft replaced) and CRAN;
               # annotation/experiment data dependencies have no build home yet
-              # (bioc-build#32), so BioCann/BioCexp stay on the image mirror.
+              # (bioc-build#32), so BioCann/BioCexp come from bioconductor.org.
               repos <- getOption("repos")
               repos[["BioCsoft"]] <- Sys.getenv("REPO_URL")
+              # The image points BioCann/BioCexp at devel. For the release universe
+              # that mixes devel data packages (which need devel AnnotationDbi) with
+              # release software (#205), so use the release data repositories, with
+              # the version read from BiocManager config.yaml rather than hard-coded.
+              if (Sys.getenv("UNIVERSE") == "bioc-release") {
+                cfg <- readLines("https://bioconductor.org/config.yaml")
+                v <- sub("^release_version: *\"?([0-9.]+)\"?.*$", "\\1",
+                         grep("^release_version:", cfg, value = TRUE))
+                stopifnot(length(v) == 1, grepl("^[0-9]+[.][0-9]+$", v))
+                repos[c("BioCann", "BioCexp")] <- sprintf(
+                  "https://bioconductor.org/packages/%s/data/%s", v, c("annotation", "experiment"))
+              }
+              print(repos)
               pkgs <- names(bb)
               # The set is ~2 GB of tarballs, up to 536 MB each; the default R
               # download timeout is 60 s.
