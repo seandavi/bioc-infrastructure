@@ -99,6 +99,12 @@ They are never uploaded. The sync publishes `_symlinks.json` and the Worker reso
 against it per request, so a release roll is **data, not a deploy**. Getting this wrong
 fails quietly: every browse URL keeps working while installs break.
 
+Two entries don't come from master. While a build is served, `packages/release` and
+`packages/devel` are that build's `site/<id>/bioc-version` and `site/<id>/bioc-devel-version`,
+which it writes from `config.yaml` (`withLiveVersions()` in `worker/src/keys.ts`). So the
+package aliases flip with `site/latest`, together with the build's package pages, not when
+master's symlinks do. The `checkResults/` and `books/` aliases still come from master.
+
 ## The API
 
 `/api/v1/manifest/` — a published file list, so anyone can mirror with **no credentials**.

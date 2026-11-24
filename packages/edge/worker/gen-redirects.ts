@@ -108,9 +108,10 @@ const RETARGET: Record<string, string> = {
   // RedirectMatch's `(3.[0-9][0-9])` requires exactly two digits after
   // "3." -- it does not match single-digit minors (3.0-3.9). That looks
   // like an upstream regex bug (see MIGRATION.md), but this is a port, not
-  // a fix: only 3.10-3.24 are generated, matching what the rule actually
-  // matches today. Bump the upper bound when devel rolls past 3.24.
-  for (let v = 10; v <= 24; v++) {
+  // a fix: only 3.10-3.25 are generated, matching what the rule actually
+  // matches today. Bump the upper bound when devel rolls past 3.25 (the
+  // release-roll guard alerts when it does; docs release-runbook.qmd).
+  for (let v = 10; v <= 25; v++) {
     const ver = `3.${v}`;
     overridePrefix.push({
       from: `/packages/${ver}/container-binaries/src/`,

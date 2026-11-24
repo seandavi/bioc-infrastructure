@@ -29,6 +29,7 @@ import {
   stagingPath,
   renderIndex,
   resolveLinks,
+  withLiveVersions,
   LINKS_KEY,
   ROUTES_KEY,
   LATEST_KEY,
@@ -109,6 +110,34 @@ async function buildSha(env: Env, routes: Routes | null): Promise<string | null>
   return latestSha(env);
 }
 
+// A build's release/devel never change (the id is immutable), so one read per
+// build per isolate; a failed read isn't kept, so the next request retries.
+let buildLive: { sha: string; v: Promise<{ release: string | null; devel: string | null }> } | null = null;
+function liveOf(env: Env, sha: string) {
+  if (buildLive?.sha !== sha) {
+    const text = async (k: string) => (await (await env.BUCKET.get(`site/${sha}/${k}`))?.text())?.trim() ?? null;
+    const v = Promise.all([text("bioc-version"), text("bioc-devel-version")]).then(([release, devel]) => ({ release, devel }));
+    v.catch(() => { if (buildLive?.v === v) buildLive = null; });
+    buildLive = { sha, v };
+  }
+  return buildLive.v;
+}
+
+/** The symlink map with release/devel taken from the build being served (withLiveVersions). */
+let merged: { base: Links; sha: string; links: Links } | null = null;
+async function liveLinks(env: Env): Promise<Links> {
+  const base = await symlinks(env);
+  const sha = await buildSha(env, await routesTable(env));
+  if (!sha) return base;
+  if (merged?.base === base && merged.sha === sha) return merged.links;
+  try {
+    merged = { base, sha, links: withLiveVersions(base, await liveOf(env, sha)) };
+    return merged.links;
+  } catch {
+    return base; // the mirror's links until the read works; not memoised, so retried
+  }
+}
+
 export default {
   /**
    * The clock for the release-roll guard (docs/adr/0007). Cheap fetch-and-check
@@ -177,7 +206,7 @@ export default {
     // through a preview stays in the preview (build output is unaware it is
     // served from a subpath). JS-constructed URLs are not caught; that is the
     // residual case wildcard-subdomain previews would close.
-    const links = await symlinks(env);
+    const links = await liveLinks(env);
     let preview = previewKeys(path, links);
     let previewPrefix = preview ? `/_pr/${/^\/_pr\/(\d+)/.exec(path)![1]}` : null;
     // /_latest/ is the staging view of the same machinery: the build CI last
@@ -301,7 +330,7 @@ export default {
       const listed = await listing(env, keys);
       if (listed) ({ res, key } = listed);
       else {
-        const links = await symlinks(env);
+        const links = await liveLinks(env);
         const redir = (await packageRedirect(env, path, links)) ?? (await htmlDirRedirect(env, path, links));
         if (redir) {
           log(env, ctx, req, 302, "REDIRECT", null, t0);

@@ -27,7 +27,7 @@ Other pages use these words with these meanings.
 | **preview** | A pull request's build, stored at `preview/pr-<n>/` and served at `/_pr/<n>/`. The R2 key and the URL differ. |
 | **the edge** | The `bioc-site` Worker plus Cloudflare's cache in front of R2. The code is in bioc-edge. |
 | **route table** | `_routes.json` in R2: which URL prefixes the build answers before the mirror. Data, not code. |
-| **symlink map** | `_symlinks.json` in R2: master's symlinks (`packages/release` → `3.23`, the R-version aliases under `contrib/`), which object storage cannot hold. |
+| **symlink map** | `_symlinks.json` in R2: master's symlinks (`packages/release` → `3.23`, the R-version aliases under `contrib/`), which object storage cannot hold. The served build's `bioc-version` and `bioc-devel-version` override `packages/release` and `packages/devel`. |
 | **the sync** | `bioc-sync`, the hourly systemd job that copies master into the mirror. |
 | **BBS** | The Bioconductor Build System on the legacy build machines. It builds the source tarballs. |
 | **r-universe** | r-universe.dev's `bioc` and `bioc-release` universes. They build most of the Windows and macOS binaries on bioconductor.org. |
