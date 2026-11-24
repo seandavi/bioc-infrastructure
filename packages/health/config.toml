@@ -1,7 +1,9 @@
 # Defaults for health/collect.py. Edit freely; every threshold the rules use is here.
 owner = "seandavi"
-repos = ["bioc-infrastructure", "bioc-website", "bioc-build", "bioc-manifest",
-         "bioc-intelligence"]
+# bioconductor.org: its default branch (astro) builds and publishes the production site
+# (astro.yml) and merges upstream devel (sync.yml); bioc-website is the fallback builder.
+repos = ["bioc-infrastructure", "bioconductor.org", "bioc-website", "bioc-build",
+         "bioc-manifest", "bioc-intelligence"]
 # Prototypes, not production (ci-inventory.py NOTES): Actions failures cap at warn.
 experimental_repos = ["bioc-build", "bioc-manifest"]
 # Where bioc-notify@ (packages/edge/notify-failure.sh) files "<unit> is failing" issues.
@@ -60,6 +62,24 @@ expect_status = 200
 expect_body_contains = "\"versions\""
 
 [[endpoints]]
+name = "BiocManager config.yaml"
+url = "https://bioconductor.org/config.yaml"
+expect_status = 200
+expect_body_contains = "release_version:"
+
+[[endpoints]]
+name = "BiocInstaller.dcf"
+url = "https://bioconductor.org/BiocInstaller.dcf"
+expect_status = 200
+expect_body_contains = "BIOC_VERSION:"
+
+[[endpoints]]
+name = "registry release PACKAGES"
+url = "https://bioc-registry.seandavi.workers.dev/repo/bioc-release/src/contrib/PACKAGES"
+expect_status = 200
+expect_body_prefix = "Package:"
+
+[[endpoints]]
 name = "404 page"
 url = "https://bioconductor.org/no-such-page-health-probe"
 expect_status = 404
@@ -69,6 +89,7 @@ expect_body_contains = "<title>"
 pr_stale_days = 14
 issue_stale_days = 30
 actions_cron_grace_hours = 6
+actions_latest_max_age_days = 30  # an older latest run says nothing about today: info
 parquet_lag_warn_hours = 2
 parquet_lag_fail_hours = 4
 volume_ratio_low = 0.3
@@ -88,6 +109,6 @@ stats_month_ratio_warn = 0.75  # this month / last month pro-rated
 stats_month_ratio_fail = 0.5
 disk_free_warn_pct = 15
 disk_free_fail_pct = 5
-log_files_warn = 1000
+log_files_warn = 2000           # sync.sh keeps 14 days, about 1,050 files at steady state
 log_bytes_warn = 2147483648
 endpoint_slow_ms = 5000

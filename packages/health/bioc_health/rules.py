@@ -64,11 +64,13 @@ def endpoint_status(
 
 
 def unit_status(
-    active_state: str, last_job_result: str | None, failures: int
+    active_state: str, last_job_result: str | None, failures: int, since: str | None = None
 ) -> tuple[Status, str]:
-    """(status, title) for a service. The title omits the unit name."""
+    """(status, title) for a service. The title omits the unit name. `since` is when the
+    unit entered its current state; a failed state lasts until reset-failed, so say how long."""
     if active_state == "failed" or last_job_result == "failed":
-        return Status.FAIL, f"failed (state {active_state}, last job {last_job_result})"
+        when = f" since {since}" if since and active_state == "failed" else ""
+        return Status.FAIL, f"failed{when} (state {active_state}, last job {last_job_result})"
     if active_state in ("activating", "reloading"):
         return Status.INFO, f"running ({active_state})"
     if failures > 0:
@@ -84,14 +86,20 @@ def timer_status(active: bool) -> Status:
 
 
 def checkout_status(
-    branch: str | None, default: str, head: str, tip: str, dirty: int
+    branch: str | None, default: str, head: str, tip: str, dirty: int,
+    changed_here: int | None = None, here: str = ".",
 ) -> tuple[Status, str]:
+    """`changed_here`: files under the unit's directory (`here`) that differ between HEAD and
+    tip; None when unknown. A checkout behind only on other paths runs current code: info."""
     if not branch:
         return Status.FAIL, f"detached HEAD; units run this tree, expected {default}"
     if branch != default:
         return Status.FAIL, f"on branch {branch}, not {default}; units run this tree"
+    if head != tip and changed_here == 0:
+        return Status.INFO, f"HEAD behind GitHub {default} tip; nothing under {here} changed"
     if head != tip:
-        return Status.WARN, f"HEAD differs from GitHub {default} tip"
+        n = "" if changed_here is None else f"; {changed_here} file(s) under {here} changed"
+        return Status.WARN, f"HEAD differs from GitHub {default} tip{n}"
     if dirty > 0:
         return Status.WARN, f"{dirty} uncommitted changes to tracked files"
     return Status.OK, f"on {default} at GitHub tip, clean"
@@ -133,11 +141,17 @@ def pr_status(
 FAILED_CONCLUSIONS = {"failure", "timed_out", "startup_failure"}
 
 
-def actions_status(conclusion: str | None, experimental: bool) -> Status:
+def actions_status(
+    conclusion: str | None, experimental: bool, age_days: float | None = None,
+    max_age_days: float | None = None,
+) -> Status:
+    """`age_days`: age of the latest completed run. Past `max_age_days` it is history, not state."""
     if conclusion is None:
         return Status.INFO
     if conclusion in ("success", "skipped", "neutral"):
         return Status.OK
+    if age_days is not None and max_age_days is not None and age_days > max_age_days:
+        return Status.INFO
     if conclusion in FAILED_CONCLUSIONS:
         return Status.WARN if experimental else Status.FAIL
     return Status.WARN  # cancelled, action_required, anything new

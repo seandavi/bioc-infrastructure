@@ -1,6 +1,6 @@
 ---
 name: bioc-health
-description: Use when asked how the bioc-* stack is doing — health check, status report, "what's broken/red", or triage of bioc-edge, bioc-traffic, bioc-registry, bioc-website units, Actions, issues, or access logs.
+description: Use when asked how the bioc-* stack is doing — health check, status report, "what's broken/red", or triage of bioc-edge, bioc-traffic, bioc-registry, the site builds (seandavi/bioconductor.org astro, bioc-website fallback), units, Actions, issues, or access logs.
 ---
 
 # bioc stack health
@@ -13,7 +13,7 @@ Read-only triage of the stack Sean runs. Runs on onclappc02 (systemd units, loca
 2. Read `report.md` in full. Open `bundle.json` (same directory) only for evidence behind fail/warn findings.
 3. Group fail and warn findings by root cause: the same error text in several journal tails, a stale rollup next to its failed unit, a failing check shared by PRs. One cause, one entry.
 4. Confirm each root cause with one read-only command (`journalctl --user -u <unit> -n 80`, `systemctl --user show <unit> -p …`, `gh run view <id> --log-failed`, a DuckDB aggregate). Mark anything unconfirmed `[unverified]`.
-5. Map each cause to its tracking issue (refs in the finding, else `gh issue list -R seandavi/<repo> --search "<keywords>"`) and to a runbook in https://seandavi.github.io/bioc-infrastructure/operations.html (#failed-sync, #purge, #rollback-worker, #rollback-site, #yank) when one applies.
+5. Map each cause to its tracking issue (refs in the finding, else `gh issue list -R seandavi/<repo> --search "<keywords>"`; site-build failures in seandavi/bioconductor.org are tracked there) and to a runbook in https://seandavi.github.io/bioc-infrastructure/operations.html (#failed-sync, #purge, #rollback-worker, #rollback-site, #yank) when one applies.
 6. Reply in this shape:
    - **Verdict** — overall status and the one-line reason.
    - **Needs action** — per cause: what's wrong · evidence · tracking issue or "untracked" · next command or runbook.

@@ -11,7 +11,8 @@ from ..model import Finding, SourceResult, Status
 from ..run import run, run_json
 
 NAME = "systemd"
-SHOW_PROPS = "ActiveState,SubState,Result,ExecMainStatus,InvocationID,WorkingDirectory,Description"
+SHOW_PROPS = ("ActiveState,SubState,Result,ExecMainStatus,InvocationID,WorkingDirectory,"
+              "Description,StateChangeTimestamp")
 
 
 def list_units(cfg: dict) -> list[dict]:
@@ -25,7 +26,7 @@ def discover_units(cfg: dict) -> list[str]:
 
 
 def show(unit: str, props: str) -> dict[str, str]:
-    out = run(["systemctl", "--user", "show", "--no-pager", unit, "-p", props])
+    out = run(["systemctl", "--user", "show", "--no-pager", "--timestamp=utc", unit, "-p", props])
     return dict(line.split("=", 1) for line in out.splitlines() if "=" in line)
 
 
@@ -85,9 +86,12 @@ def collect(cfg: dict, now: datetime) -> SourceResult:
     for svc in services:
         p = show(svc, SHOW_PROPS)
         h = hist[svc]
-        st, title = rules.unit_status(p.get("ActiveState", ""), h["last_job_result"], h["failures"])
+        st, title = rules.unit_status(p.get("ActiveState", ""), h["last_job_result"], h["failures"],
+                                      p.get("StateChangeTimestamp") or None)
         if st == Status.FAIL and svc.startswith("bioc-notify@"):
             title = "alerting broken: " + title
+            if p.get("ActiveState") == "failed":  # stays failed until cleared by hand
+                title += f"; once fixed, clear with systemctl --user reset-failed {svc}"
         timer = None
         if svc in by_service:
             tunit, t = by_service[svc]

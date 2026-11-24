@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .. import rules
 from ..model import Finding, SourceResult, Status
-from ..run import CommandError, run
+from ..run import CommandError, gh_json, run
 from .systemd import discover_units, show
 
 NAME = "checkouts"
@@ -56,7 +56,16 @@ def collect(cfg: dict, now: datetime) -> SourceResult:
         tip = run(["gh", "api", f"repos/{slug}/commits/{default}", "-q", ".sha"]).strip()
         row |= {"toplevel": top, "slug": slug, "branch": branch, "default_branch": default,
                 "head": head, "tip": tip, "dirty": dirty}
-        st, title = rules.checkout_status(branch, default, head, tip, dirty)
+        here = Path(d).resolve().relative_to(Path(top).resolve()).as_posix()
+        changed = None
+        if head != tip:
+            # GitHub's compare lists at most 300 files; past that, count it as changed.
+            files = gh_json("api", f"repos/{slug}/compare/{head}...{tip}")["files"]
+            prefix = "" if here == "." else here + "/"
+            changed = len(files) if len(files) >= 300 else sum(
+                f["filename"].startswith(prefix) for f in files)
+        row |= {"path": here, "changed_here": changed}
+        st, title = rules.checkout_status(branch, default, head, tip, dirty, changed, here)
         findings.append(Finding(f"{NAME}/{d}/tree", NAME, st, f"{d}: {title}",
                                 evidence=row, refs=[f"https://github.com/{slug}/commits/{default}"]))
 

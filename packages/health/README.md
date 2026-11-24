@@ -1,8 +1,8 @@
 # bioc-health
 
 On-demand, read-only health check of the bioc-* stack: bioc-edge (sync, R2, Worker),
-bioc-traffic (Logpush → hourly Parquet → rollups and download stats) and the
-seandavi/bioc-* repos. The collector gathers every signal into `bundle.json` and
+bioc-traffic (Logpush → hourly Parquet → rollups and download stats), bioc-registry,
+the site builder (seandavi/bioconductor.org, branch `astro`) and the seandavi/bioc-* repos. The collector gathers every signal into `bundle.json` and
 `report.md`; the `bioc-health` agent skill (`.agents/skills/bioc-health/`) runs it
 and turns the report into a triaged assessment. Nothing is posted, filed or restarted.
 This is the detectors-plus-digest slice of #43.
@@ -34,12 +34,12 @@ broke), fail, warn, info, ok.
 | Source | Checks |
 |---|---|
 | `issues` | Per repo: open issues and PRs, issues closed and PRs merged in the activity window. A PR with failing checks or merge conflicts warns; a non-draft PR idle past `pr_stale_days` is info. Info lists of new and stale issues. |
-| `actions` | Per workflow on the default branch: latest conclusion (fail, or warn in `experimental_repos`), failure streak, last success, failed jobs and a log tail; disabled workflows; scheduled workflows that have not run in twice their cron period plus `actions_cron_grace_hours`. |
-| `systemd` | Every `systemd --user` unit matching `unit_globs`: state, start-job results in the last `window_hours`, the journal tail of a failed run, and timers that are not active. |
-| `checkouts` | The git tree each unit runs (its `WorkingDirectory`): on the default branch (else fail), at GitHub's tip and clean (else warn). Never fetches. |
+| `actions` | Per workflow on the default branch: latest conclusion (fail, or warn in `experimental_repos`; info once the latest run is older than `actions_latest_max_age_days`), failure streak, last success, failed jobs and a log tail; disabled workflows; scheduled workflows that have not run in twice their cron period plus `actions_cron_grace_hours`. |
+| `systemd` | Every `systemd --user` unit matching `unit_globs`: state (a failed unit says since when; a failed `bioc-notify@` names the `reset-failed` command), start-job results in the last `window_hours`, the journal tail of a failed run, and timers that are not active. |
+| `checkouts` | The git tree each unit runs (its `WorkingDirectory`): on the default branch (else fail), at GitHub's tip and clean (else warn; behind the tip with nothing changed under the unit's directory is info, from GitHub's compare API). Never fetches. |
 | `access_logs` | Hourly Parquet freshness and gaps; per-hour volume against the median of the same hour on earlier days; 24 h 5xx share, hit ratio, 404 share and p95 latency against that baseline, with top 5xx/404 paths; rollup and download-stats freshness. Aggregates and paths only, never per-client columns. |
 | `host` | Free space on `disk_paths`; accumulated sync logs. |
-| `endpoints` | The six bioc-edge `health.yml` probes of bioconductor.org: status, body check, latency. The live `bioc_<year>_stats.tab`: this month's downloads against last month's, pro-rated to the complete days so far (#114). |
+| `endpoints` | The bioc-edge `health.yml` probes of bioconductor.org, plus BiocManager's `config.yaml`, `BiocInstaller.dcf` and the bioc-registry release `PACKAGES`: status, body check, latency. The live `bioc_<year>_stats.tab`: this month's downloads against last month's, pro-rated to the complete days so far (#114). |
 
 Cross-references (`bioc_health/crossref.py`) compare `<unit> is failing` issues filed by
 `bioc-notify@` in `failure_issue_repo` with live unit state: an issue whose unit has
