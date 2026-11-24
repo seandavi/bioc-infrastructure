@@ -46,6 +46,8 @@ call the Cloudflare API, load the credentials first:
 ./make-env.sh && set -a && . ./.env && set +a
 ```
 
+A Bioconductor release roll has its own page: [Release runbook](release-runbook.qmd).
+
 None of these procedures has been rehearsed on production as a drill. The M1 item
 "Rollback rehearsed and written up" is still open on the [roadmap](roadmap.qmd).
 

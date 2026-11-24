@@ -1,0 +1,168 @@
+---
+title: "Release runbook"
+date: 2026-11-24
+date-modified: 2026-11-24
+---
+
+What a Bioconductor release roll asks of this platform, in the order it happens. Bioconductor
+releases twice a year; each time, devel becomes the release and a new devel starts. This page
+is kept up to date by whoever runs a release: change a step when it turns out wrong, and add
+the cycle to the [log](#log) at the end.
+
+Version numbers below are this cycle's: release 3.23 → 3.24, devel 3.24 → 3.25. Read
+`<release>`, `<devel>` and `<next>` as the release, the devel and the next devel being rolled to.
+
+## What moves on its own, and what doesn't
+
+Most of the roll is driven by one file, `config.yaml` on
+[Bioconductor/bioconductor.org](https://github.com/Bioconductor/bioconductor.org) `devel`,
+which the core team edits. Everything listed here reads it, or reads something that does.
+
+| Piece | Follows | How it learns |
+|---|---|---|
+| Package pages' release/devel chrome, canonicals, sitemap, search | `release_version`, `devel_version` | the astro build ([Astro site build](astro-site-build.qmd)) |
+| `/bioc-version`, `/bioc-devel-version`, `/config.yaml`, `/js/versions.js` | the same | the astro build |
+| `/packages/release/`, `/packages/devel/` | the served build's `bioc-version`, `bioc-devel-version` | the Worker, within 60 s of `site/latest` moving |
+| `/checkResults/release/`, `/books/release/` and the other aliases | master's symlinks | `bioc-sync`, hourly |
+| Which r-universe a version's package data comes from | each universe's `BiocVersion` | bioc-website `pipeline/packages.py` `universe_for()`, nightly |
+| R version for a version not yet in `r_ver_for_bioc_ver` | the repository's binary indexes | `r_version_for()`, nightly |
+| Registry gating R | `devel_version`/`release_version` → `r_ver_for_bioc_ver` | bioc-registry, at evaluate time |
+| r-universe's `bioc` and `bioc-release` | `r_universe_devel_version`, `r_universe_release_version` | r-universe |
+| Mirror manifests (`/api/v1/manifest/`) | master's symlinks | `gen-manifest.sh` |
+
+What does **not** move on its own:
+
+- **Adding the next devel's package data** to the snapshot ([step 3](#add-next)).
+- **Retiring the old release** from the snapshot ([after the release](#after)).
+- **The container-binaries redirect bound** in `packages/edge/worker/gen-redirects.ts`
+  (`v <= 25` today). The release-roll guard ([ADR 0007](https://seandavi.github.io/bioc-infrastructure/adr/0007-cloudflare-workflows-for-the-release-roll-guard.html))
+  alerts when devel passes it.
+- **Getting a `devel` edit onto the site quickly.** `sync.yml`'s 30-minute schedule is
+  throttled by GitHub to every few hours in practice (4–12 hours apart in November 2026).
+  Dispatch it by hand ([below](#dispatch-sync)) whenever an edit is waiting.
+
+## Before release day
+
+### 1. The branch is cut
+
+The core team creates `RELEASE_<x_y>` for the outgoing devel and seeds `packages/<next>/` on
+master, partly as symlinks to `<devel>` (`packages/3.25/workflows/VIEWS -> ../../3.24/…`).
+
+Check: `gh api repos/bioc/BiocVersion/branches --jq '.[].name'` lists `RELEASE_<x_y>`, and
+`https://bioconductor.org/packages/<next>/bioc/VIEWS` returns 200.
+
+### 2. r-universe rolls
+
+The core team sets `r_universe_release_version` and `r_universe_devel_version` in
+`config.yaml`. r-universe then rebuilds `bioc` from git `devel` (now `<next>`) and
+`bioc-release` from `RELEASE_<x_y>`, each on its own schedule. Lori's edit for this cycle
+reached the site seven hours late ([#195](https://github.com/seandavi/bioc-infrastructure/issues/195)),
+so dispatch the sync as soon as it lands.
+
+Check which version each universe serves:
+
+```sh
+for u in bioc bioc-release; do
+  printf '%s ' $u; curl -s https://$u.r-universe.dev/api/packages/BiocVersion | jq -r '.Version + " " + .RemoteRef'
+done
+```
+
+Nothing to do in the pipeline: each night it reads whichever universe's `BiocVersion` matches
+the version it builds. A version neither universe serves (mid-roll, `<devel>` was in neither)
+takes its software data from the source tarballs' DESCRIPTION, like the other three
+repositories, and says so in the log (`no r-universe builds 3.24; software from --data-origin
+tarballs`). Expect a few dozen fewer software pages for it until r-universe catches up: the
+tarballs cover only packages in the repository's `PACKAGES`.
+
+### 3. Add the next devel's package data {#add-next}
+
+On onclappc02, from a bioc-website checkout at `main` (not the ops clone the timers run from):
+
+```sh
+DRY_RUN=1 ADD_RELEASE=<next> ops/refresh-packages.sh   # build and check, no upload
+ADD_RELEASE=<next> ops/refresh-packages.sh             # upload, dispatch both builds
+```
+
+It takes the same snapshot lock as the timers, so it can't race them. Needs
+`packages/<next>/bioc/bin/windows/contrib/<R>/PACKAGES` to exist (empty is fine) when
+`config.yaml` has no `r_ver_for_bioc_ver` for `<next>` yet. **Don't** add one early: that map
+is BiocManager's, and a version in it that is neither release nor devel is "out-of-date" to R
+users. From then on the nightly `bioc-site-packages` refreshes `<next>` with the rest.
+
+Check, once the astro build has published:
+
+```sh
+curl -s https://bioconductor.org/packages/<next>/bioc/html/limma.html | sed 's/<[^>]*>//g' | grep -o 'This package is for version [0-9.]*'
+curl -s https://bioconductor.org/packages/devel/bioc/html/limma.html | sed 's/<[^>]*>//g' | grep -o 'This is the [a-z]* version'   # still "development", for <devel>
+```
+
+`/packages/json/<next>/` stays 404 until release day: the legacy nanoc job on master writes
+`packages.json` only for `config.yaml`'s `versions`.
+
+## Release day
+
+### 4. The core team edits `config.yaml`
+
+On `devel`, in one commit: `release_version: "<devel>"`, `devel_version: "<next>"`,
+`versions: ["<devel>", "<next>"]`, `r_ver_for_bioc_ver` gains `"<next>": "<R>"`,
+`release_dates` gains `"<devel>": "<mm/dd/yyyy>"`, and the R versions, `devel_repos` and
+`single_package_builder` as the file's own `CHANGE THIS` comments say. The astro build checks
+the pair is consistent (`devel_version` must be the version after `release_version`).
+
+### 5. Get it onto the site {#dispatch-sync}
+
+```sh
+gh workflow run sync.yml -R seandavi/bioconductor.org --ref astro
+```
+
+The sync merges `devel` into `astro`, runs the checks and dispatches `astro.yml`. About five
+minutes end to end on 2026-11-24 (sync 1 min, build and publish 3–7 min). The Worker sees the
+new `site/latest` within 60 s, and with it the new `/packages/release/` and `/packages/devel/`.
+
+### 6. Verify
+
+```sh
+curl -s https://bioconductor.org/bioc-version; echo; curl -s https://bioconductor.org/bioc-devel-version; echo
+curl -sI https://bioconductor.org/packages/release/bioc/html/limma.html | grep -i x-bioc-build
+curl -s https://bioconductor.org/packages/release/bioc/html/limma.html | sed 's/<[^>]*>//g' | grep -o 'Bioconductor [0-9.]* Software' | head -1
+curl -s https://bioconductor.org/config.yaml | grep -E '^(release|devel)_version'
+```
+
+All four should show the new pair, and `x-bioc-build` should be the id in `site/latest`.
+
+### 7. Watch for
+
+- **The release-roll guard.** If devel passed the redirect bound, the `bioc-release-roll`
+  Workflow alerts and waits for approval. Raise the bound in `gen-redirects.ts`, run
+  `just redirects`, and deploy the Worker.
+- **The registry.** Its gating R follows `devel_version` → `r_ver_for_bioc_ver`, so it moves to
+  `<next>`'s R when step 4 lands. The dashboard's "why are packages not propagated?" panel
+  names the gating R.
+- **Master's symlinks.** `checkResults/`, `books/` and the mirror manifests follow master, which
+  the legacy job flips on its own schedule.
+
+## After the release {#after}
+
+- **Retire the old release from the snapshot** once nothing links to it as live: drop its
+  `data/<old>` from `_ci/site-data.tar.zst` (not scripted yet). It is then archival and served
+  from the mirror ([ADR 0006](https://seandavi.github.io/bioc-infrastructure/adr/0006-old-releases-and-their-checkresults-are-archival.html)).
+- **Update this page**, and add the cycle to the log.
+
+## Log {#log}
+
+### 3.24 (November 2026)
+
+- **2026-11-24.** Lori Kern's `config.yaml` edit (`r_universe_*` to 3.24/3.25, devel commit
+  `76f949fb`, 10:58 UTC) hadn't reached the site at 13:27 UTC: the scheduled sync last ran at
+  06:46 UTC. Dispatched by hand at 13:39; live at 13:44
+  ([#195](https://github.com/seandavi/bioc-infrastructure/issues/195)).
+- Found, the same day, that the build took release/devel from the newest snapshot directory,
+  and the pipeline picked r-universe by `devel_version` while r-universe had already moved
+  `bioc` to 3.25. Fixed before any 3.25 data landed:
+  [seandavi/bioconductor.org#22](https://github.com/seandavi/bioconductor.org/pull/22)
+  (release/devel from `config.yaml`),
+  [seandavi/bioc-website#86](https://github.com/seandavi/bioc-website/pull/86) (universe by
+  `BiocVersion`, `ADD_RELEASE`), [#208](https://github.com/seandavi/bioc-infrastructure/pull/208)
+  (Worker aliases follow the served build; redirect bound to 3.25).
+- Release-day rehearsal, locally on the same data: one `config.yaml` edit flipped every package
+  page, canonical and `bioc-version`, and every build check passed.
