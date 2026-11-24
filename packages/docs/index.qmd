@@ -129,8 +129,9 @@ The serving replacement took over `bioconductor.org` on 2026-09-28: nameservers 
 Cloudflare in the afternoon and the site followed that evening
 ([DNS runbook](dns-cutover.qmd)). The legacy servers still run behind it, and still produce
 the content it mirrors, until [milestone M2](roadmap.qmd) retires them. Package landing pages
-exist for 35 releases: 3.23 and 3.24 are regenerated, and the 33 older releases are a frozen
-snapshot ([ADR 0006](adr/0006-old-releases-and-their-checkresults-are-archival.md),
+exist for 36 versions: 3.23, 3.24 and 3.25 (the next devel, added 2026-11-24) are regenerated,
+and the 33 older releases are a frozen
+snapshot ([ADR 0006](https://seandavi.github.io/bioc-infrastructure/adr/0006-old-releases-and-their-checkresults-are-archival.html),
 [site build](astro-site-build.qmd)). The build-system track is earlier. Software source
 tarballs are still built by BBS and most binaries by r-universe; serving them from the
 registry instead is the [registry switch](registry-switch.qmd). Annotation, experiment-data

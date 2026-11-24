@@ -21,7 +21,8 @@ which the core team edits. Everything listed here reads it, or reads something t
 | Piece | Follows | How it learns |
 |---|---|---|
 | Package pages' release/devel chrome, canonicals, sitemap, search | `release_version`, `devel_version` | the astro build ([Astro site build](astro-site-build.qmd)) |
-| `/bioc-version`, `/bioc-devel-version`, `/config.yaml`, `/js/versions.js` | the same | the astro build |
+| `/config.yaml`, `/js/versions.js` | the same | the astro build |
+| `/bioc-version`, `/bioc-devel-version` at the site root | master's copies, which nanoc writes from the same file | `bioc-sync`, hourly (the edge serves these two from the mirror, not the build) |
 | `/packages/release/`, `/packages/devel/` | the served build's `bioc-version`, `bioc-devel-version` | the Worker, within 60 s of `site/latest` moving |
 | `/checkResults/release/`, `/books/release/` and the other aliases | master's symlinks | `bioc-sync`, hourly |
 | Which r-universe a version's package data comes from | each universe's `BiocVersion` | bioc-website `pipeline/packages.py` `universe_for()`, nightly |
@@ -116,7 +117,7 @@ gh workflow run sync.yml -R seandavi/bioconductor.org --ref astro
 ```
 
 The sync merges `devel` into `astro`, runs the checks and dispatches `astro.yml`. About five
-minutes end to end on 2026-11-24 (sync 1 min, build and publish 3–7 min). The Worker sees the
+minutes end to end on 2026-11-24 (sync under 3 min, build and publish 3–8 min). The Worker sees the
 new `site/latest` within 60 s, and with it the new `/packages/release/` and `/packages/devel/`.
 
 ### 6. Verify
@@ -128,7 +129,10 @@ curl -s https://bioconductor.org/packages/release/bioc/html/limma.html | sed 's/
 curl -s https://bioconductor.org/config.yaml | grep -E '^(release|devel)_version'
 ```
 
-All four should show the new pair, and `x-bioc-build` should be the id in `site/latest`.
+The last two should show the new pair as soon as the build is served, and `x-bioc-build`
+should be the id in `site/latest`. `/bioc-version` and `/bioc-devel-version` are master's
+copies from the mirror, so they show the new pair only after master's nanoc rebuild and the
+next hourly sync; `/packages/release/` follows the build's own copies straight away.
 
 ### 7. Watch for
 
