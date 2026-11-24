@@ -70,16 +70,20 @@ for u in bioc bioc-release; do
 done
 ```
 
-Nothing to do in the pipeline: each night it reads whichever universe's `BiocVersion` matches
-the version it builds. A version neither universe serves (mid-roll, `<devel>` was in neither)
+Nothing to do in the pipeline: each night a version reads the universe that has builds from
+its `RELEASE_x_y` branch, or `bioc` (git `HEAD`) if it has no release branch yet and `bioc`'s
+`BiocVersion` is that version. A version neither universe serves (just after the branch cut,
+before `bioc-release` starts rebuilding, `<devel>` was in neither)
 takes its software data from the source tarballs' DESCRIPTION, like the other three
 repositories, and says so in the log (`no r-universe builds 3.24; software from --data-origin
 tarballs`). Expect a few dozen fewer software pages for it until r-universe catches up: the
 tarballs cover only packages in the repository's `PACKAGES`.
 
 A universe rolls package by package, over hours, so for a while it holds builds from two
-branches. The pipeline takes only records whose `RemoteRef` is the version's own branch, and a
-package whose current build is from the other branch keeps yesterday's record. The nightly log
+branches, and both versions read it. Each takes only records whose `RemoteRef` is its own
+branch; a package whose current build is from the other branch, or that the universe doesn't
+list yet, keeps yesterday's record. Only software builds count toward "mid-roll": the
+universes' experiment and workflow records needn't move. The nightly log
 says how many (`313 records from another branch than RELEASE_3_23: 313 kept from the previous
 snapshot`). The registry has no such guard yet: during a roll its `/repo/bioc-release` mixes
 both branches ([#210](https://github.com/seandavi/bioc-infrastructure/issues/210)).
@@ -213,3 +217,9 @@ next hourly sync; `/packages/release/` follows the build's own copies straight a
   [seandavi/bioc-website#89](https://github.com/seandavi/bioc-website/pull/89) (records only
   from the version's own branch). The root cause, five components each deciding which version
   a build belongs to, is [#210](https://github.com/seandavi/bioc-infrastructure/issues/210).
+- 19:00 UTC: 3.24 still took no r-universe data, because the pipeline chose a version's
+  universe by its `BiocVersion` (one package, not yet rebuilt) while 320 `RELEASE_3_24` builds
+  were already in `bioc-release`. Fixed in
+  [seandavi/bioc-website#90](https://github.com/seandavi/bioc-website/pull/90) (universe by
+  branch). Its first version dropped 136 packages new in 3.24 that r-universe hadn't rebuilt
+  yet; `refresh_check` refused that upload in the dry run.
