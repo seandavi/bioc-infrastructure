@@ -77,6 +77,19 @@ repositories, and says so in the log (`no r-universe builds 3.24; software from 
 tarballs`). Expect a few dozen fewer software pages for it until r-universe catches up: the
 tarballs cover only packages in the repository's `PACKAGES`.
 
+A universe rolls package by package, over hours, so for a while it holds builds from two
+branches. The pipeline takes only records whose `RemoteRef` is the version's own branch, and a
+package whose current build is from the other branch keeps yesterday's record. The nightly log
+says how many (`313 records from another branch than RELEASE_3_23: 313 kept from the previous
+snapshot`). The registry has no such guard yet: during a roll its `/repo/bioc-release` mixes
+both branches ([#210](https://github.com/seandavi/bioc-infrastructure/issues/210)).
+
+Check the mix:
+
+```sh
+curl -s https://bioc-release.r-universe.dev/api/packages | jq -r '.[].RemoteRef' | sort | uniq -c
+```
+
 ### 3. Add the next devel's package data {#add-next}
 
 On onclappc02, from a bioc-website checkout at `main` (not the ops clone the timers run from):
@@ -194,3 +207,9 @@ next hourly sync; `/packages/release/` follows the build's own copies straight a
   onclappc02; the gnu one needs a newer glibc).
 - `/packages/json/3.25/` was still 404 at day's end: it needs `"3.25"` in `versions`
   ([step 3b](#add-next)), which is the core team's edit.
+- 18:00 UTC: r-universe's `bioc-release` was 313 packages into its rebuild from `RELEASE_3_24`
+  with its BiocVersion still 3.23, so the pipeline would have put 3.24 metadata on 3.23's pages
+  that night. Fixed before the run in
+  [seandavi/bioc-website#89](https://github.com/seandavi/bioc-website/pull/89) (records only
+  from the version's own branch). The root cause, five components each deciding which version
+  a build belongs to, is [#210](https://github.com/seandavi/bioc-infrastructure/issues/210).
