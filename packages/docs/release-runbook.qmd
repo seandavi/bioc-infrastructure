@@ -34,6 +34,8 @@ which the core team edits. Everything listed here reads it, or reads something t
 What does **not** move on its own:
 
 - **Adding the next devel's package data** to the snapshot ([step 3](#add-next)).
+- **`/packages/json/<next>/`**, which waits for `<next>` in `config.yaml`'s `versions`
+  ([step 3b](#add-next)).
 - **Retiring the old release** from the snapshot ([after the release](#after)).
 - **The container-binaries redirect bound** in `packages/edge/worker/gen-redirects.ts`
   (`v <= 25` today). The release-roll guard ([ADR 0007](https://seandavi.github.io/bioc-infrastructure/adr/0007-cloudflare-workflows-for-the-release-roll-guard.html))
@@ -97,8 +99,21 @@ curl -s https://bioconductor.org/packages/<next>/bioc/html/limma.html | sed 's/<
 curl -s https://bioconductor.org/packages/devel/bioc/html/limma.html | sed 's/<[^>]*>//g' | grep -o 'This is the [a-z]* version'   # still "development", for <devel>
 ```
 
-`/packages/json/<next>/` stays 404 until release day: the legacy nanoc job on master writes
-`packages.json` only for `config.yaml`'s `versions`.
+### 3b. Publish `/packages/json/<next>/`
+
+The production build does not write `/packages/json/`; those files are master's, served from
+the mirror. The legacy nanoc job on master writes `packages.json` only for `config.yaml`'s
+`versions`, from the repository's VIEWS. So the core team adds `"<next>"` to `versions` on
+`devel`, and leaves `release_version` and `devel_version` alone. Then dispatch the sync
+([step 5](#dispatch-sync)). The file appears after master's next run (about 22:30 UTC on
+2026-11-23) and the next hourly `bioc-sync`.
+
+This is safe for the astro build: it builds `/packages/<next>/index.html` and keeps the live
+pair (checked locally, every CI check included, 2026-11-24). Don't publish the snapshot's own
+`data/<next>/<repo>/packages.json` at that URL instead. It isn't the legacy contract: it
+lacks `MD5sum`, `git_url`, `git_last_commit`, `git_last_commit_date`, `Date/Publication`,
+`NeedsCompilation`, `Rank` and `VignetteBuilder`, and it computes reverse dependencies
+differently.
 
 ## Release day
 
@@ -169,4 +184,13 @@ next hourly sync; `/packages/release/` follows the build's own copies straight a
   `BiocVersion`, `ADD_RELEASE`), [#208](https://github.com/seandavi/bioc-infrastructure/pull/208)
   (Worker aliases follow the served build; redirect bound to 3.25).
 - Release-day rehearsal, locally on the same data: one `config.yaml` edit flipped every package
-  page, canonical and `bioc-version`, and every build check passed.
+  page, canonical and the build's `bioc-version`, and every build check passed.
+- 15:47 UTC: `ADD_RELEASE=3.25 ops/refresh-packages.sh` uploaded the snapshot (`-109ce069`). Its
+  first astro build failed the offline link check, which sampled the newest version (3.25)
+  rather than the release. Nothing published. Fixed in
+  [seandavi/bioconductor.org#23](https://github.com/seandavi/bioconductor.org/pull/23); build
+  `1976f242` then served `/packages/3.25/`. Lesson: a local rehearsal must run every CI step,
+  the lychee link check included (the `x86_64-unknown-linux-musl` lychee build runs on
+  onclappc02; the gnu one needs a newer glibc).
+- `/packages/json/3.25/` was still 404 at day's end: it needs `"3.25"` in `versions`
+  ([step 3b](#add-next)), which is the core team's edit.
