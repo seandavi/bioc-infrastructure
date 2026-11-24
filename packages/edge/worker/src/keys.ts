@@ -120,6 +120,27 @@ export function candidates(pathname: string, links: Links = {}): string[] {
 const ARCHIVE_PREFIX = "archive.bioconductor.org";
 
 /**
+ * The live build's release and devel override the mirror's `packages/release`
+ * and `packages/devel` links. The build writes them from config.yaml
+ * (`bioc-version`, `bioc-devel-version`) and renders its package pages'
+ * release/devel chrome and canonicals from the same two values, so the aliases
+ * flip with the `site/latest` pointer instead of whenever master's symlinks
+ * do. Anything that isn't a version leaves the mirror's link alone. Only the
+ * package tree: checkResults/ and books/ aliases are the build system's.
+ */
+export function withLiveVersions(
+  links: Links,
+  live: { release?: string | null; devel?: string | null } | null,
+): Links {
+  const ver = (v: string | null | undefined): v is string => typeof v === "string" && /^\d+\.\d+$/.test(v);
+  if (!live || (!ver(live.release) && !ver(live.devel))) return links;
+  const out = { ...links };
+  if (ver(live.release)) out["packages/release"] = live.release;
+  if (ver(live.devel)) out["packages/devel"] = live.devel;
+  return out;
+}
+
+/**
  * Source tarballs for releases 1.8-3.22 live in the archive, not the docroot;
  * upstream .htaccess 302s out to OSN for them. Since the archive is being
  * migrated into R2 rather than redirected to, that becomes a key mapping: try

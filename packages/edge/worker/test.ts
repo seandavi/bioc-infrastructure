@@ -33,6 +33,7 @@ import {
   stagingPath,
   renderIndex,
   accessRecord,
+  withLiveVersions,
 } from "./src/keys.ts";
 import redirects from "./src/redirects.json" with { type: "json" };
 
@@ -147,6 +148,21 @@ test("content type falls back rather than serving none", () => {
   assert.match(contentType("site/abc/BiocInstaller.dcf"), /^text\/plain/);
   assert.match(contentType("books/OSCA"), /^text\/html/); // extensionless
   assert.match(contentType("packages/3.24/bioc"), /^text\/html/); // dot is a dir
+});
+
+test("the live build's release/devel override the mirror's package aliases only", () => {
+  const mirror = { "packages/release": "3.23", "packages/devel": "3.24", "checkResults/release": "3.23" };
+  const rolled = withLiveVersions(mirror, { release: "3.24", devel: "3.25" });
+  assert.equal(resolveLinks("packages/release/bioc/html/limma.html", rolled), "packages/3.24/bioc/html/limma.html");
+  assert.equal(resolveLinks("packages/devel/bioc/src/contrib/PACKAGES", rolled), "packages/3.25/bioc/src/contrib/PACKAGES");
+  assert.equal(rolled["checkResults/release"], "3.23"); // the build system's, not the site's
+  assert.equal(mirror["packages/release"], "3.23"); // not mutated
+  // Nothing usable from the build: the mirror's links, as the same object.
+  assert.equal(withLiveVersions(mirror, null), mirror);
+  assert.equal(withLiveVersions(mirror, { release: null, devel: null }), mirror);
+  assert.equal(withLiveVersions(mirror, { release: "<html>", devel: "" }), mirror);
+  // One usable value overrides that one alias only.
+  assert.deepEqual(withLiveVersions(mirror, { release: "3.24", devel: null }), { ...mirror, "packages/release": "3.24" });
 });
 
 test("release and devel resolve as prefixes, not just as whole paths", () => {

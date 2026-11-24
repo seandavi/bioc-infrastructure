@@ -53,6 +53,13 @@ are edge-cached under keys that contain the build id, so a new build needs no pu
 response served from the build carries an `x-bioc-build: <id>` header; a page without that
 header came from the mirror.
 
+**Release and devel are `config.yaml`'s.** The build renders the package pages' release/devel
+chrome, canonicals and sitemap from `release_version` and `devel_version`, not from which
+`data/<n>` directories the snapshot holds, and writes the same two values to `bioc-version`
+and `bioc-devel-version`. The Worker reads those two files from the build it serves and
+points `/packages/release/` and `/packages/devel/` at them. Other versions in the snapshot
+(such as the next devel, built ahead of release day) render as plain version pages.
+
 | Measured 2026-11-16 | |
 |---|---|
 | Push run for `6865ded4`, checks and upload | 25 min (21:17 to 21:42 UTC) |
