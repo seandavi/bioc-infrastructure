@@ -1,7 +1,7 @@
 ---
 title: "Building the site from primary sources"
 date: 2026-08-04
-date-modified: 2026-11-16
+date-modified: 2026-11-24
 ---
 
 bioconductor.org's pages are built from the `astro` branch of
@@ -58,7 +58,12 @@ chrome, canonicals and sitemap from `release_version` and `devel_version`, not f
 `data/<n>` directories the snapshot holds, and writes the same two values to `bioc-version`
 and `bioc-devel-version`. The Worker reads those two files from the build it serves and
 points `/packages/release/` and `/packages/devel/` at them. Other versions in the snapshot
-(such as the next devel, built ahead of release day) render as plain version pages.
+(such as the next devel, built ahead of release day) render as plain version pages
+("This package is for version X"), each its own canonical and disallowed in `robots.txt`; a
+version newer than devel is never labelled removed. Release day is the `config.yaml` edit and
+nothing else ([seandavi/bioconductor.org#22](https://github.com/seandavi/bioconductor.org/pull/22)).
+The offline link check samples `config.yaml`'s release too, not the newest version
+([#23](https://github.com/seandavi/bioconductor.org/pull/23)).
 
 | Measured 2026-11-16 | |
 |---|---|
@@ -66,15 +71,22 @@ points `/packages/release/` and `/packages/devel/` at them. Other versions in th
 | The first upload to an empty prefix (dispatch for `4a9ca4cf`) | 58 min |
 | Published build | 19,484 files |
 
-The upload is most of the time. CI builds only the live releases (3.23 and 3.24), the prose
-pages and `/next/`. Releases 2.5 to 3.22 are archival
+The upload was most of that time. Since it runs 100 requests at once
+([seandavi/bioconductor.org#21](https://github.com/seandavi/bioconductor.org/pull/21), merged
+2026-11-19) it takes about a minute, and a build takes 3 to 8 minutes from push or dispatch to
+`site/latest` (measured 2026-11-24: 2 min 40 s for a dispatched run, 7 to 8 min for a push
+run). CI builds only the versions in the snapshot (3.23, 3.24 and, since 2026-11-24, 3.25), the
+prose pages and `/next/`. Releases 2.5 to 3.22 are archival
 ([ADR 0006](https://seandavi.github.io/bioc-infrastructure/adr/0006-old-releases-and-their-checkresults-are-archival.html))
 and are served from the mirror.
 
 **Two builders, one pointer.** bioc-website's `site.yml` uses the same gate: it writes
 `site/latest` only while bioc-website's `PUBLISH_LATEST` is `true`. Today that's `true` on
 seandavi/bioconductor.org and `false` on bioc-website. Both keep building, so either one can
-take production back.
+take production back, with one caveat: bioc-website's renderer still takes devel and release
+to be the two newest `data/<n>` directories, not `config.yaml`'s pair. With 3.25 in the
+snapshot (since 2026-11-24) its builds label 3.25 devel and 3.24 release, so they are not a
+correct fallback until that renderer gets the same change as #22.
 
 **Rollback.** Pick a build: an earlier `astro` one, or bioc-website's last (`gh run list -R
 seandavi/bioc-website -w site.yml`). Write its id to `site/latest`, or set `"build"` in
@@ -86,13 +98,21 @@ policy yet ([bioc-website#2](https://github.com/seandavi/bioc-website/issues/2))
 ### The data snapshot
 
 The build reads package data from a snapshot, `_ci/site-data.tar.zst` in R2, rather than
-fetching from primary sources. bioc-website's pipeline makes it. The snapshot holds the live
-releases (`data/3.23`, `data/3.24`), `data/site` and `public/`. The `astro` build overwrites
+fetching from primary sources. bioc-website's pipeline makes it. The snapshot holds package
+data for each version the build renders (`data/3.23`, `data/3.24` and, since 2026-11-24,
+`data/3.25`, the next devel), `data/site` and `public/`. The `astro` build overwrites
 `data/site` and `public/` with its own checkout's content, so it only uses the package data.
 
 - **Package data** is refreshed nightly by `bioc-site-packages` (06:00 UTC, up to 30 minutes of
-  random delay; bioc-website `ops/refresh-packages.sh`). It rebuilds `data/<release>`, uploads
-  the snapshot, and dispatches both builds.
+  random delay; bioc-website `ops/refresh-packages.sh`). It rebuilds every `data/<n>` already
+  in the snapshot, uploads it, and dispatches both builds. Software data for a version comes
+  from whichever r-universe (`bioc` or `bioc-release`) serves that version's `BiocVersion`, or,
+  if neither does, from the source tarballs' `DESCRIPTION` like the other three repositories. A
+  version not yet in `config.yaml`'s `r_ver_for_bioc_ver` gets its R version from the
+  repository's binary indexes ([bioc-website#86](https://github.com/seandavi/bioc-website/pull/86)).
+  `ADD_RELEASE=<v> ops/refresh-packages.sh` adds a version (3.25 was added that way on
+  2026-11-24); retiring one is still done by hand
+  ([Release runbook](release-runbook.qmd)).
 - **Prose** in the snapshot (`data/site`, `public/`) is refreshed by `bioc-site-refresh` every
   20 minutes when `devel` moves. Only bioc-website's fallback build reads it.
 
@@ -103,7 +123,7 @@ Two things follow from the snapshot:
 
 - A change to bioc-website's `pipeline/*.py` reaches production only after the next snapshot
   refresh and a build.
-- Package landing pages for 3.23 and 3.24 show the version and download links from the
+- Package landing pages for the versions in the snapshot show the version and download links from the
   repository's own `PACKAGES` indexes as they were when the snapshot was made
   ([bioc-website#31](https://github.com/seandavi/bioc-website/pull/31)), so at most a day old.
   The hourly `bioc-sync` updates the package files themselves; it does not update the landing
@@ -128,12 +148,16 @@ number. Internal links in a preview are root-absolute and leave the preview
 
 | To change | Edit | Reaches bioconductor.org |
 |---|---|---|
-| Prose pages, events, courses, `config.yaml`, assets | [Bioconductor/bioconductor.org](https://github.com/Bioconductor/bioconductor.org) `devel`, as before | through the `devel` sync, then a build: about 30 minutes plus 25 |
-| Layout, components, `/next/` pages | a PR into `astro` on seandavi/bioconductor.org | on the build after merge, about 25 minutes |
+| Prose pages, events, courses, `config.yaml`, assets | [Bioconductor/bioconductor.org](https://github.com/Bioconductor/bioconductor.org) `devel`, as before | through the `devel` sync, then a build: hours on the schedule, about 5 minutes if the sync is dispatched (below) |
+| Layout, components, `/next/` pages | a PR into `astro` on seandavi/bioconductor.org | on the build after merge, 3 to 8 minutes |
 | Pipeline code (how package data is fetched or transformed) | a PR to bioc-website | after the merge, at the next nightly snapshot refresh and build |
 | Package titles, descriptions, maintainers | the package's own `DESCRIPTION` | after the next nightly snapshot refresh and build |
 
-**The `devel` sync.** `.github/workflows/sync.yml` on `astro` runs every 30 minutes. When
+**The `devel` sync.** `.github/workflows/sync.yml` on `astro` is scheduled every 30 minutes,
+but GitHub throttles that schedule: scheduled runs were 4 to 12 hours apart in November 2026
+(measured 2026-11-24). To get a `devel` edit onto the site sooner, dispatch it,
+`gh workflow run sync.yml -R seandavi/bioconductor.org --ref astro`: on 2026-11-24 the sync
+took under 3 minutes and the build it dispatched 2 min 40 s. When
 `devel` has moved, it merges `devel` into `astro` with a merge commit and runs `astro.yml`'s
 checks on the result. If they pass, it pushes to `astro` and dispatches `astro.yml` to publish.
 If the merge conflicts or the checks fail, it opens a pull request from `sync/devel-<sha>`
@@ -148,7 +172,7 @@ happens at the merge back (`FREEZE.md` on the branch is the runbook).
 
 Latency, once someone acts:
 
-- **Build.** About 25 minutes from push to upload, mostly the upload.
+- **Build.** 3 to 8 minutes from push or dispatch to `site/latest` (measured 2026-11-24).
 - **Serving.** Up to 60 seconds for the Worker to see the new pointer, and up to 5 minutes
   for browsers holding the old page (build pages are sent with
   `cache-control: public, max-age=300, s-maxage=31536000`).
@@ -176,7 +200,7 @@ flowchart LR
   CR["CRAN PACKAGES"] --> P
   WS["/packages/stats/<br/>(Rank, .tab from R2)"] -.-> P
   P["bioc-website pipeline<br/>(./bioc.py)"] --> S["R2: _ci/site-data.tar.zst<br/>(nightly, bioc-site-packages)"]
-  GH["Bioconductor/bioconductor.org devel<br/>(prose, events, assets)"] -- "sync.yml, 30 min" --> AB["astro branch<br/>seandavi/bioconductor.org"]
+  GH["Bioconductor/bioconductor.org devel<br/>(prose, events, assets)"] -- "sync.yml, scheduled<br/>(hours apart) or dispatched" --> AB["astro branch<br/>seandavi/bioconductor.org"]
   S --> A["CI: astro.yml<br/>astro build + Pagefind"]
   AB --> A
   REG["bioc-registry<br/>propagation index"] -->|/next/ only| A
@@ -221,8 +245,10 @@ Checked 2026-11-16 against build `6865ded4`:
   ([#446](https://github.com/Bioconductor/bioconductor.org/issues/446)), and the edge serves
   `/config.yaml` and `/js/versions.js` from it. `/bioc-version` and `/bioc-devel-version` still
   come from the mirror, because the edge doesn't look up extensionless paths in the build. The
-  `packages/release` and `packages/devel` aliases come from the edge's symlink map, which
-  `bioc-sync` reads from the mirror's symlinks, which nanoc writes.
+  `packages/release` and `packages/devel` aliases follow the served build's own copies of those
+  two files (since [#208](https://github.com/seandavi/bioc-infrastructure/pull/208),
+  2026-11-24); the other aliases, such as `checkResults/release`, come from the edge's symlink
+  map, which `bioc-sync` reads from the mirror's symlinks, which nanoc writes.
 - **`Rank`** is read from the `*_pkg_scores.tab` files under `/packages/stats/` on
   bioconductor.org. The Worker serves them from R2, where bioc-traffic uploads them daily, so
   `Rank` no longer depends on master.
@@ -235,7 +261,7 @@ Checked 2026-11-16 against build `6865ded4`:
 
 The sections below are the measurements and findings from the first full build, 2026-08-04 to
 2026-08-13, which rebuilt all 35 releases. They are kept as written except where marked
-*(corrected 2026-09-30)*. CI today builds only the live releases (above).
+*(corrected 2026-09-30)*. CI today builds only the versions in the snapshot (above).
 
 ### What it produces
 

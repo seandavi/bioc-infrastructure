@@ -46,6 +46,8 @@ call the Cloudflare API, load the credentials first:
 ./make-env.sh && set -a && . ./.env && set +a
 ```
 
+A Bioconductor release roll has its own page: [Release runbook](release-runbook.qmd).
+
 None of these procedures has been rehearsed on production as a drill. The M1 item
 "Rollback rehearsed and written up" is still open on the [roadmap](roadmap.qmd).
 
@@ -94,7 +96,10 @@ repository's `PUBLISH_LATEST` variable is `true`.
 To hand production back to bioc-website rather than pin one build, set
 `PUBLISH_LATEST` to `false` on seandavi/bioconductor.org and `true` on seandavi/bioc-website,
 then write a bioc-website build id to `site/latest`
-([Building the site](astro-site-build.qmd#how-a-build-reaches-production)).
+([Building the site](astro-site-build.qmd#how-a-build-reaches-production)). Not with a
+bioc-website build made from a snapshot holding the next devel (any since 2026-11-24, when
+3.25 was added): its renderer still labels the newest version devel, so it would serve 3.25 as
+devel and 3.24 as release.
 
 An empty `prefixes` list, or no `_routes.json`, makes the mirror serve everything: the
 legacy pages copied from master. That is the fallback if no build is good.

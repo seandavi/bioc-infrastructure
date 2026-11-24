@@ -67,6 +67,8 @@ website:
         contents:
           - href: operations.qmd
             text: Operations &amp; Runbooks
+          - href: release-runbook.qmd
+            text: Release Runbook
           - href: ci.qmd
             text: CI &amp; Scheduled Jobs
       - section: Plans

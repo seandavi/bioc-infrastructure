@@ -3,7 +3,7 @@ title: "How bioconductor.org Works"
 description: "How a request to bioconductor.org is answered, how packages and site changes get there, and the terms the rest of this site uses"
 ---
 
-Reference page, checked 2026-09-30; [the site](#the-site) section updated 2026-11-16. It
+Reference page, checked 2026-09-30; [the site](#the-site) section updated 2026-11-24. It
 describes the running system; if something here is wrong, that is a bug in this page. Sources:
 the Worker in
 [bioc-edge](https://github.com/seandavi/bioc-infrastructure/tree/main/packages/edge) (`worker/src/index.ts`, `keys.ts`,
@@ -125,7 +125,7 @@ flowchart LR
     M -- "bioc-sync, hourly<br/>rsync + upload + purge" --> MIR[("R2: the mirror")]
   end
   subgraph SITE[Site, on merge, upstream content push or nightly data refresh]
-    UP["Bioconductor/bioconductor.org devel<br/>prose, assets"] -- "sync.yml, 30 min" --> GH
+    UP["Bioconductor/bioconductor.org devel<br/>prose, assets"] -- "sync.yml, scheduled<br/>(hours apart) or dispatched" --> GH
     GH["astro branch<br/>seandavi/bioconductor.org"] -- "CI: astro.yml<br/>checks, Astro build" --> B[("R2: site/&lt;sha&gt;-&lt;data&gt;<br/>+ site/latest")]
     SN["bioc-website pipeline<br/>package-data snapshot"] -- "bioc-site-packages, nightly" --> GH
   end
@@ -196,16 +196,16 @@ fallback with its own `PUBLISH_LATEST` set to `false`. Handing production back i
 two variables and writing one of its build ids to `site/latest`
 ([Building the site](astro-site-build.qmd#how-a-build-reaches-production)).
 
-A merge to `astro` is live about 25 minutes later, mostly the upload, plus up to a minute for the
-route table to follow `site/latest`. The inputs are refreshed differently:
+A merge to `astro` is live 3 to 8 minutes later (measured 2026-11-24), plus up to a minute for
+the Worker to follow `site/latest`. The inputs are refreshed differently:
 
 | Part | Source | Refreshed |
 |---|---|---|
-| Prose pages, events, courses, `config.yaml` and site assets (`assets/`: style, images, js, PDFs such as TAB minutes) | [Bioconductor/bioconductor.org](https://github.com/Bioconductor/bioconductor.org) `devel` | Automatically. `sync.yml` on `astro` merges `devel` every 30 minutes and publishes; a conflict or failed check opens a PR instead. An upstream push is live within about an hour |
-| Package data for 3.23 and 3.24 (`data/<release>` in the snapshot) | r-universe, tarball DESCRIPTIONs, download stats, biocViews, through bioc-website's pipeline | Nightly. `bioc-site-packages` (06:00 UTC) refreshes the snapshot and dispatches the build ([CI & scheduled jobs](ci.qmd#scheduled-jobs-outside-github-actions)) |
+| Prose pages, events, courses, `config.yaml` and site assets (`assets/`: style, images, js, PDFs such as TAB minutes) | [Bioconductor/bioconductor.org](https://github.com/Bioconductor/bioconductor.org) `devel` | Automatically. `sync.yml` on `astro` merges `devel` and publishes; a conflict or failed check opens a PR instead. It is scheduled every 30 minutes, but GitHub runs it 4 to 12 hours apart (measured 2026-11-24), so an upstream push can take that long. Dispatched by hand (`gh workflow run sync.yml -R seandavi/bioconductor.org --ref astro`) it is live in about 5 minutes |
+| Package data for each version in the snapshot (`data/<n>`: 3.23, 3.24 and, since 2026-11-24, 3.25) | r-universe, tarball DESCRIPTIONs, download stats, biocViews, through bioc-website's pipeline | Nightly. `bioc-site-packages` (06:00 UTC) refreshes the snapshot and dispatches the build ([CI & scheduled jobs](ci.qmd#scheduled-jobs-outside-github-actions)) |
 | Layout, components, `/next/` pages | seandavi/bioconductor.org `astro` | On merge |
 
-Package landing pages for 3.23 and 3.24 take versions and download links from the repositories'
+Package landing pages for the versions in the snapshot take versions and download links from the repositories'
 own `PACKAGES` indexes as of that snapshot
 ([bioc-website#31](https://github.com/seandavi/bioc-website/pull/31)); the 33 older releases are frozen.
 

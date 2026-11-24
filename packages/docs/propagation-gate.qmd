@@ -1,7 +1,7 @@
 ---
 title: "The propagation gate: what bioc-registry publishes, and why"
 date: 2026-08-04
-date-modified: 2026-09-30
+date-modified: 2026-11-24
 ---
 
 r-universe and bioc-build build Bioconductor packages. Only some of those builds become what
@@ -51,8 +51,9 @@ pass or fail, under these names:
    Before the gate runs, `evaluate()` drops any r-universe package with no source sha256.
 2. **`families`**: at least one platform family passes, judged only on jobs running the
    gating R version. The gating R is resolved at evaluation time from
-   `bioconductor.org/config.yaml` (`r_ver_for_bioc_ver` for the universe's Bioconductor
-   version) and matched against each job's actual R version, not its label. Three families
+   `bioconductor.org/config.yaml` (`r_ver_for_bioc_ver` for `devel_version` on `bioc` and
+   `release_version` on `bioc-release`, not for the `BiocVersion` the universe builds, which
+   can be ahead during a release roll) and matched against each job's actual R version, not its label. Three families
    are gated ([`passingFamilies`](https://github.com/seandavi/bioc-registry/blob/f10719e/src/repo.ts#L223-L232)):
    `linux` (the `source` job plus `linux-*` x86_64), `win` (`windows-*` x86_64) and `mac`
    (`macos-*` arm64). A family passes when it has at least one gating job and none of them is
