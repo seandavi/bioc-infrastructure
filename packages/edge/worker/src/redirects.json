@@ -194,6 +194,11 @@
       "keepSuffix": true
     },
     {
+      "from": "/packages/3.25/container-binaries/src/",
+      "to": "https://storage.googleapis.com/bioconductor-packages/3.25/container-binaries/bioconductor_docker/src/",
+      "keepSuffix": true
+    },
+    {
       "from": "/developers/how-to/git/abandon-changes",
       "to": "https://contributions.bioconductor.org/git-version-control.html#abandon-changes",
       "keepSuffix": false
@@ -276,6 +281,11 @@
     {
       "from": "/packages/3.24/container-binaries/",
       "to": "https://storage.googleapis.com/bioconductor-packages/3.24/container-binaries/",
+      "keepSuffix": true
+    },
+    {
+      "from": "/packages/3.25/container-binaries/",
+      "to": "https://storage.googleapis.com/bioconductor-packages/3.25/container-binaries/",
       "keepSuffix": true
     },
     {

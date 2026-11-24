@@ -44,7 +44,7 @@ test("the redirect bound is read out of the shipped table, not kept as a copy", 
   // gen-redirects.ts expands container-binaries per version up to a hardcoded
   // loop bound. Deriving it from the generated output means the two cannot
   // disagree -- which is precisely how the number in #34 went stale.
-  assert.equal(redirectVersionBound(RS), "3.24");
+  assert.equal(redirectVersionBound(RS), "3.25");
   assert.equal(redirectVersionBound({ exact: {}, prefix: [] }), null);
   // Highest wins regardless of array order, and unrelated prefix rules are
   // ignored rather than parsed as versions.
