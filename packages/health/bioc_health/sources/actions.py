@@ -65,13 +65,16 @@ def _workflow(cfg: dict, repo: str, slug: str, default: str, wf: dict, now: date
         w["latest_conclusion"], w["latest_url"] = latest["conclusion"], latest["url"]
 
     findings: list[Finding] = []
-    st = rules.actions_status(w["latest_conclusion"], repo in cfg["experimental_repos"])
+    age = (now - _ts(latest["createdAt"])).total_seconds() / 86400 if latest else None
+    st = rules.actions_status(w["latest_conclusion"], repo in cfg["experimental_repos"], age,
+                              th["actions_latest_max_age_days"])
     ev = {k: w[k] for k in ("latest_conclusion", "streak", "last_success_at", "newest_run_at")}
     if latest is None:
         title = f"{repo}/{file}: no completed runs on {default}"
     else:
         title = f"{repo}/{file}: latest {latest['conclusion']}" + (
-            f" ({w['streak']} in a row)" if w["streak"] > 1 else "")
+            f" ({w['streak']} in a row)" if w["streak"] > 1 else "") + (
+            f", {age:.0f} days ago" if st == Status.INFO and age is not None else "")
         if st in (Status.FAIL, Status.WARN):
             ev |= {"run": latest["displayTitle"], "event": latest["event"]} | _failure_evidence(slug, latest["databaseId"])
     findings.append(Finding(f"{fid}/latest", NAME, st, title, evidence=ev,

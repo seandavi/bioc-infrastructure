@@ -34,6 +34,13 @@ def test_actions_status(conclusion, experimental, want):
     assert rules.actions_status(conclusion, experimental) == want
 
 
+@pytest.mark.parametrize("age,want", [(29.9, FAIL), (30, FAIL), (30.1, INFO)])
+def test_actions_status_old_latest_run_is_info(age, want, th):
+    assert th["actions_latest_max_age_days"] == 30
+    assert rules.actions_status("failure", False, age, th["actions_latest_max_age_days"]) == want
+    assert rules.actions_status("success", False, age, th["actions_latest_max_age_days"]) == OK
+
+
 @pytest.mark.parametrize("state,last,failures,want", [
     ("failed", "failed", 3, FAIL),
     ("inactive", "failed", 1, FAIL),
@@ -43,6 +50,12 @@ def test_actions_status(conclusion, experimental, want):
 ])
 def test_unit_status(state, last, failures, want):
     assert rules.unit_status(state, last, failures)[0] == want
+
+
+def test_unit_status_failed_says_since_when():
+    since = "Sun 2026-11-15 11:26:27 UTC"
+    assert since in rules.unit_status("failed", None, 0, since)[1]
+    assert "since" not in rules.unit_status("inactive", "failed", 1, since)[1]
 
 
 @pytest.mark.parametrize("lag,want", [(1, OK), (2, WARN), (3, WARN), (4, FAIL)])
@@ -145,6 +158,11 @@ def test_stats_month_status_edges(th):
 ])
 def test_checkout_status(branch, head, tip, dirty, want):
     assert rules.checkout_status(branch, "main", head, tip, dirty)[0] == want
+
+
+@pytest.mark.parametrize("changed,want", [(0, INFO), (1, WARN), (None, WARN)])
+def test_checkout_status_behind_only_elsewhere_is_info(changed, want):
+    assert rules.checkout_status("main", "main", "a", "b", 0, changed, "packages/edge")[0] == want
 
 
 def test_pr_checks_failing_reads_runs_and_contexts():
