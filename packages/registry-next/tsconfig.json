@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "es2023",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2023"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    // Tests run under node --test with type stripping, so src/ must stay strippable:
+    // .ts import extensions, import type, no enums.
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "types": ["@cloudflare/workers-types", "node"]
+  },
+  "include": ["src"]
+}

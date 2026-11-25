@@ -1,0 +1,104 @@
+// Schema migrations, as SQL in TypeScript so the same list runs under node --test and in the
+// Worker (POST /admin/migrate) without a bundler rule for .sql files. Append only: never edit
+// a migration that has been applied anywhere.
+import type { Sql } from "postgres";
+
+export const MIGRATIONS: { id: string; sql: string }[] = [
+  {
+    id: "0001_init",
+    sql: `
+-- Bytes we hold. A row exists only for an object that is in R2 at cas/{sha256}.
+create table cas_objects (
+  sha256      text primary key check (sha256 ~ '^[0-9a-f]{64}$'),
+  md5         text check (md5 ~ '^[0-9a-f]{32}$'),   -- null until a full read computed it
+  size_bytes  bigint not null,
+  source_url  text,                                  -- where the bytes were copied from
+  created_at  timestamptz not null default now()
+);
+
+-- One row per source tarball. Everything here is a fact about those bytes, so it never
+-- changes and never depends on what a builder reports later.
+create table package_versions (
+  src_sha256    text primary key references cas_objects,
+  package       text not null,
+  version       text not null,
+  description   jsonb not null,                -- every DESCRIPTION field, as read.dcf returns it
+  files         jsonb not null default '{}',   -- inventory read from the tarball (hasNEWS, vignettes, ...)
+  meta          jsonb not null default '{}',   -- reported by the builder, not readable from the tarball
+  git_url       text,
+  git_branch    text,
+  git_commit    text,
+  git_commit_at timestamptz,
+  created_at    timestamptz not null default now()
+);
+create index package_versions_name on package_versions (package, version);
+
+-- What is, or was, served where. The current version of a package in a repository is the row
+-- with superseded_at null; older rows are what src/contrib/Archive/ serves.
+create table publications (
+  id            bigint generated always as identity primary key,
+  bioc_version  text not null,                 -- '3.24', never 'release' or a universe name
+  repo          text not null check (repo in ('bioc', 'data/annotation', 'data/experiment', 'workflows')),
+  package       text not null,
+  version       text not null,
+  src_sha256    text not null references package_versions,
+  origin        text not null check (origin in ('r-universe', 'bioc-build', 'bioconductor')),
+  bioccheck     text,
+  archs         text[] not null default '{}',  -- gate families that passed; empty for a seed
+  published_at  timestamptz not null default now(),
+  superseded_at timestamptz
+);
+create unique index publications_current on publications (bioc_version, repo, package)
+  where superseded_at is null;
+create index publications_history on publications (bioc_version, repo, package, published_at desc);
+
+-- Binaries of a publication. The source tarball is publications.src_sha256.
+create table published_artifacts (
+  publication_id bigint not null references publications on delete cascade,
+  os        text not null check (os in ('win', 'mac', 'linux', 'wasm')),
+  r_minor   text not null default '',
+  arch      text not null default '',
+  distro    text not null default '',
+  filename  text not null,
+  sha256    text not null references cas_objects,
+  added_at  timestamptz not null default now(),
+  primary key (publication_id, os, r_minor, arch)
+);
+
+-- Every gate verdict that changed, with each rule's result (ADR 0011), so "why is X not
+-- available" is a query.
+create table gate_decisions (
+  id            bigint generated always as identity primary key,
+  bioc_version  text not null,
+  repo          text not null,
+  package       text not null,
+  version       text not null,
+  origin        text not null,
+  propagate     boolean not null,
+  archs         text[] not null default '{}',
+  reasons       jsonb not null,
+  decided_at    timestamptz not null default now()
+);
+create index gate_decisions_latest on gate_decisions (bioc_version, repo, package, decided_at desc);
+`,
+  },
+];
+
+// Applies pending migrations in one transaction, under an advisory lock so two callers
+// cannot interleave. Returns the ids it applied.
+export async function migrate(sql: Sql): Promise<string[]> {
+  return sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(7203113)`;
+    await tx`create table if not exists schema_migrations (
+      id text primary key, applied_at timestamptz not null default now())`;
+    const done = new Set((await tx`select id from schema_migrations`).map((r) => r.id as string));
+    const applied: string[] = [];
+    for (const m of MIGRATIONS) {
+      if (done.has(m.id)) continue;
+      await tx.unsafe(m.sql);
+      await tx`insert into schema_migrations (id) values (${m.id})`;
+      applied.push(m.id);
+    }
+    return applied;
+  }) as Promise<string[]>;
+}
