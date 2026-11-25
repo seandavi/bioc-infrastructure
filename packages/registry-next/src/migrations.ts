@@ -82,6 +82,20 @@ create table gate_decisions (
 create index gate_decisions_latest on gate_decisions (bioc_version, repo, package, decided_at desc);
 `,
   },
+  {
+    id: "0002_bioc_versions",
+    sql: `
+-- Bioconductor versions and the R line each gates on, from bioconductor.org's config.yaml.
+-- role resolves the symbolic release/devel paths; at most one row holds each.
+create table bioc_versions (
+  bioc_version text primary key,            -- '3.24'
+  r_minor      text not null,               -- the R line that version gates on, '4.6'
+  role         text check (role in ('release', 'devel')),
+  updated_at   timestamptz not null default now()
+);
+create unique index bioc_versions_role on bioc_versions (role) where role is not null;
+`,
+  },
 ];
 
 // Applies pending migrations in one transaction, under an advisory lock so two callers

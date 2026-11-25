@@ -24,9 +24,29 @@ What differs from the current registry:
 |---|---|
 | `src/migrations.ts` | the schema, as append-only migrations, and `migrate()` |
 | `src/db.ts` | bindings and the database client |
-| `src/index.ts` | the Worker: a Hono app |
+| `src/index.ts` | the Worker: a Hono app whose routes also generate `/openapi.json` |
+| `src/gate.ts` | the propagation gate ([ADR 0011](https://seandavi.github.io/bioc-infrastructure/adr/0011-one-propagation-gate-for-every-producer.html)), pure |
+| `src/store.ts` | every query, including `publish()`, the one write path for a publication |
+| `src/dcf.ts` | `PACKAGES` and `VIEWS` rendered from the current publications, pure |
 | `src/testdb.ts` | a fresh migrated database per test file |
 | `src/*.test.ts` | `node:test` suites; database tests need `DATABASE_URL` |
+
+## API
+
+The OpenAPI document at `/openapi.json` is generated from the route definitions. Public routes
+send `access-control-allow-origin: *`. `{bioc_version}` is a number (`3.24`) or `release` /
+`devel`, resolved through the `bioc_versions` table.
+
+| Route | What |
+|---|---|
+| `POST /gate` | Read-only: would these candidates propagate, and if not why. Body `{bioc_version, repo, candidates, config?}`; same decision and response shape as the current registry's `/gate`. `config.gating_r` defaults to the version's R line; 400 when the version is unknown and none is given. |
+| `GET /api/v1/packages/{bioc_version}/{repo}/{package}` | One package in `bioc`, `data/annotation`, `data/experiment` or `workflows`: its current publication, history and latest gate decisions. 404 if never published there. |
+| `GET /api/v1/cas/{sha256}` | One stored object and every publication that references it, as source or binary. |
+| `POST /admin/migrate` | Applies pending migrations. Needs `x-maint-key`. |
+
+Publishing over HTTP is not here yet. `publish()` in `src/store.ts` takes a per-package lock,
+re-checks the version rule against the current row, and supersedes it, all in one transaction.
+Two producers publishing the same package at once end with one current row, never a downgrade.
 
 ## Development
 
