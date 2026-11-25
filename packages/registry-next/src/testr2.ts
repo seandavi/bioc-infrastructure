@@ -2,10 +2,11 @@
 // a sha256 it is given and every object reports its md5.
 import { createHash } from "node:crypto";
 
-type Stored = { bytes: Uint8Array; httpMetadata: Record<string, string>; uploaded: Date };
+type Stored = { bytes: Uint8Array; httpMetadata: Record<string, string>; uploaded: Date; sha256?: boolean };
 type Body = ReadableStream<Uint8Array> | ArrayBuffer | ArrayBufferView | string | Blob | null;
 
 const hash = (alg: string, b: Uint8Array) => createHash(alg).update(b).digest();
+const ab = (b: Buffer) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
 const hex = (v: string | ArrayBuffer) => (typeof v === "string" ? v.toLowerCase() : Buffer.from(v).toString("hex"));
 
 async function bytesOf(v: Body): Promise<Uint8Array> {
@@ -23,7 +24,8 @@ export function testBucket() {
     return {
       key, size: o.bytes.length, etag: md5.toString("hex"), httpEtag: `"${md5.toString("hex")}"`,
       uploaded: o.uploaded, httpMetadata: o.httpMetadata,
-      checksums: { md5: md5.buffer.slice(md5.byteOffset, md5.byteOffset + md5.byteLength) },
+      // As R2 does, sha256 only for an object put with one.
+      checksums: { md5: ab(md5), ...(o.sha256 ? { sha256: ab(hash("sha256", o.bytes)) } : {}) },
     };
   };
   const bucket = {
@@ -47,7 +49,7 @@ export function testBucket() {
       const bytes = await bytesOf(value);
       if (opts.sha256 !== undefined && hex(opts.sha256) !== hash("sha256", bytes).toString("hex"))
         throw new Error(`put ${key}: sha256 does not match the body`);
-      const o = { bytes, httpMetadata: opts.httpMetadata ?? {}, uploaded: new Date() };
+      const o = { bytes, httpMetadata: opts.httpMetadata ?? {}, uploaded: new Date(), sha256: opts.sha256 !== undefined };
       objects.set(key, o);
       return meta(key, o);
     },

@@ -49,8 +49,8 @@ send `access-control-allow-origin: *`. `{bioc_version}` is a number (`3.24`) or 
 | `GET /api/v1/packages/{bioc_version}/{repo}/{package}` | One package in `bioc`, `data/annotation`, `data/experiment`, `workflows` or `books`: its current publication, history and latest gate decisions. 404 if never published there. |
 | `GET /api/v1/cas/{sha256}` | One stored object and every publication that references it, as source or binary. |
 | `POST /admin/migrate` | Applies pending migrations. Needs `x-maint-key`, as every `/admin` route does. |
-| `POST /admin/refresh` | Reads bioconductor.org's `config.yaml` into `bioc_versions`, then the package names CRAN and Bioconductor's other repositories publish into `known_external_deps`, per version r-universe builds. |
-| `POST /admin/observe?universe=bioc\|bioc-release&limit=10` | Brings the database and the store up to date with the newest observation the current registry archived, at most `limit` publications and top-ups per call. Returns `{status, digest, published, topped_up, failed, remaining, touched}`. |
+| `POST /admin/refresh` | Reads bioconductor.org's `config.yaml` into `bioc_versions`, then the package names CRAN and Bioconductor's other repositories publish into `known_external_deps`, per version r-universe builds. Per version, every source must list packages (or all four Bioconductor ones 404: no names yet); otherwise the previous names are kept. |
+| `POST /admin/observe?universe=bioc\|bioc-release&limit=10` | Brings the database and the store up to date with the newest observation the current registry archived, at most `limit` publications and top-ups per call. Returns `{status, digest, published, topped_up, failed, remaining, touched, written}`. The files a call changed are written before the observation is marked processed, and the call that completes it rewrites every repository of its versions. |
 | `POST /admin/seed?bioc_version=3.24&repo=data/annotation&limit=5&after=` | Seeds at most `limit` (0..50) holes after `after` from bioconductor.org, then rewrites that repository's files. Returns `{status, seeded, failed, too_large, remaining, next, touched, written}`, or `{status: "absent"}` when bioconductor.org has no such repository. See [Seeding](#seeding-from-bioconductororg). |
 | `POST /admin/materialize?bioc_version=3.24&repo=bioc` | Rewrites one repository's files from the database. `observe` and `refresh` already write what they change; this is for a change to how the files are rendered. |
 | `GET /admin/status` | Current publications per version, repository and origin; stored objects and bytes; the latest observation per universe. |
@@ -62,7 +62,8 @@ send `access-control-allow-origin: *`. `{bioc_version}` is a number (`3.24`) or 
 binary (`PACKAGES`, `PACKAGES.gz`, `PACKAGES.rds`), `VIEWS` and `index.json`.
 `materializeVersions` writes `packages/versions.json`:
 `{ release, devel, versions: { "3.24": { r_minor, role } } }`. An object is written only when its
-md5 differs from the stored etag, so unchanged files keep their etag. The files are never edited
+md5 differs from the stored etag, so unchanged files keep their etag. `index.json` is written
+first, so `PACKAGES` and `VIEWS` never name a file the Worker cannot resolve. The files are never edited
 by hand and never read back to decide anything.
 
 `index.json` is an object keyed by package name; each value is the package's current `RepoRow`
@@ -74,7 +75,10 @@ by hand and never read back to decide anything.
 `GET`/`HEAD /packages/{version}/{repo}/…` serves them, `version` being a number or
 `release`/`devel`. Index files come from R2 as stored (`etag`, 304 on `if-none-match`, five
 minutes of cache). A package file name is resolved through `index.json` to `cas/{sha256}` and
-streamed, with `Range` support and an immutable cache header.
+streamed. One well-formed byte `Range` is a 206 and an unsatisfiable one a 416; any other `Range`
+gets the whole file. The cache header is immutable only at a numbered version's path for a file
+that is not a seed (a build replaces a seed under the same name); `release`/`devel` paths and
+seeds get five minutes.
 `src/contrib/Archive/{package}/{package}_{version}.tar.gz` serves a superseded source and is
 the one route that queries the database.
 
@@ -100,8 +104,9 @@ until curl -sf -X POST -H "x-maint-key: …" "https://<worker>/admin/observe?uni
 A candidate whose source bytes are gone keeps `remaining` above 0 (it is retried, and only what
 depends on it waits), so watch `failed` rather than loop blindly.
 
-A cron every 15 minutes refreshes `config.yaml` when it is a day old and then observes each
-universe with a small limit, which covers steady state.
+A cron every 15 minutes refreshes `config.yaml` when it is a day old, rewrites `versions.json` if
+it differs, and then observes each universe with a small limit, which covers steady state. A
+failed refresh does not stop the rest.
 
 ## Seeding from bioconductor.org
 

@@ -21,6 +21,11 @@ async function write(env: Env, sql: Sql, touched: [string, string][] = []): Prom
   return written;
 }
 
+// A limit given as digits, or the default when absent. Infinity for anything else, so that
+// "limit=" is a 400 rather than 0.
+const count = (raw: string | undefined, dflt: number) =>
+  raw === undefined ? dflt : /^\d+$/.test(raw) ? Number(raw) : Infinity;
+
 admin.post("/refresh", async (c) => {
   const r = await refresh(c.get("sql"));
   return c.json({ ...r, written: await materializeVersions(c.env.BUCKET, c.get("sql")) });
@@ -30,10 +35,10 @@ admin.post("/observe", async (c) => {
   const universe = c.req.query("universe") ?? "";
   if (!(UNIVERSES as readonly string[]).includes(universe))
     return c.json({ error: `universe must be one of ${UNIVERSES.join(", ")}` }, 400);
-  const limit = Number(c.req.query("limit") ?? 10);
-  if (!Number.isInteger(limit) || limit < 0 || limit > 500) return c.json({ error: "limit must be 0..500" }, 400);
-  const r = await observe(c.env, c.get("sql"), universe, { limit });
-  return c.json({ ...r, written: await write(c.env, c.get("sql"), r.touched) });
+  const limit = count(c.req.query("limit"), 10);
+  if (limit > 500) return c.json({ error: "limit must be 0..500" }, 400);
+  const r = await observe(c.env, c.get("sql"), universe, { limit, write: (t) => write(c.env, c.get("sql"), t) });
+  return c.json({ ...r, written: r.written ?? [] });
 });
 
 // Fills a version's holes from bioconductor.org. Run by hand once its r-universe backfill is
@@ -43,9 +48,9 @@ admin.post("/seed", async (c) => {
   const repo = c.req.query("repo") ?? "";
   if (!v || !(REPOS as readonly string[]).includes(repo))
     return c.json({ error: `bioc_version must be known and repo one of ${REPOS.join(", ")}` }, 400);
-  const limit = Number(c.req.query("limit") ?? 5);
+  const limit = count(c.req.query("limit"), 5);
   // Each seeded package costs a dozen or more subrequests of the Worker's ~1,000 (README).
-  if (!Number.isInteger(limit) || limit < 0 || limit > 50) return c.json({ error: "limit must be 0..50" }, 400);
+  if (limit > 50) return c.json({ error: "limit must be 0..50" }, 400);
   const r = await seed(c.env, c.get("sql"), v.bioc_version, repo, { limit, after: c.req.query("after") || undefined });
   return c.json({ ...r, written: await write(c.env, c.get("sql"), "touched" in r ? r.touched : []) });
 });
@@ -71,14 +76,14 @@ export async function cron(env: Env, limit = 5): Promise<void> {
   try {
     const [v] = await sql`select coalesce(max(updated_at) < now() - interval '1 day', true) as stale
       from bioc_versions`;
-    if (v.stale) {
-      console.log("refresh", JSON.stringify(await refresh(sql)));
-      await materializeVersions(env.BUCKET, sql);
-    }
+    // Neither a failed refresh nor a failed write stops observation; versions.json is written
+    // whenever it differs, so one that failed is retried on the next tick.
+    if (v.stale)
+      console.log("refresh", JSON.stringify(await refresh(sql).catch((e: Error) => ({ error: e.message }))));
+    console.log("versions", JSON.stringify(await materializeVersions(env.BUCKET, sql).catch((e: Error) => ({ error: e.message }))));
     for (const u of UNIVERSES) {
       // One universe failing must not stop the other.
-      const r = await observe(env, sql, u, { limit })
-        .then(async (o) => ({ ...o, written: await write(env, sql, o.touched) }))
+      const r = await observe(env, sql, u, { limit, write: (t) => write(env, sql, t) })
         .catch((e: Error) => ({ error: e.message }));
       console.log("observe", u, JSON.stringify(r));
     }

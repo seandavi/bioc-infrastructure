@@ -33,10 +33,10 @@ let n = 0;
 function tar(files: Record<string, string | Buffer>, o: { format?: string; order?: string[] } = {}): Buffer {
   const dir = join(tmp, `fx${n++}`);
   for (const [p, c] of Object.entries(files)) {
-    mkdirSync(dirname(join(dir, "pkg", p)), { recursive: true });
-    writeFileSync(join(dir, "pkg", p), c);
+    mkdirSync(dirname(join(dir, "demo", p)), { recursive: true });
+    writeFileSync(join(dir, "demo", p), c);
   }
-  const members = o.order ? o.order.map((m) => `pkg/${m}`) : ["pkg"];
+  const members = o.order ? o.order.map((m) => `demo/${m}`) : ["demo"];
   const fmt = o.format ? [`--format=${o.format}`] : [];
   return execFileSync("tar", ["-cf", "-", "--owner=0", "--group=0", ...fmt, "-C", dir, ...members], { maxBuffer: 1 << 28 });
 }
@@ -122,7 +122,7 @@ test("chunk boundaries do not matter", async () => {
 
 test("base-256 sizes", async () => {
   const h = Buffer.alloc(512);
-  h.write("pkg/DESCRIPTION");
+  h.write("demo/DESCRIPTION");
   h[124] = 0x80;
   h.writeUInt32BE(DESC.length, 132);
   h[156] = 0x30;
@@ -193,4 +193,110 @@ test("a blocked consumer stops the inspector from pulling the body (backpressure
   assert.equal(r.size, bytes.length);
   assert.ok(pulledWhileBlocked >= 0 && pulledWhileBlocked * CHUNK < 4 * 1024 * 1024,
     `pulled ${pulledWhileBlocked * CHUNK} of ${bytes.length} bytes while the consumer was blocked`);
+});
+
+// A tar built by hand, for headers no tar program writes. `size` overrides the octal size field.
+function entry(name: string, body: string | Buffer = "", o: { type?: string; size?: Buffer } = {}): Buffer {
+  const b = Buffer.from(body);
+  const h = Buffer.alloc(512);
+  h.write(name);
+  h.write("0000644\0", 100);
+  if (o.size) o.size.copy(h, 124);
+  else h.write(b.length.toString(8).padStart(11, "0") + "\0", 124);
+  h.write(o.type ?? "0", 156);
+  h.write("ustar\x0000", 257);
+  h.write("        ", 148);
+  let sum = 0;
+  for (const x of h) sum += x;
+  h.write(sum.toString(8).padStart(6, "0") + "\0 ", 148);
+  return Buffer.concat([h, b, Buffer.alloc((512 - (b.length % 512)) % 512)]);
+}
+const rawTgz = (...entries: Buffer[]) => gzipSync(Buffer.concat([...entries, Buffer.alloc(1024)]));
+const paxRec = (k: string, v: string) => {
+  const rest = ` ${k}=${v}\n`;
+  let len = rest.length + 1;
+  while (String(len).length + rest.length !== len) len++;
+  return `${len}${rest}`;
+};
+
+test("sizes must be non-negative safe integers, and pax records well formed", async () => {
+  const desc = entry("demo/DESCRIPTION", DESC);
+  assert.equal((await inspectTarball(stream(rawTgz(desc)))).package, "demo");
+  // A pax size that is not a count would desynchronize the blocks and expose a forged header.
+  for (const v of ["x", "1.5", "-1", "1e3", "99999999999999999999"])
+    await assert.rejects(inspectTarball(stream(rawTgz(entry("demo/PaxHeaders/x", paxRec("size", v), { type: "x" }), desc))),
+      /pax header has an unreadable size/, v);
+  for (const rec of ["11 size7\n", "9 =12345\n", "10 size=12", "x1 size=1\n"])
+    await assert.rejects(inspectTarball(stream(rawTgz(entry("demo/PaxHeaders/x", rec, { type: "x" }), desc))),
+      /bad pax extended header/, JSON.stringify(rec));
+  const neg = Buffer.alloc(12, 0xff); // GNU base-256 for -1
+  const huge = Buffer.alloc(12); huge[0] = 0x80; huge.fill(0xff, 1); // 2^88 - 1
+  for (const size of [Buffer.from("-0001000\0"), Buffer.from("00012x4\0"), neg, huge])
+    await assert.rejects(inspectTarball(stream(rawTgz(entry("demo/NEWS", "", { size }), desc))), /unreadable size/);
+});
+
+test("entry paths: one top-level directory named for the Package, no climbing out", async () => {
+  const desc = entry("demo/DESCRIPTION", DESC);
+  for (const bad of ["../DESCRIPTION", "/DESCRIPTION", "demo/inst/doc/../../x", "demo//NEWS", "demo/./NEWS"])
+    await assert.rejects(inspectTarball(stream(rawTgz(desc, entry(bad, "x")))), /empty, \. or \.\. segment/, bad);
+  for (const bad of ["other/NEWS.md", "NEWS"])
+    await assert.rejects(inspectTarball(stream(rawTgz(desc, entry(bad, "x")))), /is outside demo\//, bad);
+  // The first DESCRIPTION is the package's; a later one changes nothing.
+  const docs: string[] = [];
+  const got = await inspectTarball(stream(rawTgz(entry("demo/", "", { type: "5" }), desc,
+    entry("demo/DESCRIPTION", "Package: demo\nVersion: 9.9\n"))), { onDoc: (p) => void docs.push(p) });
+  assert.equal(got.version, "1.2.3");
+  assert.deepEqual(got.files.top, ["DESCRIPTION"]);
+  await assert.rejects(inspectTarball(stream(rawTgz(entry("other/DESCRIPTION", DESC)))), /directory other\/ is not Package demo/);
+  await assert.rejects(inspectTarball(stream(rawTgz(entry("1x/DESCRIPTION", "Package: 1x\nVersion: 1.0\n")))), /not an R package name/);
+  await assert.rejects(inspectTarball(stream(rawTgz(entry("x./DESCRIPTION", "Package: x.\nVersion: 1.0\n")))), /not an R package name/);
+  await assert.rejects(inspectTarball(stream(rawTgz(entry("demo/DESCRIPTION", "Package: demo\nVersion: 1.0a\n")))), /not an R version/);
+});
+
+test("a failure cancels the body and leaves nothing running", async () => {
+  const bad = Buffer.from(tar(base));
+  bad[3] ^= 1;
+  const gz = gzipSync(bad);
+  let cancelled = false;
+  // Sends a bad header and then nothing, as a stalled HTTP body would: only a cancel ends it.
+  const body = new ReadableStream<Uint8Array>({
+    start(c) { c.enqueue(gz.subarray(0, 2048)); },
+    cancel() { cancelled = true; },
+  });
+  await assert.rejects(inspectTarball(body), /checksum/);
+  assert.ok(cancelled, "the source was cancelled");
+});
+
+test("DESCRIPTION fields match R's read.dcf()", async (t) => {
+  const text = [
+    "Package: demo", "Version: 1.2.3", "Imports:", "    S4Vectors,", "    limma",
+    "Description: First line,", "    second line.", "    .", "    After a blank.",
+    "Empty:", "Tabbed:\tx  ", "Suggests:   ", "\tBiobase", "Dotted:", "    .", "    x",
+'Authors@R: c(person("A", "B"),', '    person("C", "D"))', "Trailing: a", "    .", "",
+  ].join("\n");
+  // Trailing is last because read.dcf() carries a field's trailing "." over into the next
+  // field's first continuation line as an extra blank line; that quirk is not reproduced.
+  const got = (await inspectTarball(stream(gzipSync(tar({ DESCRIPTION: text }))))).description;
+  try {
+    execFileSync("Rscript", ["--version"], { stdio: "ignore" });
+  } catch {
+    t.skip("Rscript is not on PATH: the comparison with read.dcf() did not run");
+    return;
+  }
+  const file = join(tmp, "DESCRIPTION.r");
+  writeFileSync(file, text);
+  const out = execFileSync("Rscript", ["-e",
+    `x <- read.dcf(commandArgs(TRUE)[1])[1, ]; cat(paste0(names(x), "\\x01", x, collapse = "\\x02"))`, file]).toString();
+  const want = Object.fromEntries(out.split("\x02").map((kv) => kv.split("\x01")));
+  assert.deepEqual(got, want);
+});
+
+test("expect: documents ahead of DESCRIPTION wait for it, and a mismatch writes none", async () => {
+  const gz = gzipSync(tar({ "NEWS.md": "# news", DESCRIPTION: DESC, LICENSE: "MIT" }, { order: ["NEWS.md", "DESCRIPTION", "LICENSE"] }));
+  const docs: string[] = [];
+  await assert.rejects(inspectTarball(stream(gz), { expect: { package: "demo", version: "9.9" }, onDoc: (p) => void docs.push(p) }),
+    /source tarball is demo 1.2.3, not demo 9.9/);
+  assert.equal(docs.length, 0);
+  await inspectTarball(stream(gz), { expect: { package: "demo", version: "1.2.3" }, onDoc: (p) => void docs.push(p) });
+  assert.deepEqual(docs, ["NEWS.md", "LICENSE"]);
 });

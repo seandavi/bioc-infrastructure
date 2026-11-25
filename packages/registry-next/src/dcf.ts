@@ -34,12 +34,15 @@ export function parseDcf(text: string): Record<string, string>[] {
 // the source path, so there is no Linux binary layout to target.
 // ponytail: the Windows path is pinned to x86_64 because contrib.url() on Windows-on-ARM asks
 // for this same directory, and mixing arm64 zips in would hand an ARM build to an x86 R.
+const R_MINOR = /^\d+\.\d+$/;
+// Exactly those directories: any other depth or macOS directory name is not a repository path.
 export function parseRepoDir(p: string[]): Sel | null {
   if (p[0] === "src" && p[1] === "contrib" && p.length === 2) return { os: "src" };
   if (p[0] !== "bin") return null;
-  if (p[1] === "windows" && p[2] === "contrib" && p[3])
+  if (p[1] === "windows" && p[2] === "contrib" && p.length === 4 && R_MINOR.test(p[3]))
     return { os: "win", r: p[3], arch: "x86_64" };
-  if (p[1] === "macosx" && p[3] === "contrib" && p[4])
+  if (p[1] === "macosx" && p[3] === "contrib" && p.length === 5 && R_MINOR.test(p[4])
+    && (p[2] === MAC_X86_DIR || p[2] === macArmDir(p[4])))
     return { os: "mac", arch: p[2], r: p[4] };
   return null;
 }

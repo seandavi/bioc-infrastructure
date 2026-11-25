@@ -235,11 +235,13 @@ export const repoRows = (sql: Db, bioc_version: string, repo: string) =>
 
 // The source tarball of a superseded publication, for src/contrib/Archive/. Null when that
 // version was never published here, or is still current (it is then in src/contrib itself).
-export async function archivedSource(sql: Db, bioc_version: string, repo: string, pkg: string, version: string) {
-  const [row] = await sql`select src_sha256 from publications
+export async function archivedSource(
+  sql: Db, bioc_version: string, repo: string, pkg: string, version: string,
+): Promise<{ sha256: string; origin: Origin } | null> {
+  const [row] = await sql`select src_sha256, origin from publications
     where bioc_version = ${bioc_version} and repo = ${repo} and package = ${pkg} and version = ${version}
       and superseded_at is not null order by id desc limit 1`;
-  return (row?.src_sha256 as string | undefined) ?? null;
+  return row ? { sha256: row.src_sha256, origin: row.origin } : null;
 }
 
 // ---------- the write path ----------

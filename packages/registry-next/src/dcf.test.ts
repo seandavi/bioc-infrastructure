@@ -62,15 +62,23 @@ test("packagesDcf renders packagesRecords, whose keys follow packagesFields", ()
 test("each binary directory picks its own binary, and its md5", () => {
   const pick = (dir: string[]) => packagesRecords([S4], parseRepoDir(dir)!)[0];
   assert.equal(pick(["bin", "windows", "contrib", "4.7"]).MD5sum, "a".repeat(32)); // x86_64, not arm64
-  assert.equal(pick(["bin", "macosx", "big-sur-arm64", "contrib", "4.7"]).File, "S4Vectors_0.50.1.tgz");
+  assert.equal(pick(["bin", "macosx", "sonoma-arm64", "contrib", "4.7"]).File, "S4Vectors_0.50.1.tgz");
   assert.equal(packagesDcf([S4], parseRepoDir(["bin", "windows", "contrib", "4.5"])!), "");
 });
 
 test("repo paths parse to selectors; linux and wasm get none", () => {
   assert.deepEqual(parseRepoDir(["src", "contrib"]), { os: "src" });
   assert.deepEqual(parseRepoDir(["bin", "windows", "contrib", "4.7"]), { os: "win", r: "4.7", arch: "x86_64" });
-  assert.deepEqual(parseRepoDir(["bin", "macosx", "big-sur-arm64", "contrib", "4.7"]),
-    { os: "mac", arch: "big-sur-arm64", r: "4.7" });
+  assert.deepEqual(parseRepoDir(["bin", "macosx", "big-sur-arm64", "contrib", "4.5"]),
+    { os: "mac", arch: "big-sur-arm64", r: "4.5" });
+  assert.deepEqual(parseRepoDir(["bin", "macosx", "sonoma-arm64", "contrib", "4.7"]),
+    { os: "mac", arch: "sonoma-arm64", r: "4.7" });
+  assert.deepEqual(parseRepoDir(["bin", "macosx", "big-sur-x86_64", "contrib", "4.7"]),
+    { os: "mac", arch: "big-sur-x86_64", r: "4.7" });
+  // Only those depths and directory names.
+  for (const p of ["bin/windows/contrib/4.6/foo", "bin/windows/contrib/x", "bin/macosx/anything/contrib/4.6",
+    "bin/macosx/big-sur-arm64/contrib/4.7", "bin/macosx/sonoma-arm64/contrib/4.6/x", "src/contrib/x"])
+    assert.equal(parseRepoDir(p.split("/")), null, p);
   assert.equal(parseRepoDir(["src"]), null);
   assert.equal(parseRepoDir(["bin", "linux", "resolute", "4.6"]), null);
   assert.equal(parseRepoDir(["bin", "wasm", "contrib", "4.6"]), null);

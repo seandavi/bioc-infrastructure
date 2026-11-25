@@ -78,7 +78,7 @@ test("a hole is seeded from the tarball, with VIEWS' git fields, once", async ()
 test("a package with a current r-universe publication is never touched, even behind the official version", async () => {
   const gz = tgz("built", "1.0.0");
   await storeObject(bucket, sql, sha(gz), async () => ({ body: new Blob([gz]).stream(), size: gz.length }), null);
-  await ingestSource(bucket, sql, sha(gz), {});
+  await ingestSource(bucket, sql, sha(gz), {}, { package: "built", version: "1.0.0" });
   await publish(sql, { bioc_version: "3.24", repo: "workflows", src_sha256: sha(gz), origin: "r-universe", archs: ["linux"] });
   site[`${B}/workflows/src/contrib/PACKAGES`] = stanza("built", "1.2.0") + "\n" + stanza("huge", "1.0");
   // Larger than one R2 put, by content-length: reported, not read.
@@ -145,7 +145,7 @@ test("binaries: only those listed at the source's version, and a failing one is 
   // An r-universe build of the same version replaces the seed, and seeding leaves it alone.
   const built = tgz("withbin", "2.0", "Imports: methods\n");
   await storeObject(bucket, sql, sha(built), async () => ({ body: new Blob([built]).stream(), size: built.length }), null);
-  await ingestSource(bucket, sql, sha(built), {});
+  await ingestSource(bucket, sql, sha(built), {}, { package: "withbin", version: "2.0" });
   const pub = await publish(sql, { bioc_version: "3.24", repo: "bioc", src_sha256: sha(built), origin: "r-universe", archs: ["linux"] });
   assert.ok(pub.changed && pub.superseded);
   assert.deepEqual(await seed(env, sql, "3.24", "bioc", { fetch: f }),

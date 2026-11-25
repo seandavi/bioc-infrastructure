@@ -30,9 +30,11 @@ export async function storeObject(
   if (!SHA256.test(sha256)) throw new Error(`not a sha256: ${sha256}`);
   if ((await sql`select 1 from cas_objects where sha256 = ${sha256}`).length) return true;
   const key = `cas/${sha256}`;
-  // An object without its row is a put whose row insert never ran: record it as it is.
-  let obj: R2Object | null = await bucket.head(key);
-  if (!obj) {
+  // An object without its row is a put whose row insert never ran: record it as it is, but only
+  // when R2 verified it against this key. Anything else is written again, verified this time.
+  let obj = await bucket.head(key);
+  const verified = obj?.checksums.sha256;
+  if (!obj || !verified || hex(verified) !== sha256) {
     const src = await open();
     if (!src) return false;
     obj = await bucket.put(key, fixedLength(src.body, src.size), { sha256 });
@@ -53,17 +55,26 @@ export async function openArtifact(
   const res = await f(`https://r2.ropensci.org/${sha256}`);
   if (res.status === 404) return null;
   if (!res.ok || !res.body) throw new Error(`r2.ropensci.org/${sha256}: HTTP ${res.status}`);
-  const len = Number(res.headers.get("content-length") ?? size);
-  if (!(len >= 0)) throw new Error(`r2.ropensci.org/${sha256}: no content-length`);
+  // A missing length is an error, not 0: FixedLengthStream(0) would fail the put opaquely.
+  const raw = res.headers.get("content-length") ?? (size == null ? null : String(size));
+  const len = raw !== null && /^\d+$/.test(raw) ? Number(raw) : NaN;
+  if (!Number.isSafeInteger(len)) {
+    await res.body.cancel().catch(() => {});
+    throw new Error(`r2.ropensci.org/${sha256}: no content-length`);
+  }
   return { body: res.body, size: len };
 }
 
+const TEXT = "text/plain; charset=utf-8";
 const TYPES: Record<string, string> = {
   html: "text/html; charset=utf-8", pdf: "application/pdf",
-  R: "text/plain; charset=utf-8", Rmd: "text/plain; charset=utf-8",
-  md: "text/plain; charset=utf-8", txt: "text/plain; charset=utf-8",
+  R: TEXT, Rmd: TEXT, Rnw: TEXT, Rd: TEXT, qmd: TEXT, md: TEXT, txt: TEXT,
 };
-const contentType = (path: string) => TYPES[/\.([^./]+)$/.exec(path)?.[1] ?? ""] ?? "application/octet-stream";
+// An extensionless document is NEWS, README, LICENSE, CITATION and the like: text.
+export const contentType = (path: string) => {
+  const ext = /\.([^./]+)$/.exec(path)?.[1];
+  return ext === undefined ? TEXT : TYPES[ext] ?? "application/octet-stream";
+};
 
 export type SourceExtra = {
   meta?: Record<string, unknown>;
@@ -71,15 +82,20 @@ export type SourceExtra = {
 };
 
 // Reads cas/{sha256} back through the inspector: its documents to docs/{sha256}/, its
-// DESCRIPTION and inventory to package_versions. Idempotent: an existing row means done.
+// DESCRIPTION and inventory to package_versions. Idempotent: an existing row means done. Bytes
+// that are not the expected package and version write nothing: the row's git fields and meta
+// are the caller's, and would otherwise stick to another package's version for good.
 export async function ingestSource(
-  bucket: R2Bucket, sql: Sql, sha256: string, extra: SourceExtra,
+  bucket: R2Bucket, sql: Sql, sha256: string, extra: SourceExtra, expect: { package: string; version: string },
 ): Promise<{ package: string; version: string }> {
   const [done] = await sql`select package, version from package_versions where src_sha256 = ${sha256}`;
+  if (done && (done.package !== expect.package || done.version !== expect.version))
+    throw new Error(`source tarball is ${done.package} ${done.version}, not ${expect.package} ${expect.version}`);
   if (done) return { package: done.package, version: done.version };
   const obj = await bucket.get(`cas/${sha256}`);
   if (!obj) throw new Error(`cas/${sha256} is not in the bucket`);
   const ins = await inspectTarball(obj.body, {
+    expect,
     onDoc: async (path, bytes) => {
       await bucket.put(`docs/${sha256}/${path}`, bytes, { httpMetadata: { contentType: contentType(path) } });
     },
