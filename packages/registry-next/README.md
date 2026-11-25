@@ -4,7 +4,8 @@ The next registry, built beside the current one ([`packages/registry`](../regist
 running as a shadow until it replaces it. Design and plan:
 [#213](https://github.com/seandavi/bioc-infrastructure/issues/213).
 
-**Status: shadow.** Nothing reads from it yet. The current registry keeps serving
+**Status: shadow**, deployed at <https://bioc-registry-next.seandavi.workers.dev> since 2026-11-25.
+Nothing reads from it yet. The current registry keeps serving
 `bioc-registry.seandavi.workers.dev` and is not changed by anything here.
 
 What differs from the current registry:
@@ -101,6 +102,11 @@ until curl -sf -X POST -H "x-maint-key: …" "https://<worker>/admin/observe?uni
   | tee /dev/stderr | grep -Eq '"status":"(processed|unchanged)"'; do :; done
 ```
 
+Run one universe at a time. Each call parses a 30 MB observation, and two calls that land in the
+same isolate exceed its memory: both fail with error 1102 (seen on 2026-11-25; the loop above just
+retries). Measured on the first backfill with `limit=25`: about 3.5 seconds a package when its
+bytes were already stored, 6.5 when they had to be copied.
+
 A candidate whose source bytes are gone keeps `remaining` above 0 (it is retried, and only what
 depends on it waits), so watch `failed` rather than loop blindly.
 
@@ -171,5 +177,10 @@ Worker itself: `curl -X POST -H "x-maint-key: …" https://<worker>/admin/migrat
 | Hyperdrive config | `bioc-registry-db` (query caching disabled) |
 | Database | `bioc_registry`, on the shared PlanetScale Postgres cluster |
 | Database URL | Google Secret Manager, `cdsci-bioc-registry-database-url` |
+| Maintenance key | Google Secret Manager, `cdsci-bioc-registry-next-maint-key`; the Worker secret `MAINT_KEY` |
+
+The database answers on the Postgres ports only. A network that blocks outbound 5432 cannot reach
+it with `psql`; the Worker always can, through Hyperdrive, and Google Cloud Shell works for
+ad hoc SQL.
 
 [Apache License 2.0](LICENSE)
