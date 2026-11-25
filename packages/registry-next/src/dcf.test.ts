@@ -24,7 +24,8 @@ const S4 = row({
   source: { filename: "S4Vectors_0.50.1.tar.gz", sha256: "aaa", md5: "0123456789abcdef0123456789abcdef", size_bytes: 9 },
   binaries: [
     bin({ os: "mac", r_minor: "4.7", arch: "aarch64", filename: "S4Vectors_0.50.1.tgz", sha256: "ccc" }),
-    bin({ os: "win", r_minor: "4.7", arch: "aarch64", filename: "S4Vectors_0.50.1.zip", sha256: "bb2", md5: "b".repeat(32) }),
+    // An arm64 Windows build, of an older R: PACKAGES and VIEWS both point at the x86_64 one.
+    bin({ os: "win", r_minor: "4.6", arch: "aarch64", filename: "S4Vectors_0.50.1-arm.zip", sha256: "bb2", md5: "b".repeat(32) }),
     bin({ os: "win", r_minor: "4.7", arch: "x86_64", filename: "S4Vectors_0.50.1.zip", sha256: "bbb", md5: "a".repeat(32) }),
     bin({ os: "linux", r_minor: "4.6", arch: "x86_64", filename: "S4Vectors_0.50.1.tar.gz", sha256: "ddd" }),
   ],
@@ -125,6 +126,29 @@ test("VIEWS mac paths: arm64 tracks the R version, Intel gets its own field", ()
   assert.doesNotMatch(intelOnly, /^mac\.binary\.ver:/m);
   const old = viewsDcf([row({ binaries: [{ ...arm, r_minor: "4.5" }] })]);
   assert.match(old, /^mac\.binary\.ver: bin\/macosx\/big-sur-arm64\/contrib\/4\.5\/X_1\.0\.0\.tgz$/m);
+});
+
+test("VIEWS points only at files PACKAGES serves: arch-less Intel mac, no arm64 Windows, no R-less binary", () => {
+  const noarch = bin({ os: "mac", r_minor: "4.6", filename: "X_1.0.0.tgz" });
+  const v = viewsDcf([row({ binaries: [noarch, bin({ os: "win", r_minor: "", filename: "X_1.0.0.zip" })] })]);
+  assert.match(v, /^mac\.binary\.big-sur-x86_64\.ver: bin\/macosx\/big-sur-x86_64\/contrib\/4\.6\/X_1\.0\.0\.tgz$/m);
+  assert.doesNotMatch(v, /win\.binary\.ver/, "a binary with no R minor is in no PACKAGES");
+  const armOnly = viewsDcf([row({ binaries: [bin({ os: "win", r_minor: "4.6", arch: "aarch64", filename: "X_1.0.0.zip" })] })]);
+  assert.doesNotMatch(armOnly, /win\.binary\.ver/);
+});
+
+test("Package and Version alone are not a DESCRIPTION, and a whitespace-only value is left out", () => {
+  const bare = row({ package: "bare", description: { Package: "bare", Version: "1.0.0", License: " " } });
+  assert.equal(packagesDcf([bare], { os: "src" }), "");
+  assert.equal(viewsDcf([bare]), "");
+  const blank = row({ description: { License: "MIT", Imports: "  ", Title: "\n" } });
+  assert.deepEqual(Object.keys(packagesRecords([blank], { os: "src" })[0]), ["Package", "Version", "License", "File"]);
+  assert.doesNotMatch(viewsDcf([blank]), /Imports|Title/);
+});
+
+test("VIEWS: a dependency named like an Object.prototype member is just a name", () => {
+  const v = viewsDcf([row({ package: "a", description: { Depends: "constructor", Imports: "toString", License: "MIT" } })]);
+  assert.match(v, /^Depends: constructor$/m);
 });
 
 test("macArmDir tracks CRAN's rename at R 4.6", () => {

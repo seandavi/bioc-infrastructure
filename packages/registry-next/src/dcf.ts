@@ -44,9 +44,11 @@ export function parseRepoDir(p: string[]): Sel | null {
   return null;
 }
 
+// The one spelling of a binary slot: the R minor ("4.6.1" -> "4.6"), and the arch as CRAN names
+// it, from r-universe's aarch64/amd64 or a platform triple's last part.
 export const rMinor = (r: string) => r.split(".").slice(0, 2).join(".");
 
-const normArch = (s: string) => {
+export const normArch = (s: string) => {
   const t = s.split("-").pop() ?? "";
   return t === "aarch64" ? "arm64" : t === "amd64" ? "x86_64" : t;
 };
@@ -76,7 +78,9 @@ export const packagesFields = [
 
 // A row whose DESCRIPTION was never captured is skipped: a stanza with no Depends line would
 // claim the package has no dependencies.
-const described = (r: RepoRow) => Object.keys(r.description).length > 0;
+// Package and Version alone are not a captured DESCRIPTION.
+export const described = (r: RepoRow) =>
+  Object.entries(r.description).some(([k, v]) => k !== "Package" && k !== "Version" && v.trim() !== "");
 
 // DCF forbids bare newlines in a value.
 const dcfValue = (s: string) => s.replace(/\s+/g, " ").trim();
@@ -92,7 +96,11 @@ export function packagesRecords(rows: RepoRow[], sel: Sel): Record<string, strin
       ...r.description, Package: r.package, Version: r.version, MD5sum: f.md5, File: f.filename,
     };
     const rec: Record<string, string> = {};
-    for (const k of packagesFields) if (all[k]) rec[k] = dcfValue(all[k]!);
+    // A whitespace-only value is left out, as write_PACKAGES() leaves it NA.
+    for (const k of packagesFields) {
+      const v = dcfValue(all[k] ?? "");
+      if (v) rec[k] = v;
+    }
     out.push(rec);
   }
   return out;
@@ -134,24 +142,24 @@ const VIEWS_META = [
 
 export function viewsDcf(rows: RepoRow[]): string {
   const sorted = rows.filter(described).sort((a, b) => cmp(a.package, b.package));
-  const rev: Record<string, { dependsOnMe: string[]; importsMe: string[]; suggestsMe: string[] }> =
-    Object.fromEntries(sorted.map((r) => [r.package, { dependsOnMe: [], importsMe: [], suggestsMe: [] }]));
+  // A Map, so a dependency named like an Object.prototype member (constructor) is just a name.
+  const rev = new Map(sorted.map((r) => [r.package, { dependsOnMe: [] as string[], importsMe: [] as string[], suggestsMe: [] as string[] }]));
   for (const r of sorted) {
     const d = r.description;
-    for (const p of depNames(d.Depends)) rev[p]?.dependsOnMe.push(r.package);
-    for (const p of depNames(d.Imports)) rev[p]?.importsMe.push(r.package);
-    for (const p of depNames(d.Suggests)) rev[p]?.suggestsMe.push(r.package);
+    for (const p of depNames(d.Depends)) rev.get(p)?.dependsOnMe.push(r.package);
+    for (const p of depNames(d.Imports)) rev.get(p)?.importsMe.push(r.package);
+    for (const p of depNames(d.Suggests)) rev.get(p)?.suggestsMe.push(r.package);
   }
 
   const stanzas: string[] = [];
   for (const r of sorted) {
     const d = r.description;
-    const win = r.binaries.find((b) => b.os === "win");
-    // Two mac builds share a filename and differ only by arch. An arch-less binary is
-    // arch-independent, so it stands in for arm64.
-    const macs = r.binaries.filter((b) => b.os === "mac");
-    const macArm = macs.find((b) => !b.arch || normArch(b.arch) === "arm64");
-    const macX86 = macs.find((b) => b.arch && normArch(b.arch) === "x86_64");
+    // The binary each PACKAGES directory serves (matchSel), so VIEWS never points at a file
+    // PACKAGES leaves out. Two mac builds share a filename and differ only by arch; an
+    // arch-less binary is arch-independent and stands in for both.
+    const served = r.binaries.filter((b) => b.r_minor && b.filename);
+    const pick = (os: string, arch: string) => served.find((b) => matchSel(b, { os, arch }));
+    const win = pick("win", "x86_64"), macArm = pick("mac", "arm64"), macX86 = pick("mac", "x86_64");
     const vigs = Array.isArray(r.meta.vignettes)
       ? (r.meta.vignettes as { filename?: string; title?: string }[]) : [];
     const vigFiles = vigs.map((v) => v.filename).filter(Boolean);
@@ -175,14 +183,15 @@ export function viewsDcf(rows: RepoRow[]): string {
         ? `bin/macosx/${MAC_X86_DIR}/contrib/${rMinor(macX86.r_minor)}/${macX86.filename}` : undefined,
       vignettes: vigFiles.length ? vigFiles.join(", ") : undefined,
       vignetteTitles: vigTitles.length ? vigTitles.join(", ") : undefined,
-      dependsOnMe: rev[r.package].dependsOnMe.join(", ") || undefined,
-      importsMe: rev[r.package].importsMe.join(", ") || undefined,
-      suggestsMe: rev[r.package].suggestsMe.join(", ") || undefined,
+      dependsOnMe: rev.get(r.package)!.dependsOnMe.join(", ") || undefined,
+      importsMe: rev.get(r.package)!.importsMe.join(", ") || undefined,
+      suggestsMe: rev.get(r.package)!.suggestsMe.join(", ") || undefined,
     };
     stanzas.push(
       Object.entries(rec)
+        .map(([k, v]) => [k, viewsValue(v ?? "")])
         .filter(([, v]) => v)
-        .map(([k, v]) => `${k}: ${viewsValue(v!)}`)
+        .map(([k, v]) => `${k}: ${v}`)
         .join("\n")
     );
   }

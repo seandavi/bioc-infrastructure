@@ -257,7 +257,9 @@ export function gate(
     const bc = c.jobs.find((j) => j.config === "bioc-checks")?.check;
     rule("bioccheck", config.bioccheck === "advisory" || !GATE_BAD.has(bc ?? ""), `${bc ?? "not run"} (${config.bioccheck})`);
     rule("version-parse", R_VER.test(c.version), c.version);
-    const vg = versionGate(c.version, published[c.package], config.replace_seed);
+    // hasOwn: a package named constructor or toString is not an Object.prototype member.
+    const prev = Object.hasOwn(published, c.package) ? published[c.package] : undefined;
+    const vg = versionGate(c.version, prev, config.replace_seed);
     rule("version-gate", vg.ok, vg.detail);
     if (c.manifest !== undefined) {
       const m = c.manifest;

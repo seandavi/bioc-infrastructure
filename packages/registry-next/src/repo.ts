@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { connect } from "./db.ts";
 import type { Env } from "./db.ts";
-import { matchSel, parseRepoDir } from "./dcf.ts";
+import { described, matchSel, parseRepoDir } from "./dcf.ts";
 import { archivedSource } from "./store.ts";
 import type { RepoRow } from "./store.ts";
 
@@ -83,9 +83,11 @@ app.get("/*", async (c) => {
     // Resolve the file name the way that directory's PACKAGES was built.
     const sel = parseRepoDir(segs.slice(0, -1));
     const index = sel ? await readJson<Record<string, RepoRow>>(bucket, base + "index.json") : null;
-    const row = index?.[name.split("_", 1)[0]];
+    const pkg = name.split("_", 1)[0];
+    // hasOwn: a URL naming constructor_1.0.tar.gz must not reach Object.prototype.
+    const row = index && Object.hasOwn(index, pkg) ? index[pkg] : undefined;
     // PACKAGES skips a row whose DESCRIPTION was never captured, so the file is not served either.
-    const f = sel && row && Object.keys(row.description).length > 0 && (sel.os === "src" ? row.source : row.binaries.find((b) => matchSel(b, sel)));
+    const f = sel && row && described(row) && (sel.os === "src" ? row.source : row.binaries.find((b) => matchSel(b, sel)));
     sha = f && f.filename === name ? f.sha256 : null;
   }
   if (!sha) return notFound();

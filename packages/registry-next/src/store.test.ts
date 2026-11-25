@@ -229,3 +229,51 @@ test("published, repoRows, packageDoc and casDoc read the current state", async 
   assert.equal((await casDoc(sql, sha))!.publications[0].as, "source");
   assert.equal(await casDoc(sql, hex("unknown")), null);
 });
+
+test("binary slots have one spelling: an R patch version or a uname arch fills the same slot", async () => {
+  const { publication_id } = await publish(sql, { ...pub(await source("Rhtslib", "3.6.0")), archs: ["mac", "win"],
+    binaries: [{ os: "mac", r_minor: "4.6.1", arch: "aarch64", filename: "Rhtslib_3.6.0.tgz", sha256: await blob("rh-m1") },
+      { os: "win", r_minor: "4.6", arch: "amd64", filename: "Rhtslib_3.6.0.zip", sha256: await blob("rh-w1") }] });
+  const [{ archs }] = await db.sql`select archs::text from publications where id = ${publication_id}`;
+  assert.equal(archs, "{win,mac}", "archs in gate-family order, as addBinaries() keeps them");
+  const t = await addBinaries(sql, publication_id, [
+    { os: "mac", r_minor: "4.6", arch: "big-sur-arm64", filename: "Rhtslib_3.6.0.tgz", sha256: await blob("rh-m2") },
+    { os: "win", r_minor: "4.6.2", arch: "x86_64", filename: "Rhtslib_3.6.0.zip", sha256: await blob("rh-w2") },
+  ], []);
+  assert.equal(t!.added, 0, "both slots were filled");
+  const [row] = (await repoRows(sql, "3.24", "bioc")).filter((r) => r.package === "Rhtslib");
+  assert.deepEqual(row.binaries.map((b) => [b.os, b.r_minor, b.arch, b.sha256]),
+    [["mac", "4.6", "arm64", hex("rh-m1")], ["win", "4.6", "x86_64", hex("rh-w1")]]);
+});
+
+test("publish refuses a version verGt() cannot order, and a seed never replaces a seed", async () => {
+  await assert.rejects(publish(sql, pub(await source("oddver", "1.0a"))), /version-parse: 1.0a/);
+  assert.equal((await current("oddver")).length, 0);
+  await publish(sql, pub(await source("seeded", "1.0.0", "s1"), "bioconductor"));
+  await assert.rejects(publish(sql, pub(await source("seeded", "1.0.0", "s2"), "bioconductor")),
+    /version-gate: 1.0.0 is not > 1.0.0 \(bioconductor\)/);
+  assert.equal((await publish(sql, pub(await source("seeded", "1.0.0"), "bioc-build"))).changed, true);
+});
+
+test("recordDecisions: a package version given twice keeps its last, and concurrent calls store once", async () => {
+  const d = (o: Partial<DecisionRow> = {}): DecisionRow => ({
+    bioc_version: "3.24", repo: "bioc", package: "dup", version: "1.0", origin: "r-universe",
+    propagate: false, archs: [], reasons: [{ rule: "families", ok: false }], ...o,
+  });
+  assert.equal(await recordDecisions(sql, [d(), d({ propagate: true, archs: ["linux"], reasons: [] })]), 1);
+  const rows = await db.sql`select propagate from gate_decisions where package = 'dup'`;
+  assert.deepEqual(rows.map((r) => r.propagate), [true]);
+  const a = open(), b = open();
+  try {
+    const wave = Array.from({ length: 500 }, (_, i) => d({ package: `race${i}` }));
+    const n = await Promise.all([recordDecisions(a, wave), recordDecisions(b, wave)]);
+    assert.equal(n[0] + n[1], 500);
+  } finally {
+    await a.end(); await b.end();
+  }
+});
+
+test("the latest decision of a package version is one index probe", async () => {
+  const [ix] = await db.sql`select indexdef from pg_indexes where indexname = 'gate_decisions_version'`;
+  assert.match(ix?.indexdef ?? "", /\(bioc_version, repo, package, version, decided_at DESC, id DESC\)/);
+});

@@ -36,7 +36,7 @@ test("setup", async () => {
   await setBiocVersions(sql, `release_version: "3.24"\ndevel_version: "3.25"\nr_ver_for_bioc_ver:\n  "3.24": "4.6"\n  "3.25": "4.6"\n`);
   for (const [v, sha] of [["3.60.0", old], ["3.61.0", tgz]]) {
     await putCasObject(sql, { sha256: sha, md5: sha.slice(0, 32), size_bytes: BYTES.length });
-    await putPackageVersion(sql, { src_sha256: sha, package: "limma", version: v, description: { Package: "limma", Version: v } });
+    await putPackageVersion(sql, { src_sha256: sha, package: "limma", version: v, description: { Package: "limma", Version: v, License: "GPL (>= 2)" } });
     await t.bucket.put(`cas/${sha}`, BYTES);
   }
   await putCasObject(sql, { sha256: zip, md5: zip.slice(0, 32), size_bytes: BYTES.length });
@@ -111,6 +111,9 @@ test("404s: unknown repo, file not in the index, wrong directory, traversal", as
     "/packages/3.24/bioc/src/contrib/..%2f..%2findex.json",
     "/packages/3.24/bioc/src/contrib/../../../../cas/" + tgz,
     "/packages/3.24/bioc/cas/" + tgz,
+    // Object.prototype members are not packages.
+    "/packages/3.24/bioc/src/contrib/constructor_1.0.tar.gz",
+    "/packages/3.24/bioc/src/contrib/toString_1.0.tar.gz",
   ]) {
     const r = await get(path);
     assert.equal(r.status, 404, path);
