@@ -80,12 +80,20 @@ export function parseBiocConfig(yaml: string): {
   // During a release roll r-universe builds a version ahead of bioconductor.org's roles.
   const ruRelease = top("r_universe_release_version") ?? release;
   const ruDevel = top("r_universe_devel_version") ?? devel;
-  const newest = Object.keys(r).reduce((a, b) => (!a || verGt(b, a) ? b : a), "");
-  if (!newest) throw new Error("config.yaml: no r_ver_for_bioc_ver entries");
-  // ponytail: a version config.yaml has not mapped yet takes the newest mapped R line. Wrong for
-  // the half-year when devel moves to a new R before config.yaml says so; the fix is to read it
-  // from the observation's own job R versions.
-  for (const v of [release, devel, ruRelease, ruDevel]) r[v] ??= r[newest];
+  const known = Object.keys(r).sort((a, b) => (verGt(a, b) ? 1 : -1));
+  if (!known.length) throw new Error("config.yaml: no r_ver_for_bioc_ver entries");
+  // A version config.yaml has not mapped yet (r-universe builds the next devel before the file
+  // says so): R advances every second Bioconductor version, so a version that follows two on the
+  // same R takes the next R minor, and one that follows the first of a pair shares its R. That
+  // holds for 25 of the 27 versions since 2.11 (2012); the two misses are R's major version
+  // changes. ponytail: wrong at the next R major version, until config.yaml lists the version.
+  const nextMinor = (v: string) => v.replace(/\d+$/, (m) => String(Number(m) + 1));
+  for (const v of [release, devel, ruRelease, ruDevel].sort((a, b) => (verGt(a, b) ? 1 : -1))) {
+    if (r[v]) continue;
+    const last = known.at(-1)!, before = known.at(-2);
+    r[v] = before !== undefined && r[before] === r[last] ? nextMinor(r[last]) : r[last];
+    known.push(v);
+  }
   return { release, devel, ruRelease, ruDevel, r };
 }
 

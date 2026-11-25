@@ -74,10 +74,15 @@ release_dates:
   "1.0": "1/5/2001"
 `;
 
-test("parseBiocConfig: an unmapped version r-universe builds takes the newest mapped R line", () => {
+test("parseBiocConfig: an unmapped version takes its R line from the two-versions-per-R cadence", () => {
   const c = parseBiocConfig(ROLL);
   assert.deepEqual([c.release, c.devel, c.ruRelease, c.ruDevel], ["3.23", "3.24", "3.24", "3.25"]);
-  assert.deepEqual(c.r, { "3.9": "3.6", "3.10": "3.6", "3.23": "4.6", "3.24": "4.6", "3.25": "4.6" });
+  // 3.23 and 3.24 share R 4.6, so 3.25 starts the next R.
+  assert.deepEqual(c.r, { "3.9": "3.6", "3.10": "3.6", "3.23": "4.6", "3.24": "4.6", "3.25": "4.7" });
+  // 3.25 is the first version on R 4.7, so an unmapped 3.26 shares it.
+  const second = parseBiocConfig(ROLL.replace('  "3.24": "4.6"', '  "3.24": "4.6"\n  "3.25": "4.7"')
+    .replace('r_universe_devel_version: "3.25"', 'r_universe_devel_version: "3.26"'));
+  assert.equal(second.r["3.26"], "4.7");
   assert.throws(() => parseBiocConfig("release_version: 3.1\ndevel_version: 3.2\n"), /no r_ver_for_bioc_ver/);
 });
 
@@ -95,7 +100,7 @@ test("setBiocVersions moves the roles so exactly release and devel hold them", a
   // A release roll as config.yaml has it: universes move ahead of the roles.
   const rolled = await setBiocVersions(sql, ROLL);
   assert.deepEqual(rolled.filter((v) => v.role || v.universe).map((v) => [v.bioc_version, v.r_minor, v.role, v.universe]), [
-    ["3.23", "4.6", "release", null], ["3.24", "4.6", "devel", "bioc-release"], ["3.25", "4.6", null, "bioc"],
+    ["3.23", "4.6", "release", null], ["3.24", "4.6", "devel", "bioc-release"], ["3.25", "4.7", null, "bioc"],
   ]);
   await setBiocVersions(sql, CONFIG); // back to the fixture for the route tests below
   assert.deepEqual((await biocVersions(sql)).filter((v) => v.universe).map((v) => [v.bioc_version, v.universe]),
