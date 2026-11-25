@@ -102,26 +102,39 @@ export async function inspectTarball(
   let size = 0;
   let notGzip = false;
   const head: number[] = [];
-  const checkMagic = () => {
-    if (head[0] === 0x1f && head[1] === 0x8b) return;
-    notGzip = true;
-    throw new Error("not a gzip stream");
-  };
-  const hashed = new TransformStream<Uint8Array, Uint8Array>({
-    transform(chunk, c) {
-      const before = head.length;
-      for (let i = 0; head.length < 2 && i < chunk.length; i++) head.push(chunk[i]);
-      if (before < 2 && head.length === 2) checkMagic();
-      size += chunk.length;
-      sha.update(chunk);
-      md5.update(chunk);
-      c.enqueue(chunk);
-    },
-    flush() {
-      if (head.length < 2) checkMagic();
-    },
-  });
-  const r = body.pipeThrough(hashed).pipeThrough(new DecompressionStream("gzip")).getReader();
+  // Pumped by hand, not pipeThrough(): awaiting each write is what applies backpressure. Node's
+  // DecompressionStream does not push back through a pipe, so piping buffered the whole
+  // compressed body (measured on a 719 MB tarball: 620 MB held when piped, 12 MB pumped).
+  const gunzip = new DecompressionStream("gzip");
+  const r = gunzip.readable.getReader();
+  const pump = (async () => {
+    const src = body.getReader();
+    const w = gunzip.writable.getWriter();
+    try {
+      for (;;) {
+        const { done, value } = await src.read();
+        if (done) break;
+        const had = head.length;
+        for (let i = 0; head.length < 2 && i < value.length; i++) head.push(value[i]);
+        if (had < 2 && head.length === 2 && (head[0] !== 0x1f || head[1] !== 0x8b)) notGzip = true;
+        if (notGzip) throw new Error("not a gzip stream");
+        size += value.length;
+        sha.update(value);
+        md5.update(value);
+        await w.write(value);
+      }
+      if (head.length < 2) {
+        notGzip = true;
+        throw new Error("not a gzip stream");
+      }
+      await w.close();
+    } catch (e) {
+      await w.abort(e).catch(() => {});
+      await src.cancel(e).catch(() => {});
+      throw e;
+    }
+  })();
+  pump.catch(() => {}); // the same failure reaches the reader below; this only stops an unhandled rejection
 
   let chunk: Uint8Array = new Uint8Array(0);
   let pos = 0;
@@ -217,6 +230,7 @@ export async function inspectTarball(
     }
     // Keep reading so the hashes cover every byte, including whatever follows the end blocks.
     while (!(await read()).done);
+    await pump;
   } catch (e) {
     await r.cancel().catch(() => {});
     throw e;

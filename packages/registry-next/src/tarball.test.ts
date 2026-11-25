@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
@@ -160,4 +160,37 @@ test("errors", async () => {
   await assert.rejects(inspectTarball(stream(gzipSync(tar(none)))), /no DESCRIPTION/);
   await assert.rejects(inspectTarball(stream(gzipSync(tar({ DESCRIPTION: "Version: 1\n" })))), /no Package/);
   await assert.rejects(inspectTarball(stream(gzipSync(tar({ DESCRIPTION: "Package: x\n" })))), /no Version/);
+});
+
+test("a blocked consumer stops the inspector from pulling the body (backpressure)", async () => {
+  // NEWS first, then 24 MB that does not compress, then DESCRIPTION. While onDoc is pending the
+  // inspector must not keep reading: without backpressure it buffers the whole body in memory.
+  const dir = join(tmp, "bp");
+  const pkg = join(dir, "pkg");
+  mkdirSync(join(pkg, "data"), { recursive: true });
+  writeFileSync(join(pkg, "NEWS"), "news\n");
+  writeFileSync(join(pkg, "data", "blob.bin"), randomBytes(24 * 1024 * 1024));
+  writeFileSync(join(pkg, "DESCRIPTION"), "Package: pkg\nVersion: 1.0.0\n");
+  const tgz = join(dir, "pkg.tar.gz");
+  execFileSync("tar", ["--owner=0", "--group=0", "-czf", tgz, "-C", dir, "pkg/NEWS", "pkg/data/blob.bin", "pkg/DESCRIPTION"]);
+  const bytes = readFileSync(tgz);
+  const CHUNK = 64 * 1024;
+  let pulled = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(c) {
+      if (pulled * CHUNK >= bytes.length) return c.close();
+      c.enqueue(bytes.subarray(pulled * CHUNK, ++pulled * CHUNK));
+    },
+  }, { highWaterMark: 0 });
+  let pulledWhileBlocked = -1;
+  const r = await inspectTarball(body, {
+    async onDoc(path) {
+      if (path !== "NEWS") return;
+      await new Promise((ok) => setTimeout(ok, 300));
+      pulledWhileBlocked = pulled;
+    },
+  });
+  assert.equal(r.size, bytes.length);
+  assert.ok(pulledWhileBlocked >= 0 && pulledWhileBlocked * CHUNK < 4 * 1024 * 1024,
+    `pulled ${pulledWhileBlocked * CHUNK} of ${bytes.length} bytes while the consumer was blocked`);
 });
