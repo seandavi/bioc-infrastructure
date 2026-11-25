@@ -13,5 +13,9 @@
     // The current registry's bucket. Read-only here: Env types it without put/delete.
     { "binding": "LEGACY", "bucket_name": "bioc-prop" }
   ],
+  // Every 15 minutes: refresh config.yaml when a day old, then a bounded batch of each universe.
+  "triggers": { "crons": ["*/15 * * * *"] },
+  // One large source tarball can take tens of CPU seconds to inspect.
+  "limits": { "cpu_ms": 300000 },
   "observability": { "enabled": true }
 }

@@ -30,6 +30,9 @@ What differs from the current registry:
 | `src/dcf.ts` | `PACKAGES` and `VIEWS` rendered from the current publications, pure |
 | `src/materialize.ts` | writes a repository's files to R2 from the database, only when their bytes changed |
 | `src/repo.ts` | serves those files at `/packages/{version}/{repo}/…`; reads R2 only, except `Archive/` |
+| `src/ingest.ts` | bytes into `cas/{sha256}`, and a source tarball's facts and documents out of it |
+| `src/observe.ts` | an r-universe observation turned into publications (`planWave()` is the pure part), and `refresh()` of versions and known names |
+| `src/admin.ts` | the `/admin/*` routes and the cron |
 | `src/testdb.ts` | a fresh migrated database per test file |
 | `src/*.test.ts` | `node:test` suites; database tests need `DATABASE_URL` |
 
@@ -44,7 +47,10 @@ send `access-control-allow-origin: *`. `{bioc_version}` is a number (`3.24`) or 
 | `POST /gate` | Read-only: would these candidates propagate, and if not why. Body `{bioc_version, repo, candidates, config?}`; same decision and response shape as the current registry's `/gate`. `config.gating_r` defaults to the version's R line; 400 when the version is unknown and none is given. |
 | `GET /api/v1/packages/{bioc_version}/{repo}/{package}` | One package in `bioc`, `data/annotation`, `data/experiment` or `workflows`: its current publication, history and latest gate decisions. 404 if never published there. |
 | `GET /api/v1/cas/{sha256}` | One stored object and every publication that references it, as source or binary. |
-| `POST /admin/migrate` | Applies pending migrations. Needs `x-maint-key`. |
+| `POST /admin/migrate` | Applies pending migrations. Needs `x-maint-key`, as every `/admin` route does. |
+| `POST /admin/refresh` | Reads bioconductor.org's `config.yaml` into `bioc_versions`, then the package names CRAN and Bioconductor's other repositories publish into `known_external_deps`, per version r-universe builds. |
+| `POST /admin/observe?universe=bioc\|bioc-release&limit=10` | Brings the database and the store up to date with the newest observation the current registry archived, at most `limit` publications and top-ups per call. Returns `{status, digest, published, topped_up, failed, remaining, touched}`. |
+| `GET /admin/status` | Current publications per version, repository and origin; stored objects and bytes; the latest observation per universe. |
 
 ### Repository files
 
@@ -72,6 +78,27 @@ the one route that queries the database.
 Publishing over HTTP is not here yet. `publish()` in `src/store.ts` takes a per-package lock,
 re-checks the version rule against the current row, and supersedes it, all in one transaction.
 Two producers publishing the same package at once end with one current row, never a downgrade.
+
+## Observing r-universe
+
+The current registry keeps polling r-universe and archiving what it saw; this one reads those
+archives through the read-only `LEGACY` binding and never polls. An observation's records map to
+Bioconductor versions by branch (`RELEASE_3_24` is 3.24, `HEAD` is whatever the `bioc` universe
+builds) and to repositories by `_bioc[0].repository`. Each call re-plans from the database, gates
+each version's records against its publications across every repository, publishes in dependency
+order, and tops up binaries a published version gained since. Every step is safe to repeat, so the
+first backfill is a loop:
+
+```bash
+until curl -sf -X POST -H "x-maint-key: …" "https://<worker>/admin/observe?universe=bioc-release&limit=20" \
+  | tee /dev/stderr | grep -Eq '"status":"(processed|unchanged)"'; do :; done
+```
+
+A candidate whose source bytes are gone keeps `remaining` above 0 (it is retried, and only what
+depends on it waits), so watch `failed` rather than loop blindly.
+
+A cron every 15 minutes refreshes `config.yaml` when it is a day old and then observes each
+universe with a small limit, which covers steady state.
 
 ## Development
 

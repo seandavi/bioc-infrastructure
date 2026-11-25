@@ -1,0 +1,112 @@
+import { test, after } from "node:test";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { connect } from "./db.ts";
+import { binaryIn, ingestSource, openArtifact, storeObject } from "./ingest.ts";
+import { testDb } from "./testdb.ts";
+import { testBucket } from "./testr2.ts";
+
+const db = await testDb();
+const sql = connect({ HYPERDRIVE: { connectionString: db.url } });
+const tmp = mkdtempSync(join(tmpdir(), "ingest-test-"));
+after(async () => { await sql.end(); await db.close(); rmSync(tmp, { recursive: true, force: true }); });
+
+const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
+const md5 = (b: Uint8Array) => createHash("md5").update(b).digest("hex");
+const opened = (b: Uint8Array) => async () => ({ body: new Blob([b]).stream(), size: b.length });
+
+let n = 0;
+function tgz(files: Record<string, string>): Buffer {
+  const dir = join(tmp, `t${n++}`);
+  for (const [p, c] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, "pkg", p)), { recursive: true });
+    writeFileSync(join(dir, "pkg", p), c);
+  }
+  return execFileSync("tar", ["-czf", "-", "--owner=0", "--group=0", "-C", dir, "pkg"]);
+}
+
+test("storeObject: writes once, records size and md5, and is idempotent", async () => {
+  const { bucket, objects } = testBucket();
+  const bytes = new TextEncoder().encode("some artifact");
+  let opens = 0;
+  const open = async () => (opens++, opened(bytes)());
+  assert.equal(await storeObject(bucket, sql, sha(bytes), open, "https://example.org/a"), true);
+  assert.equal(await storeObject(bucket, sql, sha(bytes), open, "https://example.org/a"), true);
+  assert.equal(opens, 1);
+  assert.ok(objects.has(`cas/${sha(bytes)}`));
+  const [row] = await db.sql`select md5, size_bytes::int as size, source_url from cas_objects where sha256 = ${sha(bytes)}`;
+  assert.deepEqual({ ...row }, { md5: md5(bytes), size: bytes.length, source_url: "https://example.org/a" });
+});
+
+test("storeObject: an object without its row is recorded from head(), not fetched again", async () => {
+  const { bucket } = testBucket();
+  const bytes = new TextEncoder().encode("put, then the Worker died");
+  await bucket.put(`cas/${sha(bytes)}`, bytes);
+  const never = async () => { throw new Error("must not open"); };
+  assert.equal(await storeObject(bucket, sql, sha(bytes), never, null), true);
+  const [row] = await db.sql`select md5 from cas_objects where sha256 = ${sha(bytes)}`;
+  assert.equal(row.md5, md5(bytes));
+});
+
+test("storeObject: bytes that do not hash to the key are rejected and nothing is recorded", async () => {
+  const { bucket, objects } = testBucket();
+  const want = sha(new TextEncoder().encode("expected"));
+  await assert.rejects(storeObject(bucket, sql, want, opened(new TextEncoder().encode("other")), null), /sha256/);
+  assert.equal(objects.size, 0);
+  assert.equal((await db.sql`select 1 from cas_objects where sha256 = ${want}`).length, 0);
+  assert.equal(await storeObject(bucket, sql, "f".repeat(64), async () => null, null), false, "no bytes anywhere");
+  await assert.rejects(storeObject(bucket, sql, "../x", async () => null, null), /not a sha256/);
+});
+
+test("openArtifact: the legacy mirror first, then r-universe, null on 404", async () => {
+  const legacy = testBucket(), bytes = new TextEncoder().encode("mirrored");
+  await legacy.bucket.put(`prop/bioc/cas/${sha(bytes)}`, bytes);
+  const env = { LEGACY: legacy.bucket };
+  const urls: string[] = [];
+  const f = (async (u: string) => {
+    urls.push(u);
+    return u.endsWith("a".repeat(64)) ? new Response("remote", { headers: { "content-length": "6" } }) : new Response("", { status: 404 });
+  }) as typeof fetch;
+  const a = (await openArtifact(env, "bioc", sha(bytes), f))!;
+  assert.equal(await new Response(a.body).text(), "mirrored");
+  assert.deepEqual(urls, []);
+  const b = (await openArtifact(env, "bioc", "a".repeat(64), f))!;
+  assert.equal(b.size, 6);
+  assert.equal(await openArtifact(env, "bioc", "b".repeat(64), f), null);
+});
+
+test("ingestSource: the package_versions row and the documents, once", async () => {
+  const { bucket, objects } = testBucket();
+  const gz = tgz({
+    DESCRIPTION: "Package: demo\nVersion: 1.2.3\nImports: S4Vectors\nLicense: MIT\n",
+    "NEWS.md": "# demo 1.2.3", "inst/doc/intro.html": "<html></html>", "inst/doc/intro.R": "x <- 1",
+    "R/f.R": "f <- 1",
+  });
+  const s = sha(gz);
+  await storeObject(bucket, sql, s, opened(gz), null);
+  const extra = { meta: { vignettes: [{ filename: "intro.html", title: "Intro" }] }, git_url: "https://github.com/bioc/demo",
+    git_branch: "RELEASE_3_24", git_commit: "c".repeat(40), git_commit_at: "2026-11-01T00:00:00.000Z" };
+  assert.deepEqual(await ingestSource(bucket, sql, s, extra), { package: "demo", version: "1.2.3" });
+  const [row] = await db.sql`select package, version, description, files, meta, git_branch from package_versions where src_sha256 = ${s}`;
+  assert.equal(row.description.Imports, "S4Vectors");
+  assert.deepEqual(row.files.instDoc.sort(), ["intro.R", "intro.html"]);
+  assert.deepEqual(row.meta, extra.meta);
+  assert.equal(row.git_branch, "RELEASE_3_24");
+  const docs = [...objects.keys()].filter((k) => k.startsWith("docs/")).sort();
+  assert.deepEqual(docs, [`docs/${s}/NEWS.md`, `docs/${s}/inst/doc/intro.R`, `docs/${s}/inst/doc/intro.html`]);
+  assert.equal(objects.get(`docs/${s}/inst/doc/intro.html`)!.httpMetadata.contentType, "text/html; charset=utf-8");
+  assert.equal(objects.get(`docs/${s}/NEWS.md`)!.httpMetadata.contentType, "text/plain; charset=utf-8");
+  objects.delete(`cas/${s}`); // done means the row: no second read
+  assert.deepEqual(await ingestSource(bucket, sql, s, {}), { package: "demo", version: "1.2.3" });
+});
+
+test("binaryIn normalizes r-universe's architectures and R versions", () => {
+  const b = (arch?: string) => binaryIn({ os: "linux", r: "4.6.2", sha256: "a", arch, file: "x.tar.gz" });
+  assert.deepEqual([b("aarch64").arch, b("amd64").arch, b("x86_64").arch, b("linux-aarch64").arch, b().arch],
+    ["arm64", "x86_64", "x86_64", "arm64", ""]);
+  assert.equal(b().r_minor, "4.6");
+});

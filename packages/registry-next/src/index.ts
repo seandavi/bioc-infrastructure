@@ -6,9 +6,9 @@ import { connect } from "./db.ts";
 import type { Env } from "./db.ts";
 import { gate } from "./gate.ts";
 import type { GateConfig } from "./gate.ts";
-import { migrate } from "./migrations.ts";
+import admin, { cron } from "./admin.ts";
 import repo from "./repo.ts";
-import { biocVersion, casDoc, packageDoc, published } from "./store.ts";
+import { biocVersion, casDoc, knownExternal, packageDoc, published } from "./store.ts";
 
 // The OpenAPI document is generated from these route definitions, so it cannot drift from them.
 // A request that fails its schema gets {error} and a 400, as the current registry answers.
@@ -50,7 +50,7 @@ for (const path of ["/", "/openapi.json", "/gate", "/api/*"]) app.use(path, cors
 
 app.get("/", (c) => c.json({ service: "bioc-registry-next", status: "shadow" }));
 
-app.post("/admin/migrate", async (c) => c.json({ applied: await migrate(c.get("sql")) }));
+app.route("/admin", admin);
 
 // Installable repository files at Bioconductor's paths; read from R2, not the database.
 app.route("/", repo);
@@ -137,9 +137,8 @@ app.openapi(createRoute({
     bioccheck: body.config?.bioccheck ?? "advisory",
     replace_seed: body.config?.replace_seed ?? true,
   };
-  // ponytail: no `known` names yet (CRAN and the data repositories), so a hard dependency
-  // nobody publishes passes deps, as the current registry does before its first refresh.
-  const result = gate(body.candidates, config, await published(sql, v.bioc_version, body.repo));
+  const result = gate(body.candidates, config, await published(sql, v.bioc_version, body.repo),
+    await knownExternal(sql, v.bioc_version));
   return c.json({ config, ...result }, 200);
 });
 
@@ -175,4 +174,7 @@ app.openapi(createRoute({
   return c.json(doc, 200);
 });
 
-export default app;
+// The Worker's handlers: the app serves fetch, and the cron drives refresh and observe.
+export default Object.assign(app, {
+  scheduled: (_e: ScheduledController, env: Env, ctx: ExecutionContext) => ctx.waitUntil(cron(env)),
+});
