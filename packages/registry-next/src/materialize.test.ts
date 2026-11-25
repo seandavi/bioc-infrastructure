@@ -111,3 +111,22 @@ test("available.packages reads the materialized src/contrib", { skip: haveR ? fa
       { encoding: "utf8" });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("index.json is written first; odd binaries and keys do not stop the rest; a stray PACKAGES.rds is emptied", async () => {
+  const { bucket, objects } = testBucket();
+  const order: string[] = [];
+  const watched = { ...bucket, list: bucket.list.bind(bucket), head: bucket.head.bind(bucket),
+    put: (k: string, ...a: unknown[]) => (order.push(k), (bucket.put as Function)(k, ...a)) } as unknown as R2Bucket;
+  await db.sql`update publications set superseded_at = now() where bioc_version = '3.24' and repo = 'bioc'`;
+  await pub(await source("noR", "1.0"), [{ os: "win", r_minor: "", filename: "noR_1.0.zip", sha256: await blob("noR") }]);
+  // Left by hand or by an older layout, and by a run that died after PACKAGES.rds.
+  await bucket.put(`${P}bin/windows/contrib/4.6/extra/PACKAGES`, "x");
+  await bucket.put(`${P}bin/macosx/big-sur-x86_64/contrib/4.5/PACKAGES.rds`, "stale");
+  const keys = await materialize(watched, sql, "3.24", "bioc");
+  assert.equal(order[0], `${P}index.json`);
+  assert.ok(keys.includes(`${P}src/contrib/PACKAGES`));
+  assert.equal(new TextDecoder().decode(objects.get(`${P}bin/windows/contrib/4.6/extra/PACKAGES`)!.bytes), "x", "left alone");
+  assert.ok(keys.includes(`${P}bin/macosx/big-sur-x86_64/contrib/4.5/PACKAGES`));
+  assert.notEqual(new TextDecoder().decode(objects.get(`${P}bin/macosx/big-sur-x86_64/contrib/4.5/PACKAGES.rds`)!.bytes), "stale");
+  assert.ok(!keys.some((k) => k.includes("contrib//") || k.endsWith("contrib/PACKAGES") && k.includes("bin/")));
+});

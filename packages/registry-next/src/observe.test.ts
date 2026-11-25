@@ -94,11 +94,12 @@ test("planWave: candidate details, recorded decisions, and top-ups", () => {
     }),
     r("steady", "1.0"),
     r("broken", "1.0", { _jobs: [{ config: "linux-release-x86_64", r: "4.6.2", check: "ERROR" }] }),
+    r("failing", "1.1", { _jobs: [{ config: "linux-release-x86_64", r: "4.6.2", check: "ERROR" }] }),
     // Published at this version with linux only; windows passes now and has a binary.
     r("late", "1.0", { _jobs: winOk, _binaries: [bin("linux", "1.0", "3", "x86_64"), bin("linux", "1.0", "9", "x86_64"), bin("win", "1.0", "4")] }),
     r("full", "1.0", { _binaries: [bin("linux", "1.0", "5", "x86_64")] }),
   ], VERSIONS, { "3.24": [
-    pub("bioc", "steady", "1.0"), pub("bioc", "broken", "1.0"),
+    pub("bioc", "steady", "1.0"), pub("bioc", "broken", "1.0"), pub("bioc", "failing", "1.0"),
     pub("bioc", "late", "1.0", { publication_id: 7, slots: ["linux|4.6|x86_64"] }),
     pub("bioc", "full", "1.0", { slots: ["linux|4.6|x86_64"] }),
   ] }, {});
@@ -113,10 +114,30 @@ test("planWave: candidate details, recorded decisions, and top-ups", () => {
     "the win binary's family did not pass");
   assert.deepEqual(c.meta, { vignettes: [{ filename: "v.html", title: "V" }], devurl: "https://github.com/someone/new",
     bioccheck: { error: 0, warning: 1, note: 2 } });
-  // steady sits at its published version: not recorded. broken fails another rule too: recorded.
-  assert.deepEqual(plan.decisions.map((d) => [d.package, d.propagate]), [["new", true], ["broken", false]]);
+  // Only versions the version rule let in are recorded: steady and broken sit at their published
+  // version (broken failing another rule too); failing is a new version that fails.
+  assert.deepEqual(plan.decisions.map((d) => [d.package, d.propagate]), [["new", true], ["failing", false]]);
   assert.deepEqual(plan.topups, [{ bioc_version: "3.24", repo: "bioc", package: "late", publication_id: 7, archs: ["linux", "win"], widened: true,
     binaries: [{ os: "win", r_minor: "4.6", arch: "", distro: "", filename: "late_1.0.zip", sha256: "4".repeat(64) }] }]);
+});
+
+test("planWave: the version rule compares with the candidate's own repository, deps with all of them", () => {
+  const [plan] = planWave([
+    r("moved", "1.0", { repository: "books" }),       // was in bioc: a first publication in books
+    r("twice", "1.5", { repository: "books" }),       // bioc has 2.0, books 1.0
+    r("needs", "1.0", { imports: ["twice"] }),        // twice is published, in some repository
+  ], VERSIONS, { "3.24": [
+    pub("bioc", "moved", "1.0"), pub("bioc", "twice", "2.0"), pub("books", "twice", "1.0"),
+  ] }, {});
+  assert.deepEqual(plan.approved.map((c) => [c.repo, c.package]), [["books", "moved"], ["books", "twice"], ["bioc", "needs"]]);
+  const [rev] = planWave([r("twice", "1.5", { repository: "books" })], VERSIONS,
+    { "3.24": [pub("books", "twice", "2.0"), pub("bioc", "twice", "1.0")] }, {});
+  assert.deepEqual(rev.approved, [], "1.5 is not > books' 2.0, whatever bioc holds");
+});
+
+test("planWave: a bad commit time is no time, not an error", () => {
+  const [plan] = planWave([r("a1", "1.0", { _commit: { time: 1e20 } }), r("b1", "1.0", { _commit: { time: NaN } })], VERSIONS, {}, {});
+  assert.deepEqual(plan.approved.map((c) => c.git.git_commit_at), [null, null]);
 });
 
 test("planWave: a record named like an Object.prototype member is a package like any other", () => {
@@ -163,13 +184,13 @@ const current = async (version: string) => (await db.sql`select package, version
 test("observe: five candidates in a dependency chain, two per call, published in order", async () => {
   const winSha = await blob("bioc-release", "a win zip");
   const chain = [
-    await source("bioc-release", "A", "1.0", { _binaries: [
+    await source("bioc-release", "Ax", "1.0", { _binaries: [
       { os: "win", r: "4.6.2", version: "1.0", status: "success", fileid: `x/${winSha}`, arch: "x86_64" },
     ], _jobs: [...OK, { config: "windows-release-x86_64", r: "4.6.2", check: "OK" }] }),
-    await source("bioc-release", "B", "1.0", { imports: ["A"] }),
-    await source("bioc-release", "C", "1.0", { imports: ["B"] }),
-    await source("bioc-release", "D", "1.0", { imports: ["C", "A"] }),
-    await source("bioc-release", "E", "1.0", { imports: ["D"], repository: "workflows" }),
+    await source("bioc-release", "Bx", "1.0", { imports: ["Ax"] }),
+    await source("bioc-release", "Cx", "1.0", { imports: ["Bx"] }),
+    await source("bioc-release", "Dx", "1.0", { imports: ["Cx", "Ax"] }),
+    await source("bioc-release", "Ex", "1.0", { imports: ["Dx"], repository: "workflows" }),
   ];
   const digest = await observed("bioc-release", [...chain].reverse());
   const pubs: string[][] = [];
@@ -182,14 +203,14 @@ test("observe: five candidates in a dependency chain, two per call, published in
     pubs.push(res.published!.map((p) => p.package));
     if (i === 2) assert.deepEqual(res.touched, [["3.24", "workflows"]]);
   }
-  assert.deepEqual(pubs, [["A", "B"], ["C", "D"], ["E"]]);
+  assert.deepEqual(pubs, [["Ax", "Bx"], ["Cx", "Dx"], ["Ex"]]);
   assert.deepEqual(await observe(env, sql, "bioc-release", { limit: 2, fetch: noNetwork }), { status: "unchanged", digest });
-  assert.deepEqual(await current("3.24"), ["bioc/A@1.0", "bioc/B@1.0", "bioc/C@1.0", "bioc/D@1.0", "workflows/E@1.0"]);
+  assert.deepEqual(await current("3.24"), ["bioc/Ax@1.0", "bioc/Bx@1.0", "bioc/Cx@1.0", "bioc/Dx@1.0", "workflows/Ex@1.0"]);
   const bins = await db.sql`select a.os, a.arch, a.sha256 from published_artifacts a join publications p on p.id = a.publication_id
-    where p.package = 'A'`;
+    where p.package = 'Ax'`;
   assert.deepEqual(bins.map((b) => [b.os, b.arch, b.sha256]), [["win", "x86_64", winSha]]);
   assert.ok(store.objects.has(`cas/${winSha}`));
-  const [pv] = await db.sql`select meta, git_branch from package_versions where package = 'E'`;
+  const [pv] = await db.sql`select meta, git_branch from package_versions where package = 'Ex'`;
   assert.equal(pv.git_branch, "RELEASE_3_24");
   const decisions = await db.sql`select package from gate_decisions where bioc_version = '3.24' and propagate`;
   assert.equal(decisions.length, 5, "each approval recorded once, however many calls it took");
@@ -197,69 +218,87 @@ test("observe: five candidates in a dependency chain, two per call, published in
 
 test("observe: a source with no bytes stops what needs it, and the next call retries it", async () => {
   // P's linux binary is in neither store: it is left out, not fatal.
-  const P = await source("bioc", "P", "1.0", { RemoteRef: "HEAD", _binaries: [
+  const P = await source("bioc", "Px", "1.0", { RemoteRef: "HEAD", _binaries: [
     { os: "linux", r: "4.6.2", version: "1.0", status: "success", fileid: `x/${"e".repeat(64)}`, arch: "x86_64" }] });
-  const Q = await source("bioc", "Q", "1.0", { RemoteRef: "HEAD", imports: ["P"] });
-  const R = await source("bioc", "R", "1.0", { RemoteRef: "HEAD", imports: ["Q"] });
-  const S = await source("bioc", "S", "1.0", { RemoteRef: "HEAD" });
+  const Q = await source("bioc", "Qx", "1.0", { RemoteRef: "HEAD", imports: ["Px"] });
+  const R = await source("bioc", "Rx", "1.0", { RemoteRef: "HEAD", imports: ["Qx"] });
+  const S = await source("bioc", "Sx", "1.0", { RemoteRef: "HEAD" });
   const qKey = `prop/bioc/cas/${Q._sha256}`, qBytes = legacy.objects.get(qKey)!;
   legacy.objects.delete(qKey);
   await observed("bioc", [P, Q, R, S]);
   const first = await observe(env, sql, "bioc", { limit: 10, fetch: noNetwork });
-  assert.deepEqual(first.published!.map((p) => p.package), ["P", "S"]);
-  assert.deepEqual(first.failed, [{ package: "Q", error: "source bytes are not available" }]);
+  assert.deepEqual(first.published!.map((p) => p.package), ["Px", "Sx"]);
+  assert.deepEqual(first.failed, [{ package: "Qx", error: "source bytes are not available" }]);
   assert.equal(first.remaining, 2);
   assert.equal(first.status, "partial");
   legacy.objects.set(qKey, qBytes);
   const second = await observe(env, sql, "bioc", { limit: 10, fetch: noNetwork });
-  assert.deepEqual(second.published!.map((p) => p.package), ["Q", "R"]);
+  assert.deepEqual(second.published!.map((p) => p.package), ["Qx", "Rx"]);
   assert.equal(second.status, "processed");
   assert.equal(second.topped_up, 0, "P's missing binary was tried again and is still missing");
   assert.ok(fetched.includes(`https://r2.ropensci.org/${"e".repeat(64)}`), "r-universe was asked after the mirror");
   assert.equal((await db.sql`select 1 from published_artifacts a join publications p on p.id = a.publication_id
     where p.package = 'P'`).length, 0);
-  assert.deepEqual(await current("3.25"), ["bioc/P@1.0", "bioc/Q@1.0", "bioc/R@1.0", "bioc/S@1.0"]);
+  assert.deepEqual(await current("3.25"), ["bioc/Px@1.0", "bioc/Qx@1.0", "bioc/Rx@1.0", "bioc/Sx@1.0"]);
 });
 
 test("observe: a tarball holding another package is refused", async () => {
-  const T = await source("bioc", "T", "1.0", { RemoteRef: "HEAD", content: "Impostor" });
+  const T = await source("bioc", "Tx", "1.0", { RemoteRef: "HEAD", content: "Impostor" });
   await observed("bioc", [T]);
   const res = await observe(env, sql, "bioc", { limit: 10, fetch: noNetwork });
   assert.deepEqual(res.published, []);
-  assert.match(res.failed![0].error, /source tarball is Impostor 1.0, not T 1.0/);
-  assert.deepEqual(await current("3.25"), ["bioc/P@1.0", "bioc/Q@1.0", "bioc/R@1.0", "bioc/S@1.0"]);
+  assert.match(res.failed![0].error, /source tarball is Impostor 1.0, not Tx 1.0/);
+  assert.deepEqual(await current("3.25"), ["bioc/Px@1.0", "bioc/Qx@1.0", "bioc/Rx@1.0", "bioc/Sx@1.0"]);
+});
+
+test("observe: the files are written before the observation is processed, and all of them when it is", async () => {
+  const U = await source("bioc", "Uu", "1.0", { RemoteRef: "HEAD" });
+  const V = await source("bioc", "Vv", "1.0", { RemoteRef: "HEAD", repository: "workflows" });
+  const digest = await observed("bioc", [U, V]);
+  const calls: [string, string][][] = [];
+  const fails = async (t: [string, string][]) => { calls.push(t); throw new Error("R2 is down"); };
+  // Two publications, one per call; the second call's write fails.
+  const one = await observe(env, sql, "bioc", { limit: 1, fetch: noNetwork, write: async (t) => (calls.push(t), ["k"]) });
+  assert.deepEqual([one.status, one.written, calls], ["partial", ["k"], [[["3.25", "bioc"]]]]);
+  await assert.rejects(observe(env, sql, "bioc", { limit: 1, fetch: noNetwork, write: fails }), /R2 is down/);
+  assert.equal((await db.sql`select processed_at from observations where digest = ${digest}`)[0].processed_at, null);
+  // Nothing left to publish, but the observation is complete: every repository is rewritten.
+  calls.length = 0;
+  const done = await observe(env, sql, "bioc", { limit: 1, fetch: noNetwork, write: async (t) => (calls.push(t), []) });
+  assert.deepEqual([done.status, done.published], ["processed", []]);
+  assert.deepEqual(calls.map((t) => t.map((x) => x.join("/")).sort()), [["3.25/bioc", "3.25/workflows"]]);
 });
 
 test("observe: a new observation replaces the universe's jobs and tops up a published version", async () => {
   const jobs = async () => (await db.sql`select package, config, bioc_version, r, "check", time_s, job::text, artifact
     from jobs where universe = 'bioc-release' order by package, config`).map((x) => ({ ...x }));
-  assert.deepEqual((await jobs()).map((j) => j.package), ["A", "A", "A", "B", "B", "C", "C", "D", "D", "E", "E"]);
+  assert.deepEqual((await jobs()).map((j) => j.package), ["Ax", "Ax", "Ax", "Bx", "Bx", "Cx", "Cx", "Dx", "Dx", "Ex", "Ex"]);
   const winA = await blob("bioc-release", "a newer win build, same version");
   const winB = await blob("bioc-release", "B's first win build");
   const pkgs = await db.sql`select package, src_sha256 from publications where bioc_version = '3.24'`;
   const src = Object.fromEntries(pkgs.map((p) => [p.package, p.src_sha256]));
-  const winJob = { config: "windows-release-x86_64", r: "4.6.2", check: "OK", job: 138738173549, time: 184, artifact: "149" };
+  const winJob = { config: "windows-release-x86_64", r: "4.6.2", check: "OK", job: 138738173549, time: 184.4, artifact: "149" };
   await observed("bioc-release", [
     // A's win slot is filled: the newer build must not replace it.
-    { ...r("A", "1.0"), _sha256: src.A, _jobs: [...OK, winJob],
+    { ...r("Ax", "1.0"), _sha256: src.Ax, _jobs: [...OK, winJob],
       _binaries: [{ os: "win", r: "4.6.2", version: "1.0", status: "success", fileid: `x/${winA}`, arch: "x86_64" }] },
-    { ...r("B", "1.0", { imports: ["A"] }), _sha256: src.B, _jobs: [...OK, winJob],
+    { ...r("Bx", "1.0", { imports: ["Ax"] }), _sha256: src.Bx, _jobs: [...OK, winJob],
       _binaries: [{ os: "win", r: "4.6.2", version: "1.0", status: "success", fileid: `x/${winB}`, arch: "amd64" }] },
   ]);
   const res = await observe(env, sql, "bioc-release", { limit: 10, fetch: noNetwork });
   assert.deepEqual({ status: res.status, topped_up: res.topped_up, published: res.published, touched: res.touched },
     { status: "processed", topped_up: 1, published: [], touched: [["3.24", "bioc"]] });
   const after = await jobs();
-  assert.deepEqual([...new Set(after.map((j) => j.package))], ["A", "B"]);
-  assert.deepEqual(after.find((j) => j.package === "B" && j.config === "windows-release-x86_64"), {
-    package: "B", config: "windows-release-x86_64", bioc_version: "3.24", r: "4.6.2", check: "OK", time_s: 184,
+  assert.deepEqual([...new Set(after.map((j) => j.package))], ["Ax", "Bx"]);
+  assert.deepEqual(after.find((j) => j.package === "Bx" && j.config === "windows-release-x86_64"), {
+    package: "Bx", config: "windows-release-x86_64", bioc_version: "3.24", r: "4.6.2", check: "OK", time_s: 184,
     job: "138738173549", artifact: "149",
   });
   const bins = await db.sql`select p.package, p.archs::text, a.arch, a.sha256 from published_artifacts a
-    join publications p on p.id = a.publication_id where p.package in ('A', 'B') order by 1`;
+    join publications p on p.id = a.publication_id where p.package in ('Ax', 'Bx') order by 1`;
   assert.deepEqual(bins.map((b) => [b.package, b.archs, b.arch, b.sha256]),
-    [["A", "{linux,win}", "x86_64", (await db.sql`select sha256 from published_artifacts where filename = 'A_1.0.zip'`)[0].sha256],
-     ["B", "{linux,win}", "x86_64", winB]]);
+    [["Ax", "{linux,win}", "x86_64", (await db.sql`select sha256 from published_artifacts where filename = 'Ax_1.0.zip'`)[0].sha256],
+     ["Bx", "{linux,win}", "x86_64", winB]]);
   assert.notEqual(bins[0][3], winA);
 });
 
@@ -290,17 +329,27 @@ test("refresh: versions, then known names per version r-universe builds; a 404 v
     "https://bioconductor.org/packages/3.24/data/annotation/src/contrib/PACKAGES": pkgs("org.Hs.eg.db"),
     "https://bioconductor.org/packages/3.24/data/experiment/src/contrib/PACKAGES": pkgs("airway"),
     "https://bioconductor.org/packages/3.24/workflows/src/contrib/PACKAGES": pkgs("rnaseqGene"),
+    "https://bioconductor.org/packages/3.24/books/src/contrib/PACKAGES": pkgs("OSCA"),
   };
   const f = (async (u: string) => (u in pages ? new Response(pages[u]) : new Response("", { status: 404 }))) as typeof fetch;
   const out = await refresh(sql, { fetch: f });
-  assert.deepEqual(out.known, { "3.24": 5, "3.25": "not on bioconductor.org yet" });
-  assert.deepEqual([...(await knownExternal(sql, "3.24"))!].sort(), ["Matrix", "airway", "ggplot2", "org.Hs.eg.db", "rnaseqGene"]);
+  assert.deepEqual(out.known, { "3.24": 6, "3.25": "not on bioconductor.org yet" });
+  assert.deepEqual([...(await knownExternal(sql, "3.24"))!].sort(), ["Matrix", "OSCA", "airway", "ggplot2", "org.Hs.eg.db", "rnaseqGene"]);
   assert.equal(await knownExternal(sql, "3.25"), undefined);
-  // A failed source keeps the previous names.
-  delete pages["https://bioconductor.org/packages/3.24/workflows/src/contrib/PACKAGES"];
+  // One Bioconductor source missing, or answering with no packages, keeps the previous names.
+  const WF = "https://bioconductor.org/packages/3.24/workflows/src/contrib/PACKAGES";
+  delete pages[WF];
+  const missing = await refresh(sql, { fetch: f });
+  assert.match(String(missing.known["3.24"]), /failed, previous names kept: workflows: no packages/);
+  assert.equal((await knownExternal(sql, "3.24"))!.size, 6);
+  pages[WF] = "";
+  assert.match(String((await refresh(sql, { fetch: f })).known["3.24"]), /workflows: no packages/);
+  assert.equal((await knownExternal(sql, "3.24"))!.size, 6);
+  // So does an empty CRAN.
+  pages[WF] = pkgs("rnaseqGene");
   pages["https://cloud.r-project.org/src/contrib/PACKAGES"] = "";
   const again = await refresh(sql, { fetch: f });
   assert.match(String(again.known["3.24"]), /failed/);
-  assert.equal((await knownExternal(sql, "3.24"))!.size, 5);
+  assert.equal((await knownExternal(sql, "3.24"))!.size, 6);
   assert.deepEqual((await biocVersions(sql)).filter((v) => v.universe).map((v) => v.bioc_version), ["3.24", "3.25"]);
 });

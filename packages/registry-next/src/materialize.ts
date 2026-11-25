@@ -23,10 +23,12 @@ async function put(bucket: R2Bucket, key: string, body: string | Uint8Array, con
   written.push(key);
 }
 
-// The binary directories a row's binaries land in. An arch-less mac binary serves both.
+// The binary directories a row's binaries land in. An arch-less mac binary serves both; one
+// with no R version has no directory.
 function binaryDirs(r: RepoRow): string[] {
   return r.binaries.flatMap((b) => {
     const v = rMinor(b.r_minor);
+    if (!v) return [];
     if (b.os === "win") return [`bin/windows/contrib/${v}`];
     if (b.os !== "mac") return [];
     const arm = `bin/macosx/${macArmDir(v)}/contrib/${v}`, x86 = `bin/macosx/${MAC_X86_DIR}/contrib/${v}`;
@@ -40,14 +42,24 @@ export async function materialize(bucket: R2Bucket, sql: Sql, bioc_version: stri
   const base = `packages/${bioc_version}/${repo}/`;
   const written: string[] = [];
 
-  // A directory that had files and no longer has a binary gets empty indexes, not stale ones.
+  // index.json first: the Worker resolves every file PACKAGES or VIEWS names through it, so a
+  // reader never sees an index naming a file it cannot serve.
+  await put(bucket, `${base}index.json`, JSON.stringify(Object.fromEntries(rows.map((r) => [r.package, r]))),
+    "application/json", written);
+
+  // A directory that had files and no longer has a binary gets empty indexes, not stale ones,
+  // whichever of its three files an interrupted run left behind.
   const dirs = new Set(["src/contrib", ...rows.flatMap(binaryDirs)]);
-  for (const o of (await bucket.list({ prefix: `${base}bin/` })).objects)
-    if (o.key.endsWith("/PACKAGES")) dirs.add(o.key.slice(base.length, -"/PACKAGES".length));
+  for (const o of (await bucket.list({ prefix: `${base}bin/` })).objects) {
+    const m = /^(.*)\/PACKAGES(?:\.gz|\.rds)?$/.exec(o.key.slice(base.length));
+    if (m) dirs.add(m[1]);
+  }
   // ponytail: one list() page (1000 keys) is plenty for the three index files of a few dozen directories.
 
   await Promise.all([...dirs].map(async (dir) => {
-    const sel = parseRepoDir(dir.split("/"))!;
+    // Not a directory the Worker serves (written by hand, or by an older layout): left alone.
+    const sel = parseRepoDir(dir.split("/"));
+    if (!sel) return;
     const text = packagesDcf(rows, sel);
     await Promise.all([
       put(bucket, `${base}${dir}/PACKAGES`, text, TEXT, written),
@@ -57,8 +69,6 @@ export async function materialize(bucket: R2Bucket, sql: Sql, bioc_version: stri
     ]);
   }));
   await put(bucket, `${base}VIEWS`, viewsDcf(rows), TEXT, written);
-  await put(bucket, `${base}index.json`, JSON.stringify(Object.fromEntries(rows.map((r) => [r.package, r]))),
-    "application/json", written);
   return written.sort();
 }
 

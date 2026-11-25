@@ -85,12 +85,10 @@ export async function seed(
       }
       const g = views.get(p.Package) ?? {};
       const day = /^\d{4}-\d{2}-\d{2}$/.test(g.git_last_commit_date ?? "") ? `${g.git_last_commit_date}T00:00:00Z` : null;
-      const got = await ingestSource(env.BUCKET, sql, src.sha256, {
+      await ingestSource(env.BUCKET, sql, src.sha256, {
         git_url: g.git_url ?? null, git_branch: g.git_branch ?? null,
         git_commit: g.git_last_commit ?? null, git_commit_at: day,
-      });
-      if (got.package !== p.Package || got.version !== p.Version)
-        throw new Error(`source tarball is ${got.package} ${got.version}, not ${p.Package} ${p.Version}`);
+      }, { package: p.Package, version: p.Version });
       // Binaries often lag the source: only one the directory lists at this version.
       const binaries: BinaryIn[] = [];
       for (const [i, d] of dirs.entries()) {

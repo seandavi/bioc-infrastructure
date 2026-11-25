@@ -229,6 +229,8 @@ export type Reason = { rule: string; ok: boolean; detail?: string };
 export type Decision = { propagate: boolean; archs: Family[]; reasons: Reason[] };
 
 export const R_VER = /^\d+([.-]\d+)*$/;
+// What R accepts as a package name: letters, digits and dots, from a letter, not ending in a dot.
+export const R_PKG = /^[A-Za-z][A-Za-z0-9.]*[A-Za-z0-9]$/;
 
 // The version-gate rule on its own, because publish() re-checks it under a lock.
 export function versionGate(
@@ -241,9 +243,11 @@ export function versionGate(
   return { ok: false, detail: `${version} is not > ${prev.version} (${prev.origin})` };
 }
 
-// `known`: package names published outside this repository, for the deps rule.
+// `known`: package names published outside this repository, for the deps rule. `own`: the rows
+// the version rule compares with, when they are not `published` (the observer gates a version's
+// repositories together, but a candidate replaces only its own repository's row).
 export function gate(
-  inputs: GateInput[], config: GateConfig, published: Published, known?: Set<string>
+  inputs: GateInput[], config: GateConfig, published: Published, known?: Set<string>, own: Published = published,
 ): { decisions: Record<string, Decision>; approved: string[] } {
   const decisions: Record<string, Decision> = {};
   const clear: { package: string; version: string; desc: Desc }[] = [];
@@ -258,7 +262,7 @@ export function gate(
     rule("bioccheck", config.bioccheck === "advisory" || !GATE_BAD.has(bc ?? ""), `${bc ?? "not run"} (${config.bioccheck})`);
     rule("version-parse", R_VER.test(c.version), c.version);
     // hasOwn: a package named constructor or toString is not an Object.prototype member.
-    const prev = Object.hasOwn(published, c.package) ? published[c.package] : undefined;
+    const prev = Object.hasOwn(own, c.package) ? own[c.package] : undefined;
     const vg = versionGate(c.version, prev, config.replace_seed);
     rule("version-gate", vg.ok, vg.detail);
     if (c.manifest !== undefined) {

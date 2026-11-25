@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { connect } from "./db.ts";
-import { binaryIn, ingestSource, openArtifact, storeObject, storeUrl } from "./ingest.ts";
+import { binaryIn, contentType, ingestSource, openArtifact, storeObject, storeUrl } from "./ingest.ts";
 import { testDb } from "./testdb.ts";
 import { testBucket } from "./testr2.ts";
 
@@ -23,10 +23,10 @@ let n = 0;
 function tgz(files: Record<string, string>): Buffer {
   const dir = join(tmp, `t${n++}`);
   for (const [p, c] of Object.entries(files)) {
-    mkdirSync(dirname(join(dir, "pkg", p)), { recursive: true });
-    writeFileSync(join(dir, "pkg", p), c);
+    mkdirSync(dirname(join(dir, "demo", p)), { recursive: true });
+    writeFileSync(join(dir, "demo", p), c);
   }
-  return execFileSync("tar", ["-czf", "-", "--owner=0", "--group=0", "-C", dir, "pkg"]);
+  return execFileSync("tar", ["-czf", "-", "--owner=0", "--group=0", "-C", dir, "demo"]);
 }
 
 test("storeObject: writes once, records size and md5, and is idempotent", async () => {
@@ -45,11 +45,23 @@ test("storeObject: writes once, records size and md5, and is idempotent", async 
 test("storeObject: an object without its row is recorded from head(), not fetched again", async () => {
   const { bucket } = testBucket();
   const bytes = new TextEncoder().encode("put, then the Worker died");
-  await bucket.put(`cas/${sha(bytes)}`, bytes);
+  await bucket.put(`cas/${sha(bytes)}`, bytes, { sha256: sha(bytes) });
   const never = async () => { throw new Error("must not open"); };
   assert.equal(await storeObject(bucket, sql, sha(bytes), never, null), true);
   const [row] = await db.sql`select md5 from cas_objects where sha256 = ${sha(bytes)}`;
   assert.equal(row.md5, md5(bytes));
+});
+
+test("storeObject: an object R2 never verified against its key is written again, verified", async () => {
+  const { bucket, objects } = testBucket();
+  const bytes = new TextEncoder().encode("the real bytes");
+  await bucket.put(`cas/${sha(bytes)}`, "something else, put without a sha256");
+  let opens = 0;
+  assert.equal(await storeObject(bucket, sql, sha(bytes), async () => (opens++, opened(bytes)()), null), true);
+  assert.equal(opens, 1);
+  assert.equal(new TextDecoder().decode(objects.get(`cas/${sha(bytes)}`)!.bytes), "the real bytes");
+  const [row] = await db.sql`select md5, size_bytes::int as size from cas_objects where sha256 = ${sha(bytes)}`;
+  assert.deepEqual({ ...row }, { md5: md5(bytes), size: bytes.length });
 });
 
 test("storeObject: bytes that do not hash to the key are rejected and nothing is recorded", async () => {
@@ -77,6 +89,11 @@ test("openArtifact: the legacy mirror first, then r-universe, null on 404", asyn
   const b = (await openArtifact(env, "bioc", "a".repeat(64), f))!;
   assert.equal(b.size, 6);
   assert.equal(await openArtifact(env, "bioc", "b".repeat(64), f), null);
+  // No content-length and no size from the record: an error, not an empty object.
+  const bare = (async () => new Response(new Blob(["remote"]).stream())) as unknown as typeof fetch;
+  await assert.rejects(openArtifact(env, "bioc", "c".repeat(64), bare), /no content-length/);
+  await assert.rejects(openArtifact(env, "bioc", "c".repeat(64), bare, null), /no content-length/);
+  assert.equal((await openArtifact(env, "bioc", "c".repeat(64), bare, 6))!.size, 6);
 });
 
 test("ingestSource: the package_versions row and the documents, once", async () => {
@@ -90,7 +107,14 @@ test("ingestSource: the package_versions row and the documents, once", async () 
   await storeObject(bucket, sql, s, opened(gz), null);
   const extra = { meta: { vignettes: [{ filename: "intro.html", title: "Intro" }] }, git_url: "https://github.com/bioc/demo",
     git_branch: "RELEASE_3_24", git_commit: "c".repeat(40), git_commit_at: "2026-11-01T00:00:00.000Z" };
-  assert.deepEqual(await ingestSource(bucket, sql, s, extra), { package: "demo", version: "1.2.3" });
+  const want = { package: "demo", version: "1.2.3" };
+  // Not the package the caller expected: no documents and no row.
+  await assert.rejects(ingestSource(bucket, sql, s, extra, { package: "other", version: "1.2.3" }),
+    /source tarball is demo 1.2.3, not other 1.2.3/);
+  await assert.rejects(ingestSource(bucket, sql, s, extra, { package: "demo", version: "9" }), /not demo 9/);
+  assert.equal([...objects.keys()].filter((k) => k.startsWith("docs/")).length, 0);
+  assert.equal((await db.sql`select 1 from package_versions where src_sha256 = ${s}`).length, 0);
+  assert.deepEqual(await ingestSource(bucket, sql, s, extra, want), want);
   const [row] = await db.sql`select package, version, description, files, meta, git_branch from package_versions where src_sha256 = ${s}`;
   assert.equal(row.description.Imports, "S4Vectors");
   assert.deepEqual(row.files.instDoc.sort(), ["intro.R", "intro.html"]);
@@ -101,7 +125,9 @@ test("ingestSource: the package_versions row and the documents, once", async () 
   assert.equal(objects.get(`docs/${s}/inst/doc/intro.html`)!.httpMetadata.contentType, "text/html; charset=utf-8");
   assert.equal(objects.get(`docs/${s}/NEWS.md`)!.httpMetadata.contentType, "text/plain; charset=utf-8");
   objects.delete(`cas/${s}`); // done means the row: no second read
-  assert.deepEqual(await ingestSource(bucket, sql, s, {}), { package: "demo", version: "1.2.3" });
+  assert.deepEqual(await ingestSource(bucket, sql, s, {}, want), want);
+  await assert.rejects(ingestSource(bucket, sql, s, {}, { package: "other", version: "1.2.3" }), /not other 1.2.3/,
+    "an existing row is checked too");
 });
 
 test("storeUrl: hashed on one fetch, stored from a second, which is skipped once the object exists", async () => {
@@ -127,4 +153,11 @@ test("binaryIn normalizes r-universe's architectures and R versions", () => {
   assert.deepEqual([b("aarch64").arch, b("amd64").arch, b("x86_64").arch, b("linux-aarch64").arch, b().arch],
     ["arm64", "x86_64", "x86_64", "arm64", ""]);
   assert.equal(b().r_minor, "4.6");
+});
+
+test("contentType: extensionless documents and R's own text formats are text", () => {
+  for (const p of ["NEWS", "README", "LICENCE", "inst/CITATION", "inst/NEWS", "inst/doc/a.Rnw", "inst/doc/a.qmd", "inst/NEWS.Rd", "NEWS.md"])
+    assert.equal(contentType(p), "text/plain; charset=utf-8", p);
+  assert.equal(contentType("inst/doc/a.html"), "text/html; charset=utf-8");
+  assert.equal(contentType("build/vignette.rds"), "application/octet-stream");
 });

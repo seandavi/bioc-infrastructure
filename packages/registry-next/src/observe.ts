@@ -74,19 +74,26 @@ function metaOf(r: ObsRecord): Record<string, unknown> {
 
 // gate() orders approvals by dependency only for names it checks; with no known names for a
 // version, a fellow candidate's dependency goes unchecked and can come out after the package
-// that needs it. Order them here; a cycle comes out as it stands.
+// that needs it. Order them here.
 function depOrder(cands: Candidate[]): Candidate[] {
   const left = new Map(cands.map((c) => [c.package, c]));
   const out: Candidate[] = [];
   while (left.size) {
     const ready = [...left.values()].filter((c) =>
       !depConstraints(c.desc).some((d) => d.pkg !== c.package && left.has(d.pkg)));
+    // Only a cycle leaves nothing ready, and R refuses circular hard dependencies.
     for (const c of ready.length ? ready : [...left.values()]) {
       out.push(c);
       left.delete(c.package);
     }
   }
   return out;
+}
+
+// One record's bad number must not abort the whole observation.
+function commitAt(time: number | undefined): string | null {
+  const d = new Date(Number.isFinite(time) && time ? time * 1000 : NaN);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 export function planWave(
@@ -107,18 +114,24 @@ export function planWave(
   for (const [bioc_version, recs] of byVersion) {
     const r_minor = built.get(bioc_version)!.r_minor;
     const pubs = publishedByVersion[bioc_version] ?? [];
-    // Every repository of the version at once: a software package may depend on a data package.
-    const merged: Published = {};
+    // Dependencies against every repository of the version at once (a software package may
+    // depend on a data package); the version rule against the row the candidate would replace.
+    const current = new Map(pubs.map((p) => [`${p.repo}\0${p.package}`, p]));
+    const merged: Published = {}, own: Published = {};
     for (const p of pubs) merged[p.package] = { version: p.version, origin: p.origin, desc: p.desc };
+    for (const r of recs.values()) {
+      const p = current.get(`${repoOf(r)}\0${r.Package}`);
+      if (p) own[r.Package!] = { version: p.version, origin: p.origin, desc: p.desc };
+    }
     const inputs: GateInput[] = [...recs.values()].map((r) => ({
       package: r.Package!, version: r.Version!, origin: "r-universe",
       build_status: r._status ?? "", jobs: r._jobs ?? [], desc: describe(r),
     }));
-    const { decisions, approved } = gate(inputs, waveGateConfig(r_minor), merged, knownByVersion[bioc_version]);
-    // As the current registry records them: not the steady state of a package sitting at its
-    // published version, which only fails the version rule.
+    const { decisions, approved } = gate(inputs, waveGateConfig(r_minor), merged, knownByVersion[bioc_version], own);
+    // As the current registry records them: only versions the version rule let in, so not the
+    // steady state of a package sitting at its published version.
     const recorded: DecisionRow[] = Object.entries(decisions)
-      .filter(([, d]) => d.propagate || d.reasons.some((x) => !x.ok && x.rule !== "version-gate"))
+      .filter(([, d]) => d.reasons.some((x) => x.rule === "version-gate" && x.ok))
       .map(([name, d]) => ({
         bioc_version, repo: repoOf(recs.get(name)!), package: name, version: recs.get(name)!.Version!,
         origin: "r-universe", propagate: d.propagate, archs: d.archs, reasons: d.reasons,
@@ -133,14 +146,13 @@ export function planWave(
         archs, binaries: binaryArtifacts(name, r.Version!, r._binaries, archs).map(binaryIn),
         git: {
           git_url: r.RemoteUrl ?? null, git_branch: r.RemoteRef ?? null, git_commit: r.RemoteSha ?? null,
-          git_commit_at: r._commit?.time ? new Date(r._commit.time * 1000).toISOString() : null,
+          git_commit_at: commitAt(r._commit?.time),
         },
         meta: metaOf(r),
       };
     });
     // Binaries a published version gained since (the current registry's topUpBinaries):
     // additive only, so a filled slot is never replaced and a passed family never withdrawn.
-    const current = new Map(pubs.map((p) => [`${p.repo}\0${p.package}`, p]));
     const topups: TopUp[] = [];
     for (const r of recs.values()) {
       const repo = repoOf(r);
@@ -170,8 +182,11 @@ export type ObserveResult = {
   status: "unchanged" | "partial" | "processed"; digest: string;
   published?: { bioc_version: string; repo: string; package: string; version: string }[];
   topped_up?: number; failed?: { package: string; error: string }[]; remaining?: number;
-  touched?: [string, string][];
+  touched?: [string, string][]; written?: string[];
 };
+
+// Writes the repository files of (bioc_version, repo) pairs and returns the keys it wrote.
+export type WriteRepos = (repos: [string, string][]) => Promise<string[]>;
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -197,9 +212,9 @@ export async function storeBinaries(
 
 export async function observe(
   env: Pick<Env, "BUCKET" | "LEGACY">, sql: Sql, universe: string,
-  opts: { limit?: number; fetch?: typeof fetch } = {},
+  opts: { limit?: number; fetch?: typeof fetch; write?: WriteRepos } = {},
 ): Promise<ObserveResult> {
-  const limit = opts.limit ?? 10, f = opts.fetch ?? fetch;
+  const limit = opts.limit ?? 10, f = opts.fetch ?? fetch, write = opts.write ?? (async () => []);
   const latest = await env.LEGACY.get(`state/${universe}/latest`);
   if (!latest) throw new Error(`no observation of ${universe}`);
   const { digest, key, ts } = await latest.json<{ digest: string; key: string; ts: string }>();
@@ -217,7 +232,8 @@ export async function observe(
       for (const j of r.Package ? r._jobs ?? [] : [])
         jobs.set(`${r.Package}\0${j.config}`, {
           package: r.Package!, config: j.config, bioc_version: branchVersion(r.RemoteRef, versions) ?? null,
-          version: r.Version ?? null, r: j.r ?? null, check: j.check ?? null, time_s: j.time ?? null,
+          version: r.Version ?? null, r: j.r ?? null, check: j.check ?? null,
+          time_s: Number.isFinite(j.time) ? Math.round(j.time!) : null,
           job: j.job ?? null, artifact: j.artifact || null,
         });
     await recordObservation(sql, { universe, digest, obs_ts: ts, r2_key: key }, [...jobs.values()]);
@@ -252,9 +268,7 @@ export async function observe(
         const src = `https://r2.ropensci.org/${c.src_sha256}`;
         if (!(await storeObject(env.BUCKET, sql, c.src_sha256, open(c.src_sha256, c.size), src)))
           throw new Error("source bytes are not available");
-        const got = await ingestSource(env.BUCKET, sql, c.src_sha256, { ...c.git, meta: c.meta });
-        if (got.package !== c.package || got.version !== c.version)
-          throw new Error(`source tarball is ${got.package} ${got.version}, not ${c.package} ${c.version}`);
+        await ingestSource(env.BUCKET, sql, c.src_sha256, { ...c.git, meta: c.meta }, c);
         await publish(sql, {
           bioc_version: c.bioc_version, repo: c.repo, src_sha256: c.src_sha256, origin: "r-universe",
           bioccheck: c.bioccheck, archs: c.archs, binaries: await store(c.binaries),
@@ -283,12 +297,21 @@ export async function observe(
       remaining++;
     }
   }
+  // The files are written before the observation is marked processed, so a failed write is
+  // retried. A call's own changes are written by it; the call that completes the observation
+  // rewrites every repository of its versions, which covers a write an earlier call lost.
+  // Unchanged files are not written again.
+  const repos = new Map(touched);
+  if (!remaining)
+    for (const p of plans)
+      for (const x of pubs[p.bioc_version] ?? []) repos.set(`${p.bioc_version}\0${x.repo}`, [p.bioc_version, x.repo]);
+  const written = await write([...repos.values()]);
   // ponytail: a candidate whose bytes are gone for good keeps its observation unprocessed, so each
   // call re-reads it until a newer observation replaces it (a few hours at most).
   if (!remaining) await markProcessed(sql, universe, digest);
   return {
     status: remaining ? "partial" : "processed", digest, published, topped_up, failed, remaining,
-    touched: [...touched.values()],
+    touched: [...touched.values()], written,
   };
 }
 
@@ -323,7 +346,10 @@ export async function refresh(sql: Sql, opts: { fetch?: typeof fetch } = {}) {
         known[v] = "not on bioconductor.org yet";
         continue;
       }
-      const names = new Set([...cran, ...bioc.flatMap((t) => (t ? packageNames(t) : []))]);
+      const sets = bioc.map((t) => (t ? packageNames(t) : []));
+      const empty = KNOWN_REPOS.filter((_, i) => !sets[i].length);
+      if (empty.length) throw new Error(`${empty.join(", ")}: no packages`);
+      const names = new Set([...cran, ...sets.flat()]);
       await setKnownExternal(sql, v, [...names]);
       known[v] = names.size;
     } catch (e) {

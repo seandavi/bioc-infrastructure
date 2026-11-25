@@ -2,6 +2,7 @@
 // registry keeps about the package. Web Streams and node:crypto only, so it runs unchanged in
 // Node and in Workers (nodejs_compat). Memory: the current wanted file plus one chunk.
 import { createHash } from "node:crypto";
+import { R_PKG, R_VER } from "./gate.ts";
 
 export type Inspection = {
   sha256: string;
@@ -32,14 +33,20 @@ function str(b: Uint8Array, from: number, to: number): string {
   return td.decode(b.subarray(from, e));
 }
 
-// Octal, or base-256 when the high bit of the first byte is set. NaN if malformed.
+// A size or offset that can index bytes: anything else would lose the 512-byte alignment.
+const count = (n: number) => (Number.isSafeInteger(n) && n >= 0 ? n : NaN);
+
+// Octal, or base-256 when the high bit of the first byte is set (0xff starts a negative one).
+// NaN if malformed, negative or beyond 2^53.
 function num(b: Uint8Array, from: number, to: number): number {
   if (b[from] & 0x80) {
-    let n = b[from] & 0x7f;
+    if (b[from] & 0x40) return NaN;
+    let n = b[from] & 0x3f;
     for (let i = from + 1; i < to; i++) n = n * 256 + b[i];
-    return n;
+    return count(n);
   }
-  return parseInt(str(b, from, to).trim() || "0", 8);
+  const t = str(b, from, to).trim();
+  return /^[0-7]*$/.test(t) ? count(parseInt(t || "0", 8)) : NaN;
 }
 
 function header(b: Uint8Array) {
@@ -57,34 +64,52 @@ function header(b: Uint8Array) {
 function pax(b: Uint8Array): Record<string, string> {
   const out: Record<string, string> = {};
   for (let p = 0; p < b.length; ) {
+    // "<len> <key>=<value>\n", len counting the whole record.
     const sp = b.indexOf(32, p);
-    const len = parseInt(td.decode(b.subarray(p, Math.max(sp, p))), 10);
-    if (sp < 0 || !(len > sp - p + 1) || p + len > b.length) throw new Error("bad pax extended header");
-    const rec = td.decode(b.subarray(sp + 1, p + len - 1)); // the record ends in \n
+    const digits = td.decode(b.subarray(p, Math.max(sp, p)));
+    const len = /^\d+$/.test(digits) ? count(Number(digits)) : NaN;
+    if (sp < 0 || !(len > sp - p + 1) || p + len > b.length || b[p + len - 1] !== 10)
+      throw new Error("bad pax extended header");
+    const rec = td.decode(b.subarray(sp + 1, p + len - 1));
     const eq = rec.indexOf("=");
+    if (eq <= 0) throw new Error("bad pax extended header");
     out[rec.slice(0, eq)] = rec.slice(eq + 1);
     p += len;
   }
   return out;
 }
 
-// read.dcf for one record: continuation lines join with \n, a lone "." is an empty line.
+// read.dcf for one record: continuation lines join with \n, a lone "." is an empty line, a value
+// that starts on the next line has no leading \n, and trailing empty lines are dropped.
 function dcf(text: string): Record<string, string> {
-  const out: Record<string, string> = {};
+  const parts = new Map<string, string[]>(); // a Map, so a field named __proto__ is just a field
   let key = "";
   for (const line of text.split(/\r?\n/)) {
     if (/^[ \t]/.test(line)) {
       if (!key) continue;
       const t = line.trim();
-      out[key] += "\n" + (t === "." ? "" : t);
+      parts.get(key)!.push(t === "." ? "" : t);
     } else if (!line.trim()) {
       if (key) break; // blank line ends the first record
     } else {
       const m = /^([^:]+):[ \t]*(.*)$/.exec(line);
-      if (m) out[(key = m[1])] = m[2].trimEnd();
+      if (m) parts.set((key = m[1]), m[2].trim() ? [m[2].trimEnd()] : []);
     }
   }
-  return out;
+  return Object.fromEntries([...parts].map(([k, v]) => [k, v.join("\n").trimEnd()]));
+}
+
+// The DESCRIPTION, parsed and checked against the directory it sits in and what the caller expects.
+function checkedDescription(text: string, top: string | undefined, expect?: { package: string; version: string }) {
+  const d = dcf(text);
+  if (!d.Package) throw new Error("DESCRIPTION has no Package field");
+  if (!d.Version) throw new Error("DESCRIPTION has no Version field");
+  if (!R_PKG.test(d.Package)) throw new Error(`Package ${JSON.stringify(d.Package)} is not an R package name`);
+  if (!R_VER.test(d.Version)) throw new Error(`Version ${JSON.stringify(d.Version)} is not an R version`);
+  if (top !== d.Package) throw new Error(`tarball directory ${top}/ is not Package ${d.Package}`);
+  if (expect && (d.Package !== expect.package || d.Version !== expect.version))
+    throw new Error(`source tarball is ${d.Package} ${d.Version}, not ${expect.package} ${expect.version}`);
+  return d;
 }
 
 const isDoc = (rel: string) =>
@@ -94,7 +119,11 @@ const isDoc = (rel: string) =>
 
 export async function inspectTarball(
   body: ReadableStream<Uint8Array>,
-  opts: { onDoc?: (path: string, bytes: Uint8Array) => void | Promise<void>; maxDocBytes?: number } = {},
+  opts: {
+    onDoc?: (path: string, bytes: Uint8Array) => void | Promise<void>; maxDocBytes?: number;
+    // The package and version the caller believes this is: checked before any onDoc() call.
+    expect?: { package: string; version: string };
+  } = {},
 ): Promise<Inspection> {
   const maxDoc = opts.maxDocBytes ?? 20 * 1024 * 1024;
   const sha = createHash("sha256");
@@ -107,8 +136,8 @@ export async function inspectTarball(
   // compressed body (measured on a 719 MB tarball: 620 MB held when piped, 12 MB pumped).
   const gunzip = new DecompressionStream("gzip");
   const r = gunzip.readable.getReader();
+  const src = body.getReader();
   const pump = (async () => {
-    const src = body.getReader();
     const w = gunzip.writable.getWriter();
     try {
       for (;;) {
@@ -172,7 +201,11 @@ export async function inspectTarball(
   };
 
   const files = { top: [] as string[], instDoc: [] as string[], other: [] as string[], skipped: [] as string[], entries: 0 };
-  let descText: string | undefined;
+  let description: Record<string, string> | undefined, top: string | undefined;
+  // Documents met before DESCRIPTION when there is an expectation to check first. R CMD build
+  // puts DESCRIPTION near the front, so this is usually empty.
+  // ponytail: at most maxDoc bytes held; past that a document is skipped, not held.
+  let held: [string, Uint8Array][] = [], heldBytes = 0;
   try {
     let next: { path?: string; size?: number } = {};
     for (;;) {
@@ -188,7 +221,10 @@ export async function inspectTarball(
         else {
           const p = pax(data);
           if (p.path) next.path = p.path;
-          if (p.size) next.size = Number(p.size);
+          if (p.size !== undefined) {
+            next.size = /^\d+$/.test(p.size) ? count(Number(p.size)) : NaN;
+            if (Number.isNaN(next.size)) throw new Error("tar pax header has an unreadable size");
+          }
         }
         continue;
       }
@@ -200,17 +236,30 @@ export async function inspectTarball(
       const n = next.size ?? h.size;
       const name = next.path ?? h.name;
       next = {};
-      // Strip the leading "<pkg>/"; a regular file outside any directory is not in the package.
-      const clean = name.replace(/^(\.\/)+/, "");
-      const rel = clean.slice(clean.indexOf("/") + 1);
-      const regular = (h.type === "0" || h.type === "\0") && clean.includes("/") && rel !== "" && !rel.endsWith("/");
+      // Every entry sits under one "<pkg>/", and no segment can climb out of it or be empty:
+      // these paths become docs/ keys and the inventory.
+      const dir = name.endsWith("/"); // a directory, in old tars as a type-0 entry too
+      const segs = name.replace(/^(\.\/)+/, "").replace(/\/$/, "").split("/");
+      if (segs.some((s) => !s || s === "." || s === "..")) throw new Error(`tar entry ${JSON.stringify(name)} has an empty, . or .. segment`);
+      top ??= segs[0];
+      if (segs[0] !== top || (segs.length === 1 && h.type !== "5" && !dir))
+        throw new Error(`tar entry ${JSON.stringify(name)} is outside ${top}/`);
+      const rel = segs.slice(1).join("/");
+      const regular = (h.type === "0" || h.type === "\0") && segs.length > 1 && !dir;
       let doc = false;
       if (regular) {
+        // The first DESCRIPTION is the package's; a later one is skipped, never read.
         if (rel === "DESCRIPTION") {
+          if (description) {
+            await skip(n + pad(n));
+            continue;
+          }
           if (n > META_MAX) throw new Error("DESCRIPTION is too large");
-          descText = td.decode(await take(n));
+          description = checkedDescription(td.decode(await take(n)), top, opts.expect);
           await skip(pad(n));
           files.top.push(rel);
+          for (const [p, b] of held) await opts.onDoc?.(p, b);
+          held = [];
           continue;
         }
         if (!rel.includes("/")) files.top.push(rel);
@@ -222,24 +271,30 @@ export async function inspectTarball(
         files.skipped.push(rel);
         doc = false;
       }
+      if (doc && opts.expect && !description && heldBytes + n > maxDoc) {
+        files.skipped.push(rel);
+        doc = false;
+      }
       if (doc) {
         const data = await take(n);
         await skip(pad(n));
-        await opts.onDoc?.(rel, data);
+        if (opts.expect && !description) {
+          held.push([rel, data]);
+          heldBytes += n;
+        } else await opts.onDoc?.(rel, data);
       } else await skip(n + pad(n));
     }
     // Keep reading so the hashes cover every byte, including whatever follows the end blocks.
     while (!(await read()).done);
     await pump;
   } catch (e) {
-    await r.cancel().catch(() => {});
+    // Cancelling the source too ends a pump waiting on it, so nothing is left open or running.
+    await Promise.allSettled([r.cancel(e), src.cancel(e)]);
+    await pump.catch(() => {});
     throw e;
   }
 
-  if (descText === undefined) throw new Error("tarball has no DESCRIPTION");
-  const description = dcf(descText);
-  if (!description.Package) throw new Error("DESCRIPTION has no Package field");
-  if (!description.Version) throw new Error("DESCRIPTION has no Version field");
+  if (!description) throw new Error("tarball has no DESCRIPTION");
   return {
     sha256: sha.digest("hex"),
     md5: md5.digest("hex"),
