@@ -175,6 +175,26 @@ export type ObserveResult = {
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
+// Copies binaries into the store three at a time: a Worker holds six connections open and each
+// copy uses two (the read and the put). Returns those whose bytes were found, in their order; a
+// binary whose bytes are gone is left out, and a later top-up fills its slot if they return.
+// ponytail: batches of three, not a pool; a pool only helps when one copy is much slower.
+export async function storeBinaries(
+  env: Pick<Env, "BUCKET" | "LEGACY">, sql: Sql, universe: string, bins: BinaryIn[], f: typeof fetch,
+): Promise<BinaryIn[]> {
+  const found: boolean[] = [];
+  for (let i = 0; i < bins.length; i += 3) {
+    // allSettled, so no copy is still running after this returns or throws.
+    const batch = await Promise.allSettled(bins.slice(i, i + 3).map((b) => storeObject(env.BUCKET, sql, b.sha256,
+      () => openArtifact(env, universe, b.sha256, f), `https://r2.ropensci.org/${b.sha256}`)));
+    for (const r of batch) {
+      if (r.status === "rejected") throw r.reason;
+      found.push(r.value);
+    }
+  }
+  return bins.filter((_, i) => found[i]);
+}
+
 export async function observe(
   env: Pick<Env, "BUCKET" | "LEGACY">, sql: Sql, universe: string,
   opts: { limit?: number; fetch?: typeof fetch } = {},
@@ -211,13 +231,7 @@ export async function observe(
   await recordDecisions(sql, plans.flatMap((p) => p.decisions));
 
   const open = (sha256: string, size?: number | null) => () => openArtifact(env, universe, sha256, f, size);
-  const store = async (bins: BinaryIn[]) => {
-    const kept: BinaryIn[] = [];
-    // A binary whose bytes are gone is left out; a later top-up fills its slot if they return.
-    for (const b of bins)
-      if (await storeObject(env.BUCKET, sql, b.sha256, open(b.sha256), `https://r2.ropensci.org/${b.sha256}`)) kept.push(b);
-    return kept;
-  };
+  const store = (bins: BinaryIn[]) => storeBinaries(env, sql, universe, bins, f);
 
   let budget = limit, remaining = 0, topped_up = 0;
   const published: NonNullable<ObserveResult["published"]> = [];

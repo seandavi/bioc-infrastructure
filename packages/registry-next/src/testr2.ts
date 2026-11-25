@@ -56,7 +56,9 @@ export function testBucket() {
     },
     async list(opts: { prefix?: string; limit?: number; cursor?: string } = {}) {
       const keys = [...objects.keys()].filter((k) => k.startsWith(opts.prefix ?? "")).sort();
-      const from = opts.cursor ? keys.indexOf(opts.cursor) + 1 : 0;
+      // Past the cursor, as R2 lists, even if the cursor's own key was deleted since.
+      const i = opts.cursor ? keys.findIndex((k) => k > opts.cursor!) : 0;
+      const from = i < 0 ? keys.length : i;
       const page = keys.slice(from, from + (opts.limit ?? 1000));
       const truncated = from + page.length < keys.length;
       return { objects: page.map((k) => meta(k, objects.get(k)!)), truncated, cursor: truncated ? page.at(-1) : undefined };

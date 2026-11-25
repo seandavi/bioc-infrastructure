@@ -33,7 +33,7 @@ What differs from the current registry:
 | `src/ingest.ts` | bytes into `cas/{sha256}`, and a source tarball's facts and documents out of it |
 | `src/observe.ts` | an r-universe observation turned into publications (`planWave()` is the pure part), and `refresh()` of versions and known names |
 | `src/admin.ts` | the `/admin/*` routes and the cron |
-| `src/testdb.ts` | a fresh migrated database per test file |
+| `src/testdb.ts` | a fresh database per test file, migrated unless asked not to be |
 | `src/*.test.ts` | `node:test` suites; database tests need `DATABASE_URL` |
 
 ## API
@@ -44,7 +44,7 @@ send `access-control-allow-origin: *`. `{bioc_version}` is a number (`3.24`) or 
 
 | Route | What |
 |---|---|
-| `POST /gate` | Read-only: would these candidates propagate, and if not why. Body `{bioc_version, repo, candidates, config?}`; same decision and response shape as the current registry's `/gate`. `config.gating_r` defaults to the version's R line; 400 when the version is unknown and none is given. |
+| `POST /gate` | Read-only: would these candidates propagate, and if not why. Body `{bioc_version, repo, candidates, config?}`; same decision and response shape as the current registry's `/gate`. `config.gating_r` defaults to the version's R line; 400 when the version is unknown and none is given, or a candidate's package is not an R package name or appears twice. Every error, here and on `/api`, is `{error}` JSON. |
 | `GET /api/v1/packages/{bioc_version}/{repo}/{package}` | One package in `bioc`, `data/annotation`, `data/experiment`, `workflows` or `books`: its current publication, history and latest gate decisions. 404 if never published there. |
 | `GET /api/v1/cas/{sha256}` | One stored object and every publication that references it, as source or binary. |
 | `POST /admin/migrate` | Applies pending migrations. Needs `x-maint-key`, as every `/admin` route does. |

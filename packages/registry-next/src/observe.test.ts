@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { connect } from "./db.ts";
-import { branchVersion, observe, planWave, refresh } from "./observe.ts";
+import { branchVersion, observe, planWave, refresh, storeBinaries } from "./observe.ts";
 import type { ObsRecord } from "./observe.ts";
 import { biocVersions, knownExternal, setBiocVersions } from "./store.ts";
 import type { BiocVersion, CurrentPub } from "./store.ts";
@@ -116,6 +116,11 @@ test("planWave: candidate details, recorded decisions, and top-ups", () => {
   assert.deepEqual(plan.decisions.map((d) => [d.package, d.propagate]), [["new", true], ["broken", false]]);
   assert.deepEqual(plan.topups, [{ bioc_version: "3.24", repo: "bioc", package: "late", publication_id: 7, archs: ["linux", "win"], widened: true,
     binaries: [{ os: "win", r_minor: "4.6", arch: "", distro: "", filename: "late_1.0.zip", sha256: "4".repeat(64) }] }]);
+});
+
+test("planWave: a record named like an Object.prototype member is a package like any other", () => {
+  const [plan] = planWave([r("constructor", "1.0")], VERSIONS, { "3.24": [pub("bioc", "other", "1.0")] }, {});
+  assert.deepEqual(plan.approved.map((c) => c.package), ["constructor"]);
 });
 
 // ---------- observe, against a database and two test buckets ----------
@@ -255,6 +260,25 @@ test("observe: a new observation replaces the universe's jobs and tops up a publ
     [["A", "{linux,win}", "x86_64", (await db.sql`select sha256 from published_artifacts where filename = 'A_1.0.zip'`)[0].sha256],
      ["B", "{linux,win}", "x86_64", winB]]);
   assert.notEqual(bins[0][3], winA);
+});
+
+test("storeBinaries: three copies at a time, results in input order, a missing one left out", async () => {
+  const shas = await Promise.all([0, 1, 2, 3, 4, 5, 6].map((i) => blob("bioc", `concurrent ${i}`)));
+  legacy.objects.delete(`prop/bioc/cas/${shas[4]}`); // in neither store: r-universe 404s it
+  // The earlier binaries are the slower ones, so finishing order is not input order.
+  let open = 0, most = 0;
+  const slow = { ...legacy.bucket, async get(key: string) {
+    open++; most = Math.max(most, open);
+    const i = shas.findIndex((s) => key.endsWith(s));
+    await new Promise((res) => setTimeout(res, (7 - i) * 5));
+    open--;
+    return legacy.bucket.get(key);
+  } } as unknown as R2Bucket;
+  const bins = shas.map((s, i) => ({ os: "linux", r_minor: "4.6", arch: `a${i}`, filename: `x${i}.tar.gz`, sha256: s }));
+  const kept = await storeBinaries({ BUCKET: store.bucket, LEGACY: slow }, sql, "bioc", bins, noNetwork);
+  assert.deepEqual(kept, bins.filter((_, i) => i !== 4));
+  assert.equal(most, 3);
+  for (const s of shas) assert.equal(store.objects.has(`cas/${s}`), s !== shas[4]);
 });
 
 test("refresh: versions, then known names per version r-universe builds; a 404 version keeps none", async () => {

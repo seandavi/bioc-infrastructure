@@ -135,6 +135,14 @@ alter table publications add constraint publications_repo_check
   check (repo in ('bioc', 'data/annotation', 'data/experiment', 'workflows', 'books'));
 `,
   },
+  {
+    id: "0005_gate_decisions_version",
+    sql: `
+-- recordDecisions() reads the latest decision of one package version. Without version and id in
+-- the key, that probe sorts every older version's decisions of the package to find it.
+create index gate_decisions_version on gate_decisions (bioc_version, repo, package, version, decided_at desc, id desc);
+`,
+  },
 ];
 
 // Applies pending migrations in one transaction, under an advisory lock so two callers

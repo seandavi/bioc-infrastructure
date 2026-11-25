@@ -4,7 +4,8 @@
 // with fetch_types off (src/db.ts), which leaves text[] parameters unserializable and text[]
 // results unparsed, and bigints arrive as strings. JSON is typed the same either way.
 import type { Sql, TransactionSql } from "postgres";
-import { verGt, versionGate } from "./gate.ts";
+import { normArch, rMinor } from "./dcf.ts";
+import { R_VER, verGt, versionGate } from "./gate.ts";
 import type { Desc, Origin, Published } from "./gate.ts";
 
 type Db = Sql | TransactionSql;
@@ -237,8 +238,12 @@ export type PublishInput = {
   bioccheck?: string | null; archs: string[]; binaries?: BinaryIn[];
 };
 
+// Every binary is stored here, so this is where its slot gets its one spelling: a caller's
+// "4.6.1"/"aarch64" and another's "4.6"/"arm64" must collide on the primary key, or the second
+// would be served in place of the first.
 async function insertBinaries(sql: Db, publication_id: number, binaries: BinaryIn[]): Promise<number> {
   if (!binaries.length) return 0;
+  binaries = binaries.map((b) => ({ ...b, r_minor: rMinor(b.r_minor ?? ""), arch: normArch(b.arch ?? "") }));
   const added = await sql`insert into published_artifacts (publication_id, os, r_minor, arch, distro, filename, sha256)
     select ${publication_id}, x.os, coalesce(x.r_minor, ''), coalesce(x.arch, ''), coalesce(x.distro, ''),
       x.filename, x.sha256
@@ -258,6 +263,8 @@ export async function publish(sql: Sql, p: PublishInput): Promise<{
   return sql.begin(async (tx) => {
     const [pv] = await tx`select package, version from package_versions where src_sha256 = ${p.src_sha256}`;
     if (!pv) throw new PublishRefused(`source ${p.src_sha256} is not in the store`);
+    // gate()'s version-parse rule: a version verGt() cannot order would block every later one.
+    if (!R_VER.test(pv.version)) throw new PublishRefused(`version-parse: ${pv.version}`);
     await tx`select pg_advisory_xact_lock(hashtextextended(
       ${p.bioc_version} || '/' || ${p.repo} || '/' || ${pv.package}, 7203114))`;
     const [cur] = await tx`select id::float8 as id, version, src_sha256, origin from publications
@@ -265,14 +272,17 @@ export async function publish(sql: Sql, p: PublishInput): Promise<{
         and superseded_at is null`;
     if (cur && cur.version === pv.version && cur.src_sha256 === p.src_sha256 && cur.origin === p.origin)
       return { changed: false, publication_id: cur.id };
-    // The same rule gate() applied, with replace_seed as every producer runs it.
-    const vg = versionGate(pv.version, cur as { version: string; origin: Origin } | undefined, true);
+    // The same rule gate() applied, with replace_seed as every producer runs it. A seed replaces
+    // nothing at its own version: only a build of it replaces a seed.
+    const vg = versionGate(pv.version, cur as { version: string; origin: Origin } | undefined,
+      p.origin !== "bioconductor");
     if (!vg.ok) throw new PublishRefused(`version-gate: ${vg.detail}`);
     if (cur) await tx`update publications set superseded_at = now() where id = ${cur.id}`;
     const [row] = await tx`insert into publications
       (bioc_version, repo, package, version, src_sha256, origin, bioccheck, archs)
       values (${p.bioc_version}, ${p.repo}, ${pv.package}, ${pv.version}, ${p.src_sha256}, ${p.origin},
-        ${p.bioccheck ?? null}, array(select jsonb_array_elements_text(${tx.json(p.archs)})))
+        ${p.bioccheck ?? null}, array(select f from unnest(array['linux', 'win', 'mac']) with ordinality as g(f, i)
+          where ${tx.json(p.archs)}::jsonb ? f order by i))
       returning id::float8 as id`;
     await insertBinaries(tx, row.id, p.binaries ?? []);
     return cur ? { changed: true, publication_id: row.id, superseded: cur.id }
@@ -305,14 +315,18 @@ export type DecisionRow = {
 
 // A decision is stored only when it differs from the latest one for the same package version,
 // so the table is a history of changes. One statement for a whole wave. Returns how many it
-// stored.
-export async function recordDecisions(sql: Db, rows: DecisionRow[]): Promise<number> {
+// stored. A package version given twice keeps its last decision, and the lock makes concurrent
+// calls take turns: each would otherwise miss the other's uncommitted rows and store its own.
+export async function recordDecisions(sql: Sql, rows: DecisionRow[]): Promise<number> {
+  rows = [...new Map(rows.map((r) => [`${r.bioc_version}\0${r.repo}\0${r.package}\0${r.version}`, r])).values()];
   if (!rows.length) return 0;
-  const added = await sql`insert into gate_decisions
+  return sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(7203115)`;
+    return (await tx`insert into gate_decisions
       (bioc_version, repo, package, version, origin, propagate, archs, reasons)
     select x.bioc_version, x.repo, x.package, x.version, x.origin, x.propagate,
       array(select jsonb_array_elements_text(x.archs)), x.reasons
-    from jsonb_to_recordset(${sql.json(rows as never)}) as x(bioc_version text, repo text, package text,
+    from jsonb_to_recordset(${tx.json(rows as never)}) as x(bioc_version text, repo text, package text,
       version text, origin text, propagate boolean, archs jsonb, reasons jsonb)
     where not exists (
       select 1 from (
@@ -321,8 +335,8 @@ export async function recordDecisions(sql: Db, rows: DecisionRow[]): Promise<num
           and d.version = x.version
         order by d.decided_at desc, d.id desc limit 1) l
       where l.propagate = x.propagate and to_jsonb(l.archs) = x.archs and l.reasons = x.reasons)
-    returning 1`;
-  return added.length;
+    returning 1`).length;
+  }) as never;
 }
 
 // ---------- documents ----------

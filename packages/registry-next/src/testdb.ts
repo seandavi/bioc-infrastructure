@@ -1,8 +1,9 @@
-// A fresh, migrated database per test file, so files run in parallel against one server.
+// A fresh database per test file, so files run in parallel against one server. Migrated unless
+// the test is of migrating.
 import postgres from "postgres";
 import { migrate } from "./migrations.ts";
 
-export async function testDb() {
+export async function testDb(opts: { migrate?: boolean } = {}) {
   const base = process.env.DATABASE_URL;
   if (!base) throw new Error("DATABASE_URL is not set; see README (docker run postgres:18)");
   const name = `t_${process.pid}_${Date.now().toString(36)}`;
@@ -11,7 +12,7 @@ export async function testDb() {
   const u = new URL(base);
   u.pathname = `/${name}`;
   const sql = postgres(u.href, { max: 4, onnotice() {} });
-  await migrate(sql);
+  if (opts.migrate ?? true) await migrate(sql);
   return {
     sql,
     url: u.href,

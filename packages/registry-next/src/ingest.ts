@@ -1,6 +1,7 @@
 // Bytes into the store, and the facts a source tarball holds out of it.
 import type { Sql } from "postgres";
 import type { Env } from "./db.ts";
+import { normArch, rMinor } from "./dcf.ts";
 import type { Artifact } from "./gate.ts";
 import { putCasObject, putPackageVersion } from "./store.ts";
 import type { BinaryIn } from "./store.ts";
@@ -90,13 +91,8 @@ export async function ingestSource(
   return { package: ins.package, version: ins.version };
 }
 
-// r-universe reports aarch64/amd64, or a platform triple; the store keeps one spelling.
-export const normArch = (s: string) => {
-  const t = s.split("-").pop() ?? "";
-  return t === "aarch64" ? "arm64" : t === "amd64" ? "x86_64" : t;
-};
-
+// Spelled as the store keeps it, so planWave() can compare it with a publication's slots.
 export const binaryIn = (a: Artifact): BinaryIn => ({
-  os: a.os, r_minor: a.r.split(".").slice(0, 2).join("."), arch: normArch(a.arch ?? ""),
+  os: a.os, r_minor: rMinor(a.r), arch: normArch(a.arch ?? ""),
   distro: a.distro ?? "", filename: a.file!, sha256: a.sha256,
 });

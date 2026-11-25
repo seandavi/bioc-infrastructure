@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
+import { HTTPException } from "hono/http-exception";
 import type { Sql } from "postgres";
 import { connect } from "./db.ts";
 import type { Env } from "./db.ts";
@@ -48,6 +49,14 @@ app.use("/admin/*", async (c, next) => {
 // The public routes are readable from any page.
 for (const path of ["/", "/openapi.json", "/gate", "/api/*"]) app.use(path, cors());
 
+// Every error is {error}, as a schema failure is (a malformed JSON body never reaches the
+// schema). A 500's message can name internals, so it goes to the log, not the caller.
+app.onError((err, c) => {
+  if (err instanceof HTTPException) return c.json({ error: err.message }, err.status);
+  console.error(err);
+  return c.json({ error: "internal server error" }, 500);
+});
+
 app.get("/", (c) => c.json({ service: "bioc-registry-next", status: "shadow" }));
 
 app.route("/admin", admin);
@@ -75,9 +84,12 @@ async function resolve(sql: Sql, v: string) {
 
 // ---------- POST /gate ----------
 
-const Job = z.object({ config: z.string(), r: z.string().optional(), check: z.string().optional() });
+// null where the current registry's /gate takes it: r-universe sends "r": null and "check": null
+// for jobs such as bioc-checks.
+const opt = z.string().nullish().transform((v) => v ?? undefined);
+const Job = z.object({ config: z.string(), r: opt, check: opt });
 const Candidate = z.object({
-  package: z.string(), version: z.string(), jobs: z.array(Job),
+  package: z.string().regex(/^[A-Za-z][A-Za-z0-9.]*$/), version: z.string(), jobs: z.array(Job),
   origin: z.enum(["r-universe", "bioconductor", "bioc-build"]).default("r-universe"),
   build_status: z.string().default("success"),
   desc: z.record(z.string(), z.string()).default({})
@@ -87,7 +99,7 @@ const Candidate = z.object({
     component: z.string().optional(), profile: z.string().optional(),
   }).nullable().optional()
     .openapi({ description: "absent: manifest rules do not run; null: the lookup failed" }),
-  source_git_url: z.string().optional(), stream: z.string().optional(),
+  source_git_url: opt, stream: opt,
 });
 const Decision = z.object({
   propagate: z.boolean(), archs: z.array(z.string()),
@@ -104,7 +116,9 @@ app.openapi(createRoute({
         "application/json": {
           schema: z.object({
             bioc_version: VERSION, repo: z.enum(REPOS),
-            candidates: z.array(Candidate).min(1).max(500),
+            // Decisions are keyed by package, so a name given twice would get two contradictory ones.
+            candidates: z.array(Candidate).min(1).max(500)
+              .refine((cs) => new Set(cs.map((c) => c.package)).size === cs.length, "duplicate package in candidates"),
             config: z.object({
               gating_r: z.string().optional()
                 .openapi({ description: "defaults to the R line config.yaml maps the version to" }),

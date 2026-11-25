@@ -194,6 +194,12 @@ test("gate: a clean first publication propagates and every rule reports", () => 
   assert.deepEqual(approved, ["msdata"]);
 });
 
+test("gate: a package named like an Object.prototype member is a first publication", () => {
+  const { decisions, approved } = gate([cand({ package: "constructor" }), cand({ package: "toString" })], GATE_CFG, {});
+  assert.deepEqual(Object.entries(decisions).map(([k, d]) => [k, d.propagate]), [["constructor", true], ["toString", true]]);
+  assert.deepEqual(approved, ["constructor", "toString"]);
+});
+
 test("gate: version-gate is strict; replace_seed lets bioc-build replace a bioconductor seed once", () => {
   const seeded: Published = { msdata: pub("0.52.0", "bioconductor") };
   const ours: Published = { msdata: pub("0.52.0", "bioc-build") };
