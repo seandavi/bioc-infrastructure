@@ -1,4 +1,6 @@
 name: registry-next / test
+# Unit and database tests for the shadow registry (packages/registry-next, #213),
+# against the Postgres major version the deployed database runs.
 on:
   push:
     paths: ['packages/registry-next/**', '.github/workflows/registry-next-*.yml']
