@@ -45,11 +45,12 @@ send `access-control-allow-origin: *`. `{bioc_version}` is a number (`3.24`) or 
 | Route | What |
 |---|---|
 | `POST /gate` | Read-only: would these candidates propagate, and if not why. Body `{bioc_version, repo, candidates, config?}`; same decision and response shape as the current registry's `/gate`. `config.gating_r` defaults to the version's R line; 400 when the version is unknown and none is given. |
-| `GET /api/v1/packages/{bioc_version}/{repo}/{package}` | One package in `bioc`, `data/annotation`, `data/experiment` or `workflows`: its current publication, history and latest gate decisions. 404 if never published there. |
+| `GET /api/v1/packages/{bioc_version}/{repo}/{package}` | One package in `bioc`, `data/annotation`, `data/experiment`, `workflows` or `books`: its current publication, history and latest gate decisions. 404 if never published there. |
 | `GET /api/v1/cas/{sha256}` | One stored object and every publication that references it, as source or binary. |
 | `POST /admin/migrate` | Applies pending migrations. Needs `x-maint-key`, as every `/admin` route does. |
 | `POST /admin/refresh` | Reads bioconductor.org's `config.yaml` into `bioc_versions`, then the package names CRAN and Bioconductor's other repositories publish into `known_external_deps`, per version r-universe builds. |
 | `POST /admin/observe?universe=bioc\|bioc-release&limit=10` | Brings the database and the store up to date with the newest observation the current registry archived, at most `limit` publications and top-ups per call. Returns `{status, digest, published, topped_up, failed, remaining, touched}`. |
+| `POST /admin/materialize?bioc_version=3.24&repo=bioc` | Rewrites one repository's files from the database. `observe` and `refresh` already write what they change; this is for a change to how the files are rendered. |
 | `GET /admin/status` | Current publications per version, repository and origin; stored objects and bytes; the latest observation per universe. |
 
 ### Repository files

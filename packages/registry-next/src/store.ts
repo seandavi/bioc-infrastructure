@@ -9,6 +9,9 @@ import type { Desc, Origin, Published } from "./gate.ts";
 
 type Db = Sql | TransactionSql;
 
+// Bioconductor's repositories within a version. The publications table checks the same list.
+export const REPOS = ["bioc", "data/annotation", "data/experiment", "workflows", "books"] as const;
+
 export type Binary = {
   os: string; r_minor: string; arch: string; distro: string;
   filename: string; sha256: string; md5: string | null; size_bytes: number;

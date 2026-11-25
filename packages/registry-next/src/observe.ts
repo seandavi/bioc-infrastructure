@@ -12,6 +12,7 @@ import type { Desc, Family, GateInput, GateJob, ObsBinary, Published } from "./g
 import { binaryIn, ingestSource, openArtifact, storeObject } from "./ingest.ts";
 import type { SourceExtra } from "./ingest.ts";
 import {
+  REPOS,
   addBinaries, biocVersions, currentPublications, knownExternal, markProcessed, observation, publish,
   recordDecisions, recordObservation, setBiocVersions, setKnownExternal,
 } from "./store.ts";
@@ -43,10 +44,9 @@ export type TopUp = {
 };
 export type Plan = { bioc_version: string; decisions: DecisionRow[]; approved: Candidate[]; topups: TopUp[] };
 
-const REPOS = new Set(["bioc", "data/annotation", "data/experiment", "workflows"]);
 const repoOf = (r: ObsRecord) => {
   const repo = r._bioc?.[0]?.repository;
-  return repo && REPOS.has(repo) ? repo : "bioc";
+  return (REPOS as readonly string[]).includes(repo ?? "") ? repo! : "bioc";
 };
 
 // RELEASE_x_y is x.y; HEAD and devel are whatever the bioc universe builds.

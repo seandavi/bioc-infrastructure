@@ -8,7 +8,7 @@ import { gate } from "./gate.ts";
 import type { GateConfig } from "./gate.ts";
 import admin, { cron } from "./admin.ts";
 import repo from "./repo.ts";
-import { biocVersion, casDoc, knownExternal, packageDoc, published } from "./store.ts";
+import { REPOS, biocVersion, casDoc, knownExternal, packageDoc, published } from "./store.ts";
 
 // The OpenAPI document is generated from these route definitions, so it cannot drift from them.
 // A request that fails its schema gets {error} and a 400, as the current registry answers.
@@ -60,7 +60,6 @@ app.doc("/openapi.json", {
   info: { title: "bioc-registry-next", version: "0", description: "The shadow Bioconductor registry (#213)." },
 });
 
-const REPOS = ["bioc", "data/annotation", "data/experiment", "workflows"] as const;
 const VERSION = z.string().regex(/^(\d+\.\d+|release|devel)$/)
   .openapi({ description: "A Bioconductor version, or release or devel", example: "3.24" });
 const Err = z.object({ error: z.string() });

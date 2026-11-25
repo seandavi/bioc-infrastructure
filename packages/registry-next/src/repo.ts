@@ -37,7 +37,7 @@ const app = new Hono<{ Bindings: Env }>().basePath("/packages");
 app.use("*", cors());
 
 app.get("/*", async (c) => {
-  const m = c.req.path.match(/^\/packages\/([^/]+)\/(bioc|data\/annotation|data\/experiment|workflows)\/(.+)$/);
+  const m = c.req.path.match(/^\/packages\/([^/]+)\/(bioc|data\/annotation|data\/experiment|workflows|books)\/(.+)$/);
   if (!m) return notFound();
   let rest: string;
   try { rest = decodeURIComponent(m[3]); } catch { return notFound(); }

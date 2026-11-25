@@ -125,6 +125,16 @@ create index publications_src on publications (src_sha256);
 create index published_artifacts_sha on published_artifacts (sha256);
 `,
   },
+  {
+    id: "0004_books",
+    sql: `
+-- Books are a fifth repository on bioconductor.org, and r-universe builds them in the same
+-- universes as software.
+alter table publications drop constraint publications_repo_check;
+alter table publications add constraint publications_repo_check
+  check (repo in ('bioc', 'data/annotation', 'data/experiment', 'workflows', 'books'));
+`,
+  },
 ];
 
 // Applies pending migrations in one transaction, under an advisory lock so two callers

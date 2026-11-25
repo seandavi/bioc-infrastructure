@@ -61,11 +61,18 @@ test("POST /admin/refresh, POST /admin/observe and GET /admin/status drive a bac
   assert.equal((await call("/admin/observe?universe=bioc&limit=x")).status, 400);
   const res = await call("/admin/observe?universe=bioc-release&limit=5");
   assert.equal(res.status, 200);
-  assert.deepEqual(await body(res), {
+  const { written, ...observed } = await body(res);
+  assert.deepEqual(observed, {
     status: "processed", digest: "d1", topped_up: 0, failed: [], remaining: 0, touched: [["3.24", "bioc"]],
     published: [{ bioc_version: "3.24", repo: "bioc", package: "demo", version: "1.0.0" }],
   });
-  assert.deepEqual(await body(await call("/admin/observe?universe=bioc-release")), { status: "unchanged", digest: "d1" });
+  // The repository's files are rewritten by the call that changed it, and by nothing else.
+  assert.ok(written.includes("packages/3.24/bioc/src/contrib/PACKAGES"));
+  assert.ok(written.includes("packages/3.24/bioc/index.json"));
+  assert.deepEqual(await body(await call("/admin/observe?universe=bioc-release")),
+    { status: "unchanged", digest: "d1", written: [] });
+  assert.equal((await call("/admin/materialize?bioc_version=3.24&repo=nope")).status, 400);
+  assert.deepEqual(await body(await call("/admin/materialize?bioc_version=3.24&repo=bioc")), { written: [] });
 
   const st = await body(await call("/admin/status", "GET"));
   assert.deepEqual(st.publications, [{ bioc_version: "3.24", repo: "bioc", origin: "r-universe", current: 1 }]);

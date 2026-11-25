@@ -76,7 +76,7 @@ test("planWave: repository from _bioc, and dependencies across a version's repos
   ], VERSIONS, { "3.24": [pub("data/annotation", "org.Hs.eg.db", "3.22.0", { origin: "bioconductor" })] },
   { "3.24": new Set(["Matrix"]) });
   assert.deepEqual(plan.approved.map((c) => [c.package, c.repo]),
-    [["expdata", "data/experiment"], ["book", "bioc"], ["needsAnno", "bioc"], ["sw", "bioc"]]);
+    [["expdata", "data/experiment"], ["book", "books"], ["needsAnno", "bioc"], ["sw", "bioc"]]);
   const ghost = plan.decisions.find((d) => d.package === "needsGhost")!;
   assert.equal(ghost.propagate, false);
   assert.match(ghost.reasons.at(-1)!.detail!, /ghost/);
