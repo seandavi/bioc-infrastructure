@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { connect } from "./db.ts";
-import { binaryIn, ingestSource, openArtifact, storeObject } from "./ingest.ts";
+import { binaryIn, ingestSource, openArtifact, storeObject, storeUrl } from "./ingest.ts";
 import { testDb } from "./testdb.ts";
 import { testBucket } from "./testr2.ts";
 
@@ -102,6 +102,24 @@ test("ingestSource: the package_versions row and the documents, once", async () 
   assert.equal(objects.get(`docs/${s}/NEWS.md`)!.httpMetadata.contentType, "text/plain; charset=utf-8");
   objects.delete(`cas/${s}`); // done means the row: no second read
   assert.deepEqual(await ingestSource(bucket, sql, s, {}), { package: "demo", version: "1.2.3" });
+});
+
+test("storeUrl: hashed on one fetch, stored from a second, which is skipped once the object exists", async () => {
+  const { bucket, objects } = testBucket();
+  const bytes = new TextEncoder().encode("a tarball with no published sha256");
+  let fetches = 0;
+  const f = (async () => (fetches++, new Response(bytes))) as unknown as typeof fetch;
+  assert.deepEqual(await storeUrl(bucket, sql, "https://example.org/x", f, { md5: md5(bytes).toUpperCase(), max: 100 }),
+    { sha256: sha(bytes), size: bytes.length });
+  assert.equal(fetches, 2);
+  assert.ok(objects.has(`cas/${sha(bytes)}`));
+  await storeUrl(bucket, sql, "https://example.org/x", f, { max: 100 });
+  assert.equal(fetches, 3, "already stored: hashed, not fetched again");
+  await assert.rejects(storeUrl(bucket, sql, "https://example.org/x", f, { md5: "0".repeat(32), max: 100 }), /md5/);
+  // No content-length here, so the limit is found by counting.
+  assert.deepEqual(await storeUrl(bucket, sql, "https://example.org/x", f, { max: 10 }), { too_large: true });
+  const gone = (async () => new Response("", { status: 404 })) as unknown as typeof fetch;
+  await assert.rejects(storeUrl(bucket, sql, "https://example.org/y", gone, { max: 10 }), /HTTP 404/);
 });
 
 test("binaryIn normalizes r-universe's architectures and R versions", () => {
