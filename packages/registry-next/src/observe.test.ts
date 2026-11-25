@@ -5,8 +5,8 @@ import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { connect } from "./db.ts";
-import { branchVersion, observe, planWave, refresh, storeBinaries } from "./observe.ts";
+import { DB_SOCKETS, connect } from "./db.ts";
+import { COPIES, branchVersion, observe, planWave, refresh, storeBinaries } from "./observe.ts";
 import type { ObsRecord } from "./observe.ts";
 import { biocVersions, knownExternal, setBiocVersions } from "./store.ts";
 import type { BiocVersion, CurrentPub } from "./store.ts";
@@ -300,6 +300,12 @@ test("observe: a new observation replaces the universe's jobs and tops up a publ
     [["Ax", "{linux,win}", "x86_64", (await db.sql`select sha256 from published_artifacts where filename = 'Ax_1.0.zip'`)[0].sha256],
      ["Bx", "{linux,win}", "x86_64", winB]]);
   assert.notEqual(bins[0][3], winA);
+});
+
+test("database sockets and concurrent copies leave a write its connection", () => {
+  // Six open connections per Worker request. Each copy in progress holds a read; if those and
+  // the idle database sockets take all six, no write can open and the request never finishes.
+  assert.ok(DB_SOCKETS + COPIES < 6, `${DB_SOCKETS} sockets + ${COPIES} reads leave no connection for a write`);
 });
 
 test("storeBinaries: three copies at a time, results in input order, a missing one left out", async () => {

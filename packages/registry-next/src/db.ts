@@ -10,7 +10,14 @@ export type Env = {
   MAINT_KEY?: string;
 };
 
+// A Worker request may hold six connections open at once, and database sockets, R2 reads and R2
+// writes all count. A copy holds its read open while it waits to open its write, so when idle
+// sockets and reads in progress fill all six, no write can start and the request never ends.
+// Two sockets plus the copies run at once (COPIES in observe.ts) must stay under six, which
+// leaves one write its slot; a test holds the sum there.
+export const DB_SOCKETS = 2;
+
 // One client per request: Workers cannot share a socket between requests, and Hyperdrive
 // does the pooling. fetch_types saves a round trip per connection; no query here needs it.
 export const connect = (env: Pick<Env, "HYPERDRIVE">): Sql =>
-  postgres(env.HYPERDRIVE.connectionString, { max: 5, fetch_types: false, onnotice() {} });
+  postgres(env.HYPERDRIVE.connectionString, { max: DB_SOCKETS, fetch_types: false, onnotice() {} });

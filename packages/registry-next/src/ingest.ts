@@ -22,10 +22,29 @@ function fixedLength(body: ReadableStream<Uint8Array>, size: number): ReadableSt
   return readable;
 }
 
+// A copy that stalls would otherwise hold the request open until the caller gives up, with
+// nothing to say which object it was (seen 2026-11-25: twenty minutes, no response). Past the
+// deadline it is that object's failure, by name.
+async function within<T>(ms: number, what: string, p: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what}: nothing after ${Math.round(ms / 1000)} s`)), ms);
+  });
+  try {
+    return await Promise.race([p, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+// ponytail: two minutes, or the time the object takes at 2 MB/s if that is longer. The stalled
+// streams are not torn down; the request ends soon after, since the caller stops on a failure.
+const copyDeadline = (size: number) => Math.max(120_000, size / 2000);
+
 // Makes cas/{sha256} exist in BUCKET and in cas_objects, idempotently. R2 verifies the sha256 it
 // is given and rejects a mismatch, so nothing is hashed here. false: open() had no bytes.
 export async function storeObject(
   bucket: R2Bucket, sql: Sql, sha256: string, open: () => Promise<Opened | null>, source_url: string | null,
+  deadline: (size: number) => number = copyDeadline,
 ): Promise<boolean> {
   if (!SHA256.test(sha256)) throw new Error(`not a sha256: ${sha256}`);
   if ((await sql`select 1 from cas_objects where sha256 = ${sha256}`).length) return true;
@@ -35,9 +54,9 @@ export async function storeObject(
   let obj = await bucket.head(key);
   const verified = obj?.checksums.sha256;
   if (!obj || !verified || hex(verified) !== sha256) {
-    const src = await open();
+    const src = await within(deadline(0), `open ${key}`, open());
     if (!src) return false;
-    obj = await bucket.put(key, fixedLength(src.body, src.size), { sha256 });
+    obj = await within(deadline(src.size), `put ${key}`, bucket.put(key, fixedLength(src.body, src.size), { sha256 }));
     if (!obj) throw new Error(`put ${key} returned nothing`);
   }
   const md5 = obj.checksums.md5;
