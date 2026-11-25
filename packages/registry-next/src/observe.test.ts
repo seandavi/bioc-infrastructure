@@ -26,6 +26,7 @@ devel_version: "3.24"
 r_ver_for_bioc_ver:
   "3.23": "4.6"
   "3.24": "4.6"
+  "3.25": "4.6"
 `;
 await setBiocVersions(sql, CONFIG);
 
