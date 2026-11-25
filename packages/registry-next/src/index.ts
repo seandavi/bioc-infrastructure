@@ -7,6 +7,7 @@ import type { Env } from "./db.ts";
 import { gate } from "./gate.ts";
 import type { GateConfig } from "./gate.ts";
 import { migrate } from "./migrations.ts";
+import repo from "./repo.ts";
 import { biocVersion, casDoc, packageDoc, published } from "./store.ts";
 
 // The OpenAPI document is generated from these route definitions, so it cannot drift from them.
@@ -50,6 +51,9 @@ for (const path of ["/", "/openapi.json", "/gate", "/api/*"]) app.use(path, cors
 app.get("/", (c) => c.json({ service: "bioc-registry-next", status: "shadow" }));
 
 app.post("/admin/migrate", async (c) => c.json({ applied: await migrate(c.get("sql")) }));
+
+// Installable repository files at Bioconductor's paths; read from R2, not the database.
+app.route("/", repo);
 
 app.doc("/openapi.json", {
   openapi: "3.0.0",
