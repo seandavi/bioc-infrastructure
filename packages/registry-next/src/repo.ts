@@ -36,6 +36,13 @@ const notModified = (inm: string | undefined, etag: string) =>
 const app = new Hono<{ Bindings: Env }>().basePath("/packages");
 app.use("*", cors());
 
+// Which version is release and which is devel, and what each gates on.
+app.get("/versions.json", async (c) => {
+  const obj = await c.env.BUCKET.get("packages/versions.json");
+  if (!obj) return notFound();
+  return new Response(obj.body, { headers: { "content-type": "application/json", "cache-control": "public, max-age=300" } });
+});
+
 app.get("/*", async (c) => {
   const m = c.req.path.match(/^\/packages\/([^/]+)\/(bioc|data\/annotation|data\/experiment|workflows|books)\/(.+)$/);
   if (!m) return notFound();
@@ -89,7 +96,8 @@ app.get("/*", async (c) => {
     "content-type": "application/octet-stream", "accept-ranges": "bytes",
     "cache-control": "public, max-age=31536000, immutable", etag: obj.httpEtag,
   };
-  const r = obj.range as { offset?: number; length?: number; suffix?: number } | undefined;
+  // R2 reports a range for a whole-object read too, so the request decides whether this is a 206.
+  const r = c.req.header("range") ? (obj.range as { offset?: number; length?: number; suffix?: number } | undefined) : undefined;
   if (!r) return new Response(obj.body, { headers: { ...headers, "content-length": String(obj.size) } });
   const offset = r.offset ?? Math.max(0, obj.size - (r.suffix ?? obj.size));
   const length = r.length ?? obj.size - offset;
