@@ -67,7 +67,7 @@ export async function materializeVersions(bucket: R2Bucket, sql: Sql): Promise<s
   const doc = {
     release: vs.find((v) => v.role === "release")?.bioc_version ?? null,
     devel: vs.find((v) => v.role === "devel")?.bioc_version ?? null,
-    versions: Object.fromEntries(vs.map((v) => [v.bioc_version, { r_minor: v.r_minor, role: v.role }])),
+    versions: Object.fromEntries(vs.map((v) => [v.bioc_version, { r_minor: v.r_minor, role: v.role, universe: v.universe }])),
   };
   const written: string[] = [];
   await put(bucket, "packages/versions.json", JSON.stringify(doc), "application/json", written);

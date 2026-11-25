@@ -88,7 +88,11 @@ test("materializeVersions writes versions.json once", async () => {
   assert.deepEqual(await materializeVersions(bucket, sql), ["packages/versions.json"]);
   assert.deepEqual(JSON.parse(await text(bucket, "packages/versions.json")), {
     release: "3.24", devel: "3.25",
-    versions: { "3.24": { r_minor: "4.6", role: "release" }, "3.25": { r_minor: "4.6", role: "devel" } },
+    // Without r_universe_* keys in config.yaml, the release and devel versions are the ones built.
+    versions: {
+      "3.24": { r_minor: "4.6", role: "release", universe: "bioc-release" },
+      "3.25": { r_minor: "4.6", role: "devel", universe: "bioc" },
+    },
   });
   assert.deepEqual(await materializeVersions(bucket, sql), []);
 });

@@ -4,8 +4,9 @@ import { createHash } from "node:crypto";
 import { connect } from "./db.ts";
 import { testDb } from "./testdb.ts";
 import {
-  addBinaries, biocVersion, biocVersions, casDoc, packageDoc, parseBiocConfig, publish, published,
-  PublishRefused, putCasObject, putPackageVersion, recordDecisions, repoRows, setBiocVersions,
+  addBinaries, biocVersion, biocVersions, casDoc, knownExternal, packageDoc, parseBiocConfig, publish,
+  published, PublishRefused, putCasObject, putPackageVersion, recordDecisions, repoRows, setBiocVersions,
+  setKnownExternal,
 } from "./store.ts";
 import type { DecisionRow } from "./store.ts";
 
@@ -54,7 +55,30 @@ test("parseBiocConfig reads the roles and the R line of each version", () => {
   assert.equal(c.release, "3.24");
   assert.equal(c.devel, "3.25");
   assert.deepEqual(c.r, { "3.22": "4.5", "3.23": "4.5", "3.24": "4.6", "3.25": "4.6" });
-  assert.throws(() => parseBiocConfig(CONFIG.replace('  "3.25": "4.6"\n', "")), /no r_ver_for_bioc_ver entry for 3.25/);
+  assert.equal(c.ruRelease, "3.24", "without r_universe_* keys, the roles");
+  assert.equal(c.ruDevel, "3.25");
+});
+
+// As config.yaml read on 2026-11-25: r-universe has rolled ahead of the roles, and the version it
+// builds as devel has no R line yet.
+const ROLL = `r_universe_release_version: "3.24"
+r_universe_devel_version: "3.25"
+release_version: "3.23"
+devel_version: "3.24"
+r_ver_for_bioc_ver:
+  "3.9": "3.6"
+  "3.10": "3.6"
+  "3.23": "4.6"
+  "3.24": "4.6"
+release_dates:
+  "1.0": "1/5/2001"
+`;
+
+test("parseBiocConfig: an unmapped version r-universe builds takes the newest mapped R line", () => {
+  const c = parseBiocConfig(ROLL);
+  assert.deepEqual([c.release, c.devel, c.ruRelease, c.ruDevel], ["3.23", "3.24", "3.24", "3.25"]);
+  assert.deepEqual(c.r, { "3.9": "3.6", "3.10": "3.6", "3.23": "4.6", "3.24": "4.6", "3.25": "4.6" });
+  assert.throws(() => parseBiocConfig("release_version: 3.1\ndevel_version: 3.2\n"), /no r_ver_for_bioc_ver/);
 });
 
 test("setBiocVersions moves the roles so exactly release and devel hold them", async () => {
@@ -68,7 +92,22 @@ test("setBiocVersions moves the roles so exactly release and devel hold them", a
   assert.equal((await biocVersion(sql, "devel"))?.r_minor, "4.7");
   assert.equal((await biocVersion(sql, "3.24"))?.r_minor, "4.6");
   assert.equal(await biocVersion(sql, "9.9"), undefined);
+  // A release roll as config.yaml has it: universes move ahead of the roles.
+  const rolled = await setBiocVersions(sql, ROLL);
+  assert.deepEqual(rolled.filter((v) => v.role || v.universe).map((v) => [v.bioc_version, v.r_minor, v.role, v.universe]), [
+    ["3.23", "4.6", "release", null], ["3.24", "4.6", "devel", "bioc-release"], ["3.25", "4.6", null, "bioc"],
+  ]);
   await setBiocVersions(sql, CONFIG); // back to the fixture for the route tests below
+  assert.deepEqual((await biocVersions(sql)).filter((v) => v.universe).map((v) => [v.bioc_version, v.universe]),
+    [["3.24", "bioc-release"], ["3.25", "bioc"]]);
+});
+
+test("knownExternal is undefined until a version has names, then exactly the last set", async () => {
+  assert.equal(await knownExternal(sql, "3.24"), undefined);
+  await setKnownExternal(sql, "3.24", ["Matrix", "org.Hs.eg.db", "Matrix"]);
+  await setKnownExternal(sql, "3.24", ["Matrix", "GO.db"]);
+  assert.deepEqual([...(await knownExternal(sql, "3.24"))!].sort(), ["GO.db", "Matrix"]);
+  await setKnownExternal(sql, "3.24", []);
 });
 
 test("putCasObject is idempotent and fills a missing md5, never replaces one", async () => {

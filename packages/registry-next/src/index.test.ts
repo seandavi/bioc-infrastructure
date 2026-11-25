@@ -100,6 +100,7 @@ test("GET /openapi.json is generated from the routes", async () => {
   assert.deepEqual(Object.keys(doc.paths).sort(), [
     "/api/v1/cas/{sha256}",
     "/api/v1/packages/{bioc_version}/bioc/{package}",
+    "/api/v1/packages/{bioc_version}/books/{package}",
     "/api/v1/packages/{bioc_version}/data/annotation/{package}",
     "/api/v1/packages/{bioc_version}/data/experiment/{package}",
     "/api/v1/packages/{bioc_version}/workflows/{package}",

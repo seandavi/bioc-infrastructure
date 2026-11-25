@@ -96,6 +96,45 @@ create table bioc_versions (
 create unique index bioc_versions_role on bioc_versions (role) where role is not null;
 `,
   },
+  {
+    id: "0003_observations",
+    sql: `
+-- The r-universe universe that builds a version, from config.yaml's r_universe_* keys. It can
+-- run ahead of role during a release roll.
+alter table bioc_versions add column universe text check (universe in ('bioc', 'bioc-release'));
+create unique index bioc_versions_universe on bioc_versions (universe) where universe is not null;
+
+create table observations (
+  universe text not null, digest text not null, obs_ts timestamptz not null, r2_key text not null,
+  seen_at timestamptz not null default now(), processed_at timestamptz,
+  primary key (universe, digest)
+);
+-- The newest observation's job verdicts: one row per (universe, package, config).
+create table jobs (
+  universe text not null, package text not null, config text not null,
+  bioc_version text, version text, r text, "check" text, time_s integer, job bigint, artifact text,
+  obs_ts timestamptz not null,
+  primary key (universe, package, config)
+);
+-- Package names published outside this registry (CRAN, Bioconductor repositories this registry
+-- does not hold yet), for the gate's deps rule.
+create table known_external_deps (
+  bioc_version text not null, name text not null, primary key (bioc_version, name)
+);
+create index publications_src on publications (src_sha256);
+create index published_artifacts_sha on published_artifacts (sha256);
+`,
+  },
+  {
+    id: "0004_books",
+    sql: `
+-- Books are a fifth repository on bioconductor.org, and r-universe builds them in the same
+-- universes as software.
+alter table publications drop constraint publications_repo_check;
+alter table publications add constraint publications_repo_check
+  check (repo in ('bioc', 'data/annotation', 'data/experiment', 'workflows', 'books'));
+`,
+  },
 ];
 
 // Applies pending migrations in one transaction, under an advisory lock so two callers
