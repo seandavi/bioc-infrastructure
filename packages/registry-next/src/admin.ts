@@ -6,6 +6,7 @@ import { connect } from "./db.ts";
 import type { Env } from "./db.ts";
 import { materialize, materializeVersions } from "./materialize.ts";
 import { migrate } from "./migrations.ts";
+import { seed } from "./seed.ts";
 import { UNIVERSES, observe, refresh } from "./observe.ts";
 import { REPOS, biocVersion, status } from "./store.ts";
 
@@ -33,6 +34,20 @@ admin.post("/observe", async (c) => {
   if (!Number.isInteger(limit) || limit < 0 || limit > 500) return c.json({ error: "limit must be 0..500" }, 400);
   const r = await observe(c.env, c.get("sql"), universe, { limit });
   return c.json({ ...r, written: await write(c.env, c.get("sql"), r.touched) });
+});
+
+// Fills a version's holes from bioconductor.org. Run by hand once its r-universe backfill is
+// done: before that, a hole may be a package the backfill has not reached.
+admin.post("/seed", async (c) => {
+  const v = await biocVersion(c.get("sql"), c.req.query("bioc_version") ?? "");
+  const repo = c.req.query("repo") ?? "";
+  if (!v || !(REPOS as readonly string[]).includes(repo))
+    return c.json({ error: `bioc_version must be known and repo one of ${REPOS.join(", ")}` }, 400);
+  const limit = Number(c.req.query("limit") ?? 5);
+  // Each seeded package costs a dozen or more subrequests of the Worker's ~1,000 (README).
+  if (!Number.isInteger(limit) || limit < 0 || limit > 50) return c.json({ error: "limit must be 0..50" }, 400);
+  const r = await seed(c.env, c.get("sql"), v.bioc_version, repo, { limit, after: c.req.query("after") || undefined });
+  return c.json({ ...r, written: await write(c.env, c.get("sql"), "touched" in r ? r.touched : []) });
 });
 
 // Rewrite one repository's files from the database, e.g. after a change to how they are rendered.

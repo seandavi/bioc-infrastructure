@@ -1,4 +1,5 @@
 // Bytes into the store, and the facts a source tarball holds out of it.
+import { createHash } from "node:crypto";
 import type { Sql } from "postgres";
 import type { Env } from "./db.ts";
 import { normArch, rMinor } from "./dcf.ts";
@@ -89,6 +90,47 @@ export async function ingestSource(
     description: ins.description, files: ins.files, ...extra,
   });
   return { package: ins.package, version: ins.version };
+}
+
+// The bytes at a URL whose sha256 nobody publishes, into cas/{sha256}: one fetch hashes them, a
+// second (skipped when the object is already stored) streams them to R2, which verifies them
+// against the first. An md5 the publisher lists is checked on the first pass. A body over max
+// bytes is not read further; R2 cannot take it in one put.
+export async function storeUrl(
+  bucket: R2Bucket, sql: Sql, url: string, f: typeof fetch, opts: { md5?: string | null; max: number },
+): Promise<{ sha256: string; size: number } | { too_large: true }> {
+  const res = await f(url);
+  if (!res.ok || !res.body) {
+    await res.body?.cancel().catch(() => {});
+    throw new Error(`${url}: HTTP ${res.status}`);
+  }
+  if (Number(res.headers.get("content-length")) > opts.max) {
+    await res.body.cancel().catch(() => {});
+    return { too_large: true };
+  }
+  // Pumped by hand, one chunk held at a time (see inspectTarball for why not pipeThrough).
+  const sha = createHash("sha256"), md5 = createHash("md5");
+  let size = 0;
+  const r = res.body.getReader();
+  for (;;) {
+    const { done, value } = await r.read();
+    if (done) break;
+    size += value.length;
+    if (size > opts.max) {
+      await r.cancel().catch(() => {});
+      return { too_large: true };
+    }
+    sha.update(value);
+    md5.update(value);
+  }
+  const sha256 = sha.digest("hex"), got = md5.digest("hex");
+  if (opts.md5 && opts.md5.toLowerCase() !== got) throw new Error(`${url}: md5 is ${got}, the index says ${opts.md5}`);
+  await storeObject(bucket, sql, sha256, async () => {
+    const again = await f(url);
+    if (!again.ok || !again.body) throw new Error(`${url}: HTTP ${again.status} on the second fetch`);
+    return { body: again.body, size };
+  }, url);
+  return { sha256, size };
 }
 
 // Spelled as the store keeps it, so planWave() can compare it with a publication's slots.

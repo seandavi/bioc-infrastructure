@@ -13,7 +13,7 @@ const db = await testDb();
 const tmp = mkdtempSync(join(tmpdir(), "admin-test-"));
 // The routes call the global fetch; no test reaches the network.
 const realFetch = globalThis.fetch;
-const pages: Record<string, string> = {
+const pages: Record<string, string | Uint8Array> = {
   "https://bioconductor.org/config.yaml":
     `r_universe_release_version: "3.24"\nr_universe_devel_version: "3.25"\nrelease_version: "3.23"\n` +
     `devel_version: "3.24"\nr_ver_for_bioc_ver:\n  "3.23": "4.6"\n  "3.24": "4.6"\n`,
@@ -33,6 +33,12 @@ const env = { HYPERDRIVE: { connectionString: db.url }, MAINT_KEY: "k", BUCKET: 
 const call = (path: string, method = "POST", key = "k") =>
   app.request(path, { method, headers: { "x-maint-key": key } }, env);
 const body = (r: Response) => r.json() as Promise<any>;
+
+// One workflow r-universe never built, on bioconductor.org.
+mkdirSync(join(tmp, "rnaseqGene"));
+writeFileSync(join(tmp, "rnaseqGene", "DESCRIPTION"), "Package: rnaseqGene\nVersion: 1.0\nLicense: Artistic-2.0\n");
+pages["https://bioconductor.org/packages/3.24/workflows/src/contrib/rnaseqGene_1.0.tar.gz"] =
+  execFileSync("tar", ["-czf", "-", "--owner=0", "--group=0", "-C", tmp, "rnaseqGene"]);
 
 // One source tarball, as the current registry archives it, observed in bioc-release.
 mkdirSync(join(tmp, "demo"));
@@ -80,4 +86,15 @@ test("POST /admin/refresh, POST /admin/observe and GET /admin/status drive a bac
   assert.equal(st.observations.length, 1);
   assert.equal(st.observations[0].digest, "d1");
   assert.ok(st.observations[0].processed_at);
+});
+
+test("POST /admin/seed fills a repository's holes from bioconductor.org and rewrites its files", async () => {
+  assert.equal((await call("/admin/seed?bioc_version=3.24&repo=workflows", "POST", "wrong")).status, 403);
+  assert.equal((await call("/admin/seed?bioc_version=9.9&repo=workflows")).status, 400);
+  assert.equal((await call("/admin/seed?bioc_version=3.24&repo=workflows&limit=51")).status, 400);
+  const { written, ...r } = await body(await call("/admin/seed?bioc_version=3.24&repo=workflows&after="));
+  assert.deepEqual(r, { status: "done", seeded: [{ package: "rnaseqGene", version: "1.0" }], failed: [], too_large: [],
+    remaining: 0, next: "rnaseqGene", touched: [["3.24", "workflows"]] });
+  assert.ok(written.includes("packages/3.24/workflows/src/contrib/PACKAGES"));
+  assert.deepEqual(await body(await call("/admin/seed?bioc_version=3.24&repo=books")), { status: "absent", written: [] });
 });

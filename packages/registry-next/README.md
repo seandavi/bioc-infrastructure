@@ -32,6 +32,7 @@ What differs from the current registry:
 | `src/repo.ts` | serves those files at `/packages/{version}/{repo}/…`; reads R2 only, except `Archive/` |
 | `src/ingest.ts` | bytes into `cas/{sha256}`, and a source tarball's facts and documents out of it |
 | `src/observe.ts` | an r-universe observation turned into publications (`planWave()` is the pure part), and `refresh()` of versions and known names |
+| `src/seed.ts` | what r-universe does not build, seeded from bioconductor.org's repositories |
 | `src/admin.ts` | the `/admin/*` routes and the cron |
 | `src/testdb.ts` | a fresh database per test file, migrated unless asked not to be |
 | `src/*.test.ts` | `node:test` suites; database tests need `DATABASE_URL` |
@@ -50,6 +51,7 @@ send `access-control-allow-origin: *`. `{bioc_version}` is a number (`3.24`) or 
 | `POST /admin/migrate` | Applies pending migrations. Needs `x-maint-key`, as every `/admin` route does. |
 | `POST /admin/refresh` | Reads bioconductor.org's `config.yaml` into `bioc_versions`, then the package names CRAN and Bioconductor's other repositories publish into `known_external_deps`, per version r-universe builds. |
 | `POST /admin/observe?universe=bioc\|bioc-release&limit=10` | Brings the database and the store up to date with the newest observation the current registry archived, at most `limit` publications and top-ups per call. Returns `{status, digest, published, topped_up, failed, remaining, touched}`. |
+| `POST /admin/seed?bioc_version=3.24&repo=data/annotation&limit=5&after=` | Seeds at most `limit` (0..50) holes after `after` from bioconductor.org, then rewrites that repository's files. Returns `{status, seeded, failed, too_large, remaining, next, touched, written}`, or `{status: "absent"}` when bioconductor.org has no such repository. See [Seeding](#seeding-from-bioconductororg). |
 | `POST /admin/materialize?bioc_version=3.24&repo=bioc` | Rewrites one repository's files from the database. `observe` and `refresh` already write what they change; this is for a change to how the files are rendered. |
 | `GET /admin/status` | Current publications per version, repository and origin; stored objects and bytes; the latest observation per universe. |
 
@@ -100,6 +102,44 @@ depends on it waits), so watch `failed` rather than loop blindly.
 
 A cron every 15 minutes refreshes `config.yaml` when it is a day old and then observes each
 universe with a small limit, which covers steady state.
+
+## Seeding from bioconductor.org
+
+Some of what Bioconductor ships never arrives through r-universe: about 200 software packages fail
+in its environment, `data/annotation` has no r-universe build at all, and some `data/experiment`,
+`workflows` and `books` packages are missing there too. A **hole** is a package in the official
+`src/contrib/PACKAGES` with no current publication in that version and repository, whatever its
+origin; seeding fills holes only and never touches a package that has a publication. A seed has
+`origin: "bioconductor"`, empty `archs` and null `bioccheck`: it is not a verdict, and an
+r-universe build of that version or a newer one replaces it through `publish()`.
+
+For each hole, in name order: the source tarball is fetched once to hash it (bioconductor.org
+publishes an md5, checked, but no sha256), then again into `cas/{sha256}` with R2 verifying the
+hash, and read like any other source. For `bioc`, the Windows and both macOS binaries for the
+version's R line are copied too when their directory's `PACKAGES` lists the same version; a binary
+that fails is left out. Git fields come from the official `VIEWS`. A tarball over 5 GB, R2's limit
+for one put, is reported in `too_large` and skipped (four annotation packages in 3.24).
+
+Run it by hand after a version's r-universe backfill is done; before that a hole may just be a
+package the backfill has not reached. There is no cron. One call fetches `PACKAGES`, `VIEWS` and
+three binary indexes, then per package two fetches of the source and of each binary, a few R2 and
+database calls per object, and one R2 put per document in the tarball: roughly 10 subrequests for
+an annotation package and 20 or more for a software package with binaries, against a Worker's
+~1,000. Hence `limit` at most 50; 10 to 20 is comfortable for `bioc`, and a large annotation
+package (95 GB across 929 in 3.24, 11 over 1 GB) is better taken with a small limit.
+
+A hole that fails every time (a deprecated package whose tarball is gone but is still listed)
+would be retried by every call, so pass `next` back as `after` and loop until `remaining` is 0:
+
+```bash
+after=
+while r=$(curl -sf -X POST -H "x-maint-key: …" \
+    "https://<worker>/admin/seed?bioc_version=3.24&repo=data/annotation&limit=10&after=$after"); do
+  echo "$r" | jq -c '{seeded: (.seeded|length), failed, too_large, remaining}'
+  [ "$(echo "$r" | jq .remaining)" = 0 ] && break
+  after=$(echo "$r" | jq -r .next)
+done
+```
 
 ## Development
 
