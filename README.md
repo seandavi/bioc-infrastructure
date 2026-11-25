@@ -10,6 +10,7 @@ and decisions for all of it. The documentation is published at
 | Package | What it does | Runs on |
 |---|---|---|
 | [`packages/registry`](packages/registry) | The package registry: watches r-universe, archives every build observation, decides what propagates (the gate), and serves the result as an API, CRAN-style repositories and a Parquet archive | Cloudflare Worker `bioc-registry`; publisher on GitHub Actions |
+| [`packages/registry-next`](packages/registry-next) | The next registry, built beside the current one and running as a shadow: state in Postgres, one content-addressed store, repositories keyed by Bioconductor version ([#213](https://github.com/seandavi/bioc-infrastructure/issues/213)) | Cloudflare Worker `bioc-registry-next` (not serving anything yet) |
 | [`packages/edge`](packages/edge) | Serves bioconductor.org: the Worker in front of R2, and the sync that mirrors master's docroot into R2 | Cloudflare Worker `bioc-site`; systemd units on onclappc02 |
 | [`packages/traffic`](packages/traffic) | Access logs to Parquet, dashboard rollups, and the download statistics | systemd units on onclappc02 |
 | [`packages/health`](packages/health) | A read-only health check across the whole stack | On demand (the `bioc-health` agent skill) |
@@ -38,6 +39,7 @@ Everything else is blocking: red means broken or stale.
 | registry | daily: Worker up, observations fresh | [![registry / freshness](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-freshness.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-freshness.yml) |
 | registry | daily: packages actually install | [![registry / install](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-install.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-install.yml) |
 | registry | every 30 min: publish bioc-build results | [![registry / publish](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-publish.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-publish.yml) |
+| registry-next | tests | [![registry-next / test](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-next-test.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/registry-next-test.yml) |
 | edge | tests | [![edge / test](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-test.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-test.yml) |
 | edge | daily black-box probe of bioconductor.org | [![edge / health](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-health.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-health.yml) |
 | edge | daily parity with master.bioconductor.org, until master retires | [![edge / parity](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-parity.yml/badge.svg)](https://github.com/seandavi/bioc-infrastructure/actions/workflows/edge-parity.yml) |
@@ -68,6 +70,7 @@ Every workflow, with its trigger and purpose, is listed on the docs site's
 | Package | Tests |
 |---|---|
 | registry | `cd packages/registry && npm ci && npm test` |
+| registry-next | `cd packages/registry-next && npm ci && npm test` (needs `DATABASE_URL`; see its README) |
 | edge | `cd packages/edge && node --test worker/test.ts && ./test-itemize.sh` (the full list is in its CONTRIBUTING) |
 | traffic | `cd packages/traffic && ./download-stats.py --self-check` (each script has `--self-check`) |
 | health | `cd packages/health && uv run --python 3.12 --with pytest pytest tests -q` |

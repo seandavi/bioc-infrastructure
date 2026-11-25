@@ -1,0 +1,17 @@
+{
+  "name": "bioc-registry-next",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  // node:crypto (streaming sha256/md5) and the postgres driver.
+  "compatibility_flags": ["nodejs_compat"],
+  // Run next to the database, not next to the caller: a request makes several queries.
+  "placement": { "mode": "smart" },
+  // PlanetScale Postgres. Query caching is disabled on this config: the gate must read its own writes.
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "0a76d33ae7d34074af18cef28e47f5f8" }],
+  "r2_buckets": [
+    { "binding": "BUCKET", "bucket_name": "bioc-registry" },
+    // The current registry's bucket. Read-only here: Env types it without put/delete.
+    { "binding": "LEGACY", "bucket_name": "bioc-prop" }
+  ],
+  "observability": { "enabled": true }
+}

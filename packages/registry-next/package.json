@@ -1,0 +1,21 @@
+{
+  "name": "bioc-registry-next",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "node --test --experimental-strip-types src/*.test.ts",
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.6.0",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.0.0"
+  }
+}

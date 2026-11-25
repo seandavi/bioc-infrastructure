@@ -1,0 +1,42 @@
+name: registry-next / test
+# Unit and database tests for the shadow registry (packages/registry-next, #213),
+# against the Postgres major version the deployed database runs.
+on:
+  push:
+    paths: ['packages/registry-next/**', '.github/workflows/registry-next-*.yml']
+    branches: [main]
+  pull_request:
+    paths: ['packages/registry-next/**', '.github/workflows/registry-next-*.yml']
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: packages/registry-next
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # The major version the deployed database runs.
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:test@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/registry-next/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
