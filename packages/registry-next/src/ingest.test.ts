@@ -74,6 +74,17 @@ test("storeObject: bytes that do not hash to the key are rejected and nothing is
   await assert.rejects(storeObject(bucket, sql, "../x", async () => null, null), /not a sha256/);
 });
 
+test("storeObject: a copy that stalls fails by name instead of hanging, and records nothing", async () => {
+  const { bucket } = testBucket();
+  const bytes = new TextEncoder().encode("never arrives");
+  const never = new Promise<never>(() => {});
+  const stuckPut = { ...bucket, head: bucket.head, put: () => never } as unknown as R2Bucket;
+  await assert.rejects(storeObject(stuckPut, sql, sha(bytes), opened(bytes), null, () => 30),
+    new RegExp(`put cas/${sha(bytes)}: nothing after`));
+  await assert.rejects(storeObject(bucket, sql, sha(bytes), () => never, null, () => 30), /open cas\/.*: nothing after/);
+  assert.equal((await sql`select 1 from cas_objects where sha256 = ${sha(bytes)}`).length, 0);
+});
+
 test("openArtifact: the legacy mirror first, then r-universe, null on 404", async () => {
   const legacy = testBucket(), bytes = new TextEncoder().encode("mirrored");
   await legacy.bucket.put(`prop/bioc/cas/${sha(bytes)}`, bytes);

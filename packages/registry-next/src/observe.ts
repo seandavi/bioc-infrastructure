@@ -190,17 +190,19 @@ export type WriteRepos = (repos: [string, string][]) => Promise<string[]>;
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-// Copies binaries into the store three at a time: a Worker holds six connections open and each
-// copy uses two (the read and the put). Returns those whose bytes were found, in their order; a
-// binary whose bytes are gone is left out, and a later top-up fills its slot if they return.
-// ponytail: batches of three, not a pool; a pool only helps when one copy is much slower.
+// Copies binaries into the store COPIES at a time. The number is bounded by the Worker's six
+// open connections, shared with the database sockets (see DB_SOCKETS in db.ts). Returns those
+// whose bytes were found, in their order; a binary whose bytes are gone is left out, and a later
+// top-up fills its slot if they return.
+// ponytail: batches, not a pool; a pool only helps when one copy is much slower.
+export const COPIES = 3;
 export async function storeBinaries(
   env: Pick<Env, "BUCKET" | "LEGACY">, sql: Sql, universe: string, bins: BinaryIn[], f: typeof fetch,
 ): Promise<BinaryIn[]> {
   const found: boolean[] = [];
-  for (let i = 0; i < bins.length; i += 3) {
+  for (let i = 0; i < bins.length; i += COPIES) {
     // allSettled, so no copy is still running after this returns or throws.
-    const batch = await Promise.allSettled(bins.slice(i, i + 3).map((b) => storeObject(env.BUCKET, sql, b.sha256,
+    const batch = await Promise.allSettled(bins.slice(i, i + COPIES).map((b) => storeObject(env.BUCKET, sql, b.sha256,
       () => openArtifact(env, universe, b.sha256, f), `https://r2.ropensci.org/${b.sha256}`)));
     for (const r of batch) {
       if (r.status === "rejected") throw r.reason;
