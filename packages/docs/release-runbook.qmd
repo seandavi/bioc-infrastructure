@@ -1,7 +1,7 @@
 ---
 title: "Release runbook"
 date: 2026-11-24
-date-modified: 2026-11-24
+date-modified: 2026-11-25
 ---
 
 What a Bioconductor release roll asks of this platform, in the order it happens. Bioconductor
@@ -144,6 +144,11 @@ the pair is consistent (`devel_version` must be the version after `release_versi
 
 ### 5. Get it onto the site {#dispatch-sync}
 
+To hold the site at the old pair while the core team prepares master, set `PUBLISH_LATEST` to
+`false` on `seandavi/bioconductor.org`: builds still run but `site/latest` doesn't move. Set it
+back to `true` before this step. The mirror-served files (`/bioc-version`,
+`/bioc-devel-version`, `checkResults/release/`) follow master regardless.
+
 ```sh
 gh workflow run sync.yml -R seandavi/bioconductor.org --ref astro
 ```
@@ -171,6 +176,13 @@ next hourly sync; `/packages/release/` follows the build's own copies straight a
 - **The release-roll guard.** If devel passed the redirect bound, the `bioc-release-roll`
   Workflow alerts and waits for approval. Raise the bound in `gen-redirects.ts`, run
   `just redirects`, and deploy the Worker.
+- **The Worker is deployed.** `/packages/release/` and `/packages/devel/` follow the served
+  build only in a Worker deployed since [#208](https://github.com/seandavi/bioc-infrastructure/pull/208);
+  an older one follows master's symlinks and flips with master. Check before release day that
+  `npx wrangler deployments list` is newer than the last `packages/edge/worker` commit.
+- **The sync conflicts.** Release edits touch nanoc layouts astro has deleted. The sync then
+  opens a `sync/devel-<sha>` PR instead of merging; resolve by keeping them deleted if astro
+  doesn't render them, and merge with a merge commit.
 - **The registry.** Its gating R follows `devel_version` → `r_ver_for_bioc_ver`, so it moves to
   `<next>`'s R when step 4 lands. The dashboard's "why are packages not propagated?" panel
   names the gating R.
@@ -223,3 +235,16 @@ next hourly sync; `/packages/release/` follows the build's own copies straight a
   [seandavi/bioc-website#90](https://github.com/seandavi/bioc-website/pull/90) (universe by
   branch). Its first version dropped 136 packages new in 3.24 that r-universe hadn't rebuilt
   yet; `refresh_check` refused that upload in the dry run.
+- **2026-11-25.** The 06:14 UTC astro build failed (`/next/bioc-release/checkResults.html`:
+  `Cannot read properties of null (reading '_jobs')`, from a null record in the registry's
+  observation at build time), so nothing published and `/packages/3.24/` and `/3.25/` kept
+  2.47.5-era data for about ten hours, unalerted. A fresh dispatch at 16:12 passed.
+- 17:56 UTC: `PUBLISH_LATEST` set to `false` while the core team readied master. Master flipped
+  to 3.24/3.25 (devel `f1c5f602`, `05543c94`); our `/packages/release/` and `/packages/devel/`
+  flipped with it, because #208 was merged but not deployed (last deploy 2026-11-19).
+- 21:54 UTC: `PUBLISH_LATEST` back on; the sync hit modify/delete conflicts on
+  `layouts/_bioc_older_packages.html` and `layouts/_release_announcements.html` (nanoc, deleted
+  in astro). Resolved by keeping them deleted
+  ([seandavi/bioconductor.org#25](https://github.com/seandavi/bioconductor.org/pull/25)); build
+  `f5c780a2-a382b3b3` published, then the Worker deployed with #208. BiocManager on R 4.6 reports
+  3.24 release, 3.25 devel (R 4.7). `/packages/json/3.25/` still 404 (master's).
