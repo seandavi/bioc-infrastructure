@@ -2,6 +2,7 @@
 // drives the same work.
 import { Hono } from "hono";
 import type { Sql } from "postgres";
+import { z } from "zod";
 import { CHECKS_PER_TICK, LOGS_PER_TICK, drain } from "./capture.ts";
 import { connect } from "./db.ts";
 import type { Env } from "./db.ts";
@@ -58,6 +59,67 @@ admin.post("/capture", async (c) => {
   const logs = count(c.req.query("logs"), LOGS_PER_TICK), checks = count(c.req.query("checks"), CHECKS_PER_TICK);
   if (logs > 200 || checks > 100) return c.json({ error: "logs must be 0..200 and checks 0..100" }, 400);
   return c.json(await drain(c.env, c.get("sql"), { logs, checks }));
+});
+
+// The operator's backfill of job_runs from the current registry's history (scripts/backfill-jobs.py).
+// The same columns as job_runs, plus whether each capture was copied in already.
+const str = z.string().nullish().transform((v) => v ?? null);
+const ts = z.iso.datetime({ offset: true });
+const ImportRow = z.object({
+  builder: z.literal("r-universe").default("r-universe"), universe: z.enum(UNIVERSES), job: z.number().int().nonnegative(),
+  package: str, version: str, src_sha256: str, config: str, r: str, check: str,
+  time_s: z.number().int().nullish().transform((v) => v ?? null), artifact: str, bioc_version: str, commit: str,
+  failure: z.boolean().default(false), built_at: ts.nullish().transform((v) => v ?? null),
+  expires_at: ts.nullish().transform((v) => v ?? null), first_obs_ts: ts, last_obs_ts: ts,
+  log_captured: z.boolean().default(false), check_captured: z.boolean().default(false),
+});
+const ImportBody = z.object({
+  rows: z.array(ImportRow).max(5000)
+    .refine((rs) => new Set(rs.map((r) => `${r.universe}/${r.job}`)).size === rs.length, "a job appears twice"),
+});
+
+// job_runs widened to cover what each row saw (a job seen before keeps its other columns), and
+// its captures queued: done when copied in, gone when the artifact expired uncaptured, else
+// pending. An existing done row is never downgraded, and a pending one is not reset.
+admin.post("/import-jobs", async (c) => {
+  const parsed = ImportBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success)
+    return c.json({ error: parsed.error.issues.map((i) => `${i.path.join(".") || "body"}: ${i.message}`).join("; ") }, 400);
+  const sql = c.get("sql"), rows = parsed.data.rows;
+  return c.json(await sql.begin(async (tx) => {
+    const [runs] = await tx`with x as (
+        select * from jsonb_to_recordset(${tx.json(rows as never)}) as x(builder text, universe text, job bigint,
+          package text, version text, src_sha256 text, config text, r text, "check" text, time_s integer,
+          artifact text, bioc_version text, commit text, failure boolean, built_at timestamptz,
+          expires_at timestamptz, first_obs_ts timestamptz, last_obs_ts timestamptz)),
+      up as (insert into job_runs (builder, universe, job, package, version, src_sha256, config, r, "check",
+          time_s, artifact, bioc_version, commit, failure, built_at, expires_at, first_obs_ts, last_obs_ts)
+        select builder, universe, job, package, version, src_sha256, config, r, "check", time_s, artifact,
+          bioc_version, commit, failure, built_at, expires_at, first_obs_ts, last_obs_ts from x
+        on conflict (builder, universe, job) do update set
+          first_obs_ts = least(job_runs.first_obs_ts, excluded.first_obs_ts),
+          last_obs_ts = greatest(job_runs.last_obs_ts, excluded.last_obs_ts)
+        returning xmax = 0 as fresh)
+      select count(*) filter (where fresh)::int as inserted, count(*) filter (where not fresh)::int as updated from up`;
+    const queued = await tx`with x as (
+        select * from jsonb_to_recordset(${tx.json(rows as never)}) as x(builder text, universe text, job bigint,
+          artifact text, expires_at timestamptz, log_captured boolean, check_captured boolean)),
+      want as (
+        select builder, universe, job, 'log' as kind, null as artifact, expires_at, log_captured as captured from x
+        union all
+        select builder, universe, job, 'check', artifact, expires_at, check_captured from x where artifact is not null),
+      st as (select *, case when captured then 'done' when expires_at < now() then 'gone' else 'pending' end as status
+        from want)
+      insert into capture_queue (builder, universe, job, kind, artifact, expires_at, status, done_at)
+      select builder, universe, job, kind, artifact, expires_at, status,
+        case when status = 'pending' then null else now() end from st
+      on conflict (builder, universe, job, kind) do update set status = excluded.status, done_at = excluded.done_at
+        where capture_queue.status <> 'done' and excluded.status not in ('pending', capture_queue.status)
+      returning status`;
+    const capture = { pending: 0, done: 0, gone: 0 } as Record<string, number>;
+    for (const q of queued) capture[q.status]++;
+    return { rows: rows.length, ...runs, capture };
+  }));
 });
 
 // Rewrite one repository's files from the database, e.g. after a change to how they are rendered.

@@ -58,7 +58,7 @@ const d1 = createHash("sha256").update(pages[RU]).digest("hex");
 
 test("the admin routes need the maintenance key", async () => {
   for (const [path, method] of [["/admin/status", "GET"], ["/admin/refresh", "POST"], ["/admin/poll?universe=bioc", "POST"],
-    ["/admin/capture", "POST"],
+    ["/admin/capture", "POST"], ["/admin/import-jobs", "POST"],
     ["/admin/observe?universe=bioc", "POST"]])
     assert.equal((await call(path, method, "wrong")).status, 403, path);
 });
@@ -110,6 +110,41 @@ test("POST /admin/capture drains the queue by hand, within limits", async () => 
     { ...env, GITHUB_TOKEN: "t" });
   assert.deepEqual(await body(res), { status: "drained", done: 1, gone: 0, present: 0 });
   assert.ok(store.objects.has("logs/bioc/42.txt"));
+});
+
+test("POST /admin/import-jobs: job_runs widened, captures queued by what was copied, done never downgraded", async () => {
+  const post = (b: unknown) => app.request("/admin/import-jobs",
+    { method: "POST", headers: { "x-maint-key": "k", "content-type": "application/json" }, body: JSON.stringify(b) }, env);
+  const row = (job: number, o: Record<string, unknown> = {}) => ({ universe: "bioc", job, package: "p", version: "1.0",
+    config: "source", first_obs_ts: "2026-09-01T00:00:00Z", last_obs_ts: "2026-09-02T00:00:00Z", ...o });
+  const FUTURE = new Date(Date.now() + 864e5).toISOString(), PAST = "2026-01-01T00:00:00Z";
+  for (const bad of [null, {}, { rows: [row(1), row(1)] }, { rows: [row(1, { universe: "cran" })] },
+    { rows: [row(1, { first_obs_ts: "yesterday" })] }, { rows: [row(-1)] }, { rows: Array.from({ length: 5001 }, (_, i) => row(i)) }])
+    assert.equal((await post(bad)).status, 400, JSON.stringify(bad).slice(0, 80));
+  const queue = async () => (await db.sql`select job::int, kind, status, attempts from capture_queue
+    where job between 900 and 999 order by job, kind`).map((q) => Object.values(q).join(" "));
+
+  assert.deepEqual(await body(await post({ rows: [
+    row(900, { artifact: "a900", expires_at: FUTURE, log_captured: true }),
+    row(901, { artifact: "a901", expires_at: PAST, failure: true }),
+    row(902),
+  ] })), { rows: 3, inserted: 3, updated: 0, capture: { pending: 2, done: 1, gone: 2 } });
+  assert.deepEqual(await queue(), ["900 check pending 0", "900 log done 0", "901 check gone 0", "901 log gone 0", "902 log pending 0"]);
+  const [r901] = await db.sql`select failure, expires_at from job_runs where job = 901`;
+  assert.deepEqual([r901.failure, r901.expires_at.toISOString()], [true, "2026-01-01T00:00:00.000Z"]);
+
+  // Seen again, wider and with other values: only the bounds move. 900's log stays done, its
+  // check is now copied; 901's are now copied; 902's pending row keeps its attempts.
+  await db.sql`update capture_queue set attempts = 3 where job = 902`;
+  assert.deepEqual(await body(await post({ rows: [
+    row(900, { version: "9.9", artifact: "a900", expires_at: FUTURE, first_obs_ts: "2026-08-01T00:00:00Z", check_captured: true }),
+    row(901, { artifact: "a901", expires_at: PAST, log_captured: true, check_captured: true, last_obs_ts: "2026-08-15T00:00:00Z" }),
+    row(902),
+  ] })), { rows: 3, inserted: 0, updated: 3, capture: { pending: 0, done: 3, gone: 0 } });
+  assert.deepEqual(await queue(), ["900 check done 0", "900 log done 0", "901 check done 0", "901 log done 0", "902 log pending 3"]);
+  const runs = await db.sql`select job::int, version, first_obs_ts, last_obs_ts from job_runs where job in (900, 901) order by job`;
+  assert.deepEqual(runs.map((r) => [r.job, r.version, r.first_obs_ts.toISOString().slice(0, 10), r.last_obs_ts.toISOString().slice(0, 10)]),
+    [[900, "1.0", "2026-08-01", "2026-09-02"], [901, "1.0", "2026-09-01", "2026-09-02"]]);
 });
 
 test("cron: a failed refresh stops neither versions.json nor observation", async () => {
