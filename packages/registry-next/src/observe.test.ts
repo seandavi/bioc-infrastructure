@@ -6,7 +6,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DB_SOCKETS, connect } from "./db.ts";
-import { COPIES, branchVersion, observe, planWave, refresh, storeBinaries } from "./observe.ts";
+import { COPIES, branchVersion, jobRuns, observe, planWave, refresh, storeBinaries } from "./observe.ts";
+import { poll } from "./poll.ts";
 import type { ObsRecord } from "./observe.ts";
 import { biocVersions, knownExternal, setBiocVersions } from "./store.ts";
 import type { BiocVersion, CurrentPub } from "./store.ts";
@@ -145,15 +146,26 @@ test("planWave: a record named like an Object.prototype member is a package like
   assert.deepEqual(plan.approved.map((c) => c.package), ["constructor"]);
 });
 
-// ---------- observe, against a database and two test buckets ----------
+// ---------- observe, against a database, a test bucket and a stand-in for r-universe ----------
 
-const legacy = testBucket(), store = testBucket();
-const env = { BUCKET: store.bucket, LEGACY: legacy.bucket };
+const store = testBucket();
+const env = { BUCKET: store.bucket };
+// r-universe: each universe's /api/packages body, and the artifact store by sha256.
+const snapshots: Record<string, string> = {};
+const upstream = new Map<string, Uint8Array>();
 const fetched: string[] = [];
-const noNetwork = (async (u: string) => (fetched.push(u), new Response("", { status: 404 }))) as typeof fetch;
+const ru = (async (u: string) => {
+  fetched.push(u);
+  const api = /^https:\/\/([^.]+)\.r-universe\.dev\/api\/packages\?/.exec(u);
+  if (api && snapshots[api[1]]) return new Response(snapshots[api[1]]);
+  const b = upstream.get(u.replace("https://r2.ropensci.org/", ""));
+  if (b) return new Response(b, { headers: { "content-length": String(b.length) } });
+  return new Response("", { status: 404 });
+}) as typeof fetch;
+const noNetwork = ru;
 
 let n = 0;
-// A real source tarball of `pkg`, mirrored where the current registry keeps it, as a record.
+// A real source tarball of `pkg`, in r-universe's store, as a record.
 async function source(universe: string, pkg: string, version: string, o: Partial<ObsRecord> & { imports?: string[]; repository?: string; content?: string } = {}) {
   const dir = join(tmp, `s${n++}`);
   const name = o.content ?? pkg;
@@ -162,27 +174,26 @@ async function source(universe: string, pkg: string, version: string, o: Partial
   writeFileSync(join(dir, name, "DESCRIPTION"), `Package: ${name}\nVersion: ${version}\n${imports}License: MIT\n`);
   writeFileSync(join(dir, name, "NEWS"), `${name} ${version}`);
   const gz = execFileSync("tar", ["-czf", "-", "--owner=0", "--group=0", "-C", dir, name]);
-  await legacy.bucket.put(`prop/${universe}/cas/${sha(gz)}`, gz);
+  upstream.set(sha(gz), gz);
   return r(pkg, version, { ...o, _sha256: sha(gz) });
 }
-async function blob(universe: string, text: string) {
+async function blob(text: string) {
   const b = new TextEncoder().encode(text);
-  await legacy.bucket.put(`prop/${universe}/cas/${sha(b)}`, b);
+  upstream.set(sha(b), b);
   return sha(b);
 }
-// The current registry's archive of one observation: state/{universe}/latest and the records.
+// r-universe now reports `records` for the universe, and poll() archives them.
 async function observed(universe: string, records: ObsRecord[]) {
-  const digest = createHash("sha256").update(JSON.stringify(records)).digest("hex");
-  const key = `obs/${universe}/${digest.slice(0, 12)}.json`;
-  await legacy.bucket.put(key, JSON.stringify(records));
-  await legacy.bucket.put(`state/${universe}/latest`, JSON.stringify({ digest, key, ts: new Date().toISOString() }));
-  return digest;
+  snapshots[universe] = JSON.stringify(records);
+  const p = await poll(env, sql, universe, ru);
+  assert.equal(p.status, "archived");
+  return p.digest;
 }
 const current = async (version: string) => (await db.sql`select package, version, repo from publications
   where bioc_version = ${version} and superseded_at is null order by package`).map((x) => `${x.repo}/${x.package}@${x.version}`);
 
 test("observe: five candidates in a dependency chain, two per call, published in order", async () => {
-  const winSha = await blob("bioc-release", "a win zip");
+  const winSha = await blob("a win zip");
   const chain = [
     await source("bioc-release", "Ax", "1.0", { _binaries: [
       { os: "win", r: "4.6.2", version: "1.0", status: "success", fileid: `x/${winSha}`, arch: "x86_64" },
@@ -217,26 +228,26 @@ test("observe: five candidates in a dependency chain, two per call, published in
 });
 
 test("observe: a source with no bytes stops what needs it, and the next call retries it", async () => {
-  // P's linux binary is in neither store: it is left out, not fatal.
+  // P's linux binary is not in r-universe's store: it is left out, not fatal.
   const P = await source("bioc", "Px", "1.0", { RemoteRef: "HEAD", _binaries: [
     { os: "linux", r: "4.6.2", version: "1.0", status: "success", fileid: `x/${"e".repeat(64)}`, arch: "x86_64" }] });
   const Q = await source("bioc", "Qx", "1.0", { RemoteRef: "HEAD", imports: ["Px"] });
   const R = await source("bioc", "Rx", "1.0", { RemoteRef: "HEAD", imports: ["Qx"] });
   const S = await source("bioc", "Sx", "1.0", { RemoteRef: "HEAD" });
-  const qKey = `prop/bioc/cas/${Q._sha256}`, qBytes = legacy.objects.get(qKey)!;
-  legacy.objects.delete(qKey);
+  const qBytes = upstream.get(Q._sha256!)!;
+  upstream.delete(Q._sha256!);
   await observed("bioc", [P, Q, R, S]);
   const first = await observe(env, sql, "bioc", { limit: 10, fetch: noNetwork });
   assert.deepEqual(first.published!.map((p) => p.package), ["Px", "Sx"]);
   assert.deepEqual(first.failed, [{ package: "Qx", error: "source bytes are not available" }]);
   assert.equal(first.remaining, 2);
   assert.equal(first.status, "partial");
-  legacy.objects.set(qKey, qBytes);
+  upstream.set(Q._sha256!, qBytes);
   const second = await observe(env, sql, "bioc", { limit: 10, fetch: noNetwork });
   assert.deepEqual(second.published!.map((p) => p.package), ["Qx", "Rx"]);
   assert.equal(second.status, "processed");
   assert.equal(second.topped_up, 0, "P's missing binary was tried again and is still missing");
-  assert.ok(fetched.includes(`https://r2.ropensci.org/${"e".repeat(64)}`), "r-universe was asked after the mirror");
+  assert.ok(fetched.includes(`https://r2.ropensci.org/${"e".repeat(64)}`), "r-universe was asked for it");
   assert.equal((await db.sql`select 1 from published_artifacts a join publications p on p.id = a.publication_id
     where p.package = 'P'`).length, 0);
   assert.deepEqual(await current("3.25"), ["bioc/Px@1.0", "bioc/Qx@1.0", "bioc/Rx@1.0", "bioc/Sx@1.0"]);
@@ -273,8 +284,8 @@ test("observe: a new observation replaces the universe's jobs and tops up a publ
   const jobs = async () => (await db.sql`select package, config, bioc_version, r, "check", time_s, job::text, artifact
     from jobs where universe = 'bioc-release' order by package, config`).map((x) => ({ ...x }));
   assert.deepEqual((await jobs()).map((j) => j.package), ["Ax", "Ax", "Ax", "Bx", "Bx", "Cx", "Cx", "Dx", "Dx", "Ex", "Ex"]);
-  const winA = await blob("bioc-release", "a newer win build, same version");
-  const winB = await blob("bioc-release", "B's first win build");
+  const winA = await blob("a newer win build, same version");
+  const winB = await blob("B's first win build");
   const pkgs = await db.sql`select package, src_sha256 from publications where bioc_version = '3.24'`;
   const src = Object.fromEntries(pkgs.map((p) => [p.package, p.src_sha256]));
   const winJob = { config: "windows-release-x86_64", r: "4.6.2", check: "OK", job: 138738173549, time: 184.4, artifact: "149" };
@@ -309,22 +320,104 @@ test("database sockets and concurrent copies leave a write its connection", () =
 });
 
 test("storeBinaries: three copies at a time, results in input order, a missing one left out", async () => {
-  const shas = await Promise.all([0, 1, 2, 3, 4, 5, 6].map((i) => blob("bioc", `concurrent ${i}`)));
-  legacy.objects.delete(`prop/bioc/cas/${shas[4]}`); // in neither store: r-universe 404s it
+  const shas = await Promise.all([0, 1, 2, 3, 4, 5, 6].map((i) => blob(`concurrent ${i}`)));
+  upstream.delete(shas[4]); // r-universe 404s it
   // The earlier binaries are the slower ones, so finishing order is not input order.
   let open = 0, most = 0;
-  const slow = { ...legacy.bucket, async get(key: string) {
+  const slow = (async (u: string) => {
     open++; most = Math.max(most, open);
-    const i = shas.findIndex((s) => key.endsWith(s));
+    const i = shas.findIndex((s) => u.endsWith(s));
     await new Promise((res) => setTimeout(res, (7 - i) * 5));
     open--;
-    return legacy.bucket.get(key);
-  } } as unknown as R2Bucket;
+    return ru(u);
+  }) as typeof fetch;
   const bins = shas.map((s, i) => ({ os: "linux", r_minor: "4.6", arch: `a${i}`, filename: `x${i}.tar.gz`, sha256: s }));
-  const kept = await storeBinaries({ BUCKET: store.bucket, LEGACY: slow }, sql, "bioc", bins, noNetwork);
+  const kept = await storeBinaries({ BUCKET: store.bucket }, sql, bins, slow);
   assert.deepEqual(kept, bins.filter((_, i) => i !== 4));
   assert.equal(most, 3);
   for (const s of shas) assert.equal(store.objects.has(`cas/${s}`), s !== shas[4]);
+});
+
+test("jobRuns: each job once, a newer commit's failed build too, bad dates as none", () => {
+  const runs = jobRuns([
+    { Package: "a", Version: "1.0", _sha256: "s".repeat(64), RemoteRef: "RELEASE_3_24", RemoteSha: "c".repeat(40),
+      _created: "2026-11-20T01:02:03Z", _expires: "2027-02-28T00:00:00.000Z",
+      _jobs: [{ config: "source", r: "4.6.2", check: "OK", job: 11, time: 61.6, artifact: "901" },
+        { config: "linux-release-x86_64", job: 12, artifact: "" }, { config: "wasm-release" }],
+      _failure: { version: "1.1", commit: { id: "d".repeat(40) }, job: { config: "source", check: "FAILURE", job: 13, artifact: "903" } } },
+    { Package: "b", Version: "2.0", RemoteRef: "HEAD", _created: "not a date", _jobs: [{ config: "source", job: 11 }] },
+    { Package: "never", _failure: { job: null } },
+  ], VERSIONS);
+  assert.deepEqual(runs, [
+    { job: 11, package: "a", version: "1.0", src_sha256: "s".repeat(64), config: "source", r: "4.6.2", check: "OK",
+      time_s: 62, artifact: "901", bioc_version: "3.24", commit: "c".repeat(40), failure: false,
+      built_at: "2026-11-20T01:02:03.000Z", expires_at: "2027-02-28T00:00:00.000Z" },
+    { job: 12, package: "a", version: "1.0", src_sha256: "s".repeat(64), config: "linux-release-x86_64", r: null, check: null,
+      time_s: null, artifact: null, bioc_version: "3.24", commit: "c".repeat(40), failure: false,
+      built_at: "2026-11-20T01:02:03.000Z", expires_at: "2027-02-28T00:00:00.000Z" },
+    { job: 13, package: "a", version: "1.1", src_sha256: null, config: "source", r: null, check: "FAILURE",
+      time_s: null, artifact: "903", bioc_version: "3.24", commit: "d".repeat(40), failure: true,
+      built_at: null, expires_at: null },
+  ]);
+});
+
+test("observe: job_runs on first sight, then only last_obs_ts moves; captures queued for new jobs", async () => {
+  const runs = async () => (await db.sql`select job::int, package, version, "check", artifact, failure, built_at,
+    first_obs_ts, last_obs_ts from job_runs where universe = 'bioc' and job between 500 and 599 order by job`).map((x) => ({ ...x }));
+  const queue = async () => (await db.sql`select job::int, kind, artifact, status from capture_queue
+    where universe = 'bioc' and job between 500 and 599 order by job, kind`).map((x) => Object.values(x).join(" "));
+  // On a branch no version is built from, so nothing is published: only the build record.
+  const rec = (Package: string, o: Partial<ObsRecord>): ObsRecord => ({ Package, Version: "1.0", RemoteRef: "main", ...o });
+  await observed("bioc", [
+    rec("j1", { _jobs: [{ config: "source", check: "OK", job: 501, artifact: "a501" }, { config: "linux-devel-x86_64", job: 502 }],
+      _failure: { version: "1.1", job: { config: "source", check: "FAILURE", job: 503, artifact: "a503" } } }),
+  ]);
+  assert.equal((await observe(env, sql, "bioc", { fetch: noNetwork })).status, "processed");
+  const first = await runs();
+  assert.deepEqual(first.map((x) => [x.job, x.failure, x.version]), [[501, false, "1.0"], [502, false, "1.0"], [503, true, "1.1"]]);
+  assert.ok(first.every((x) => +x.first_obs_ts === +x.last_obs_ts));
+  assert.deepEqual(await queue(), ["501 check a501 pending", "501 log  pending", "502 log  pending",
+    "503 check a503 pending", "503 log  pending"]);
+
+  // A later observation: 501 again (its verdict reported differently), 502 gone, 504 new.
+  await db.sql`update capture_queue set status = 'done' where job = 501 and kind = 'log'`;
+  await new Promise((res) => setTimeout(res, 5));
+  await observed("bioc", [
+    rec("j1", { Version: "1.2", _jobs: [{ config: "source", check: "WARNING", job: 501, artifact: "other" }, { config: "linux-devel-x86_64", job: 504 }] }),
+  ]);
+  const obs = (await db.sql`select obs_ts from observations where universe = 'bioc' order by obs_ts desc limit 1`)[0].obs_ts;
+  assert.equal((await observe(env, sql, "bioc", { fetch: noNetwork })).status, "processed");
+  // Observed again before it is processed: re-planned, not recorded again.
+  await db.sql`update observations set processed_at = null where universe = 'bioc' and obs_ts = ${obs}`;
+  await db.sql`delete from jobs where universe = 'bioc' and job = 504`;
+  await observe(env, sql, "bioc", { fetch: noNetwork });
+  assert.equal((await db.sql`select 1 from jobs where universe = 'bioc' and job = 504`).length, 0);
+  const second = await runs();
+  const [r501] = second, was = first[0];
+  assert.deepEqual({ ...r501, last_obs_ts: was.last_obs_ts }, was, "nothing but last_obs_ts changes");
+  assert.equal(+r501.last_obs_ts, +obs);
+  assert.ok(r501.last_obs_ts > was.last_obs_ts);
+  assert.deepEqual(+second[1].last_obs_ts, +first[1].last_obs_ts, "502 was not seen again");
+  assert.deepEqual(second.map((x) => x.job), [501, 502, 503, 504]);
+  assert.equal(+second[3].first_obs_ts, +obs);
+  assert.deepEqual(await queue(), ["501 check a501 pending", "501 log  done", "502 log  pending",
+    "503 check a503 pending", "503 log  pending", "504 log  pending"]);
+  assert.deepEqual((await db.sql`select job::int from jobs where universe = 'bioc' order by config`).map((x) => x.job), [501]);
+});
+
+test("observe: a reverted observation is planned and recorded again as the newest", async () => {
+  const before = (await db.sql`select last_obs_ts from job_runs where universe = 'bioc' and job = 502`)[0].last_obs_ts;
+  await new Promise((res) => setTimeout(res, 5));
+  // The first of the two observations above, reported again.
+  await observed("bioc", [
+    { Package: "j1", Version: "1.0", RemoteRef: "main",
+      _jobs: [{ config: "source", check: "OK", job: 501, artifact: "a501" }, { config: "linux-devel-x86_64", job: 502 }],
+      _failure: { version: "1.1", job: { config: "source", check: "FAILURE", job: 503, artifact: "a503" } } },
+  ]);
+  assert.equal((await observe(env, sql, "bioc", { fetch: noNetwork })).status, "processed");
+  const [r] = await db.sql`select last_obs_ts from job_runs where universe = 'bioc' and job = 502`;
+  assert.ok(r.last_obs_ts > before);
+  assert.deepEqual((await db.sql`select job::int from jobs where universe = 'bioc' order by config`).map((x) => x.job), [502, 501]);
 });
 
 test("refresh: versions, then known names per version r-universe builds; a 404 version keeps none", async () => {

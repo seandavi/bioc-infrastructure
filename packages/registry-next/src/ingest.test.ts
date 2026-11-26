@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { connect } from "./db.ts";
-import { binaryIn, contentType, ingestSource, openArtifact, storeObject, storeUrl } from "./ingest.ts";
+import { binaryIn, contentType, ingestSource, openArtifact, storeObject } from "./ingest.ts";
 import { testDb } from "./testdb.ts";
 import { testBucket } from "./testr2.ts";
 
@@ -85,26 +85,22 @@ test("storeObject: a copy that stalls fails by name instead of hanging, and reco
   assert.equal((await sql`select 1 from cas_objects where sha256 = ${sha(bytes)}`).length, 0);
 });
 
-test("openArtifact: the legacy mirror first, then r-universe, null on 404", async () => {
-  const legacy = testBucket(), bytes = new TextEncoder().encode("mirrored");
-  await legacy.bucket.put(`prop/bioc/cas/${sha(bytes)}`, bytes);
-  const env = { LEGACY: legacy.bucket };
+test("openArtifact: r-universe's store, null on 404", async () => {
   const urls: string[] = [];
   const f = (async (u: string) => {
     urls.push(u);
     return u.endsWith("a".repeat(64)) ? new Response("remote", { headers: { "content-length": "6" } }) : new Response("", { status: 404 });
   }) as typeof fetch;
-  const a = (await openArtifact(env, "bioc", sha(bytes), f))!;
-  assert.equal(await new Response(a.body).text(), "mirrored");
-  assert.deepEqual(urls, []);
-  const b = (await openArtifact(env, "bioc", "a".repeat(64), f))!;
-  assert.equal(b.size, 6);
-  assert.equal(await openArtifact(env, "bioc", "b".repeat(64), f), null);
+  const a = (await openArtifact("a".repeat(64), f))!;
+  assert.equal(a.size, 6);
+  assert.equal(await new Response(a.body).text(), "remote");
+  assert.equal(await openArtifact("b".repeat(64), f), null);
+  assert.deepEqual(urls, [`https://r2.ropensci.org/${"a".repeat(64)}`, `https://r2.ropensci.org/${"b".repeat(64)}`]);
   // No content-length and no size from the record: an error, not an empty object.
   const bare = (async () => new Response(new Blob(["remote"]).stream())) as unknown as typeof fetch;
-  await assert.rejects(openArtifact(env, "bioc", "c".repeat(64), bare), /no content-length/);
-  await assert.rejects(openArtifact(env, "bioc", "c".repeat(64), bare, null), /no content-length/);
-  assert.equal((await openArtifact(env, "bioc", "c".repeat(64), bare, 6))!.size, 6);
+  await assert.rejects(openArtifact("c".repeat(64), bare), /no content-length/);
+  await assert.rejects(openArtifact("c".repeat(64), bare, null), /no content-length/);
+  assert.equal((await openArtifact("c".repeat(64), bare, 6))!.size, 6);
 });
 
 test("ingestSource: the package_versions row and the documents, once", async () => {
@@ -139,24 +135,6 @@ test("ingestSource: the package_versions row and the documents, once", async () 
   assert.deepEqual(await ingestSource(bucket, sql, s, {}, want), want);
   await assert.rejects(ingestSource(bucket, sql, s, {}, { package: "other", version: "1.2.3" }), /not other 1.2.3/,
     "an existing row is checked too");
-});
-
-test("storeUrl: hashed on one fetch, stored from a second, which is skipped once the object exists", async () => {
-  const { bucket, objects } = testBucket();
-  const bytes = new TextEncoder().encode("a tarball with no published sha256");
-  let fetches = 0;
-  const f = (async () => (fetches++, new Response(bytes))) as unknown as typeof fetch;
-  assert.deepEqual(await storeUrl(bucket, sql, "https://example.org/x", f, { md5: md5(bytes).toUpperCase(), max: 100 }),
-    { sha256: sha(bytes), size: bytes.length });
-  assert.equal(fetches, 2);
-  assert.ok(objects.has(`cas/${sha(bytes)}`));
-  await storeUrl(bucket, sql, "https://example.org/x", f, { max: 100 });
-  assert.equal(fetches, 3, "already stored: hashed, not fetched again");
-  await assert.rejects(storeUrl(bucket, sql, "https://example.org/x", f, { md5: "0".repeat(32), max: 100 }), /md5/);
-  // No content-length here, so the limit is found by counting.
-  assert.deepEqual(await storeUrl(bucket, sql, "https://example.org/x", f, { max: 10 }), { too_large: true });
-  const gone = (async () => new Response("", { status: 404 })) as unknown as typeof fetch;
-  await assert.rejects(storeUrl(bucket, sql, "https://example.org/y", gone, { max: 10 }), /HTTP 404/);
 });
 
 test("binaryIn normalizes r-universe's architectures and R versions", () => {

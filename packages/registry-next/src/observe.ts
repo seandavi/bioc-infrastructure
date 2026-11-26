@@ -1,5 +1,5 @@
-// An r-universe observation, turned into publications. The current registry polls r-universe and
-// archives what it saw; this reads those archives through LEGACY. planWave() is the pure part;
+// An r-universe observation, turned into publications. poll() archives what r-universe reports;
+// this reads the newest archive back from BUCKET. planWave() is the pure part;
 // observe() runs it against the database a bounded batch at a time, and every step is safe to
 // repeat, so calling it until `remaining` is 0 is the whole backfill.
 import type { Sql } from "postgres";
@@ -13,25 +13,27 @@ import { binaryIn, ingestSource, openArtifact, storeObject } from "./ingest.ts";
 import type { SourceExtra } from "./ingest.ts";
 import {
   REPOS,
-  addBinaries, biocVersions, currentPublications, knownExternal, markProcessed, observation, publish,
+  addBinaries, biocVersions, currentPublications, knownExternal, latestObservation, markProcessed, publish,
   recordDecisions, recordObservation, setBiocVersions, setKnownExternal,
 } from "./store.ts";
-import type { BinaryIn, BiocVersion, CurrentPub, DecisionRow, JobRow } from "./store.ts";
+import type { BinaryIn, BiocVersion, CurrentPub, DecisionRow, JobRow, JobRun } from "./store.ts";
 
 // The fields of an r-universe /api/packages record this reads.
 export type ObsRecord = {
   Package?: string; Version?: string; _sha256?: string; _status?: string; _filesize?: number;
   License?: string; NeedsCompilation?: string; Priority?: string; OS_type?: string;
   _dependencies?: { package: string; version?: string; role: string }[];
-  _jobs?: (GateJob & { job?: number; time?: number; artifact?: string })[];
+  _jobs?: ObsJob[];
+  _failure?: { version?: string; commit?: { id?: string }; job?: ObsJob | null };
   _binaries?: ObsBinary[];
   _bioc?: { repository?: string }[];
   RemoteUrl?: string; RemoteRef?: string; RemoteSha?: string;
   _commit?: { time?: number };
   _vignettes?: { filename?: string; title?: string }[];
   _devurl?: string; _upstream?: string; _sysdeps?: unknown; _bioccheck?: unknown;
-  _buildurl?: string; _created?: string; _distro?: string;
+  _buildurl?: string; _created?: string; _expires?: string; _distro?: string;
 };
+export type ObsJob = GateJob & { job?: number; time?: number; artifact?: string };
 
 export type Candidate = {
   bioc_version: string; repo: string; package: string; version: string; desc: Desc;
@@ -197,13 +199,13 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 // ponytail: batches, not a pool; a pool only helps when one copy is much slower.
 export const COPIES = 3;
 export async function storeBinaries(
-  env: Pick<Env, "BUCKET" | "LEGACY">, sql: Sql, universe: string, bins: BinaryIn[], f: typeof fetch,
+  env: Pick<Env, "BUCKET">, sql: Sql, bins: BinaryIn[], f: typeof fetch,
 ): Promise<BinaryIn[]> {
   const found: boolean[] = [];
   for (let i = 0; i < bins.length; i += COPIES) {
     // allSettled, so no copy is still running after this returns or throws.
     const batch = await Promise.allSettled(bins.slice(i, i + COPIES).map((b) => storeObject(env.BUCKET, sql, b.sha256,
-      () => openArtifact(env, universe, b.sha256, f), `https://r2.ropensci.org/${b.sha256}`)));
+      () => openArtifact(b.sha256, f), `https://r2.ropensci.org/${b.sha256}`)));
     for (const r of batch) {
       if (r.status === "rejected") throw r.reason;
       found.push(r.value);
@@ -212,23 +214,53 @@ export async function storeBinaries(
   return bins.filter((_, i) => found[i]);
 }
 
+// One record's bad date must not abort the whole observation either.
+const isoOrNull = (s: string | undefined) => {
+  const d = new Date(s ?? NaN);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+};
+
+// Every job an observation shows, once each: the last build's jobs of each record, and a newer
+// commit's failed build, which r-universe reports only in _failure (its tarball, build time and
+// expiry are not the record's).
+export function jobRuns(records: ObsRecord[], versions: BiocVersion[]): JobRun[] {
+  const runs = new Map<number, JobRun>();
+  const add = (r: ObsRecord, j: ObsJob, failure: boolean) => {
+    if (!Number.isSafeInteger(j.job) || runs.has(j.job!)) return;
+    runs.set(j.job!, {
+      job: j.job!, package: r.Package ?? null,
+      version: (failure ? r._failure?.version : r.Version) ?? null,
+      src_sha256: failure ? null : r._sha256 ?? null,
+      config: j.config ?? null, r: j.r ?? null, check: j.check ?? null,
+      time_s: Number.isFinite(j.time) ? Math.round(j.time!) : null, artifact: j.artifact || null,
+      bioc_version: branchVersion(r.RemoteRef, versions) ?? null,
+      commit: (failure ? r._failure?.commit?.id : r.RemoteSha) ?? null, failure,
+      built_at: failure ? null : isoOrNull(r._created), expires_at: failure ? null : isoOrNull(r._expires),
+    });
+  };
+  for (const r of records) {
+    for (const j of r._jobs ?? []) add(r, j, false);
+    if (r._failure?.job) add(r, r._failure.job, true);
+  }
+  return [...runs.values()];
+}
+
 export async function observe(
-  env: Pick<Env, "BUCKET" | "LEGACY">, sql: Sql, universe: string,
+  env: Pick<Env, "BUCKET">, sql: Sql, universe: string,
   opts: { limit?: number; fetch?: typeof fetch; write?: WriteRepos } = {},
 ): Promise<ObserveResult> {
   const limit = opts.limit ?? 10, f = opts.fetch ?? fetch, write = opts.write ?? (async () => []);
-  const latest = await env.LEGACY.get(`state/${universe}/latest`);
-  if (!latest) throw new Error(`no observation of ${universe}`);
-  const { digest, key, ts } = await latest.json<{ digest: string; key: string; ts: string }>();
-  const seen = await observation(sql, universe, digest);
-  if (seen?.processed_at) return { status: "unchanged", digest };
+  const obs = await latestObservation(sql, universe);
+  if (!obs) throw new Error(`no observation of ${universe}: poll it first`);
+  const { digest } = obs;
+  if (obs.processed_at) return { status: "unchanged", digest };
   const versions = await biocVersions(sql);
   if (!versions.some((v) => v.universe)) throw new Error("no Bioconductor versions yet: run refresh first");
-  const obj = await env.LEGACY.get(key);
-  if (!obj) throw new Error(`missing observation ${key}`);
+  const obj = await env.BUCKET.get(obs.r2_key);
+  if (!obj) throw new Error(`missing observation ${obs.r2_key}`);
   const records = await obj.json<ObsRecord[]>();
 
-  if (!seen) {
+  if (!obs.recorded_at) {
     const jobs = new Map<string, JobRow>();
     for (const r of records)
       for (const j of r.Package ? r._jobs ?? [] : [])
@@ -238,7 +270,7 @@ export async function observe(
           time_s: Number.isFinite(j.time) ? Math.round(j.time!) : null,
           job: j.job ?? null, artifact: j.artifact || null,
         });
-    await recordObservation(sql, { universe, digest, obs_ts: ts, r2_key: key }, [...jobs.values()]);
+    await recordObservation(sql, { universe, digest, obs_ts: obs.obs_ts }, [...jobs.values()], jobRuns(records, versions));
   }
 
   // Planned from the database as it is now, so an interrupted call loses nothing.
@@ -248,8 +280,8 @@ export async function observe(
   const plans = planWave(records, versions, pubs, known);
   await recordDecisions(sql, plans.flatMap((p) => p.decisions));
 
-  const open = (sha256: string, size?: number | null) => () => openArtifact(env, universe, sha256, f, size);
-  const store = (bins: BinaryIn[]) => storeBinaries(env, sql, universe, bins, f);
+  const open = (sha256: string, size?: number | null) => () => openArtifact(sha256, f, size);
+  const store = (bins: BinaryIn[]) => storeBinaries(env, sql, bins, f);
 
   let budget = limit, remaining = 0, topped_up = 0;
   const published: NonNullable<ObserveResult["published"]> = [];

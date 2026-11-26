@@ -5,7 +5,8 @@ Read `README.md` and [#213](https://github.com/seandavi/bioc-infrastructure/issu
 
 - **Postgres is the only mutable state.** R2 objects under `packages/` are written from the
   database and never read back to make a decision.
-- **`LEGACY` (the current registry's bucket) is read-only.** Never widen its type in `Env`.
+- **`LEGACY` (the current registry's bucket) is read by nothing at run time** (#233), and is
+  read-only: never widen its type in `Env`.
 - **Schema changes are new migrations** appended to `src/migrations.ts`. Never edit one that
   has been applied.
 - **Pure logic is unit-tested without a database or the network.** Database tests use

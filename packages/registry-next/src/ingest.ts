@@ -1,7 +1,5 @@
 // Bytes into the store, and the facts a source tarball holds out of it.
-import { createHash } from "node:crypto";
 import type { Sql } from "postgres";
-import type { Env } from "./db.ts";
 import { normArch, rMinor } from "./dcf.ts";
 import type { Artifact } from "./gate.ts";
 import { putCasObject, putPackageVersion } from "./store.ts";
@@ -15,7 +13,7 @@ const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16)
 
 // R2 needs a stream of known length. FixedLengthStream is a Workers global; Node has none and
 // the test bucket does not care.
-function fixedLength(body: ReadableStream<Uint8Array>, size: number): ReadableStream<Uint8Array> {
+export function fixedLength(body: ReadableStream<Uint8Array>, size: number): ReadableStream<Uint8Array> {
   if (typeof FixedLengthStream === "undefined") return body;
   const { readable, writable } = new FixedLengthStream(size);
   body.pipeTo(writable).catch(() => {}); // a short body fails the put, which reports it
@@ -64,13 +62,8 @@ export async function storeObject(
   return true;
 }
 
-// The bytes of an r-universe artifact: the current registry's mirror first, then r-universe's
-// own store. null when neither has them.
-export async function openArtifact(
-  env: Pick<Env, "LEGACY">, universe: string, sha256: string, f: typeof fetch, size?: number | null,
-): Promise<Opened | null> {
-  const mirrored = await env.LEGACY.get(`prop/${universe}/cas/${sha256}`);
-  if (mirrored) return { body: mirrored.body, size: mirrored.size };
+// The bytes of an r-universe artifact, from r-universe's own store. null when it has none.
+export async function openArtifact(sha256: string, f: typeof fetch, size?: number | null): Promise<Opened | null> {
   const res = await f(`https://r2.ropensci.org/${sha256}`);
   if (res.status === 404) return null;
   if (!res.ok || !res.body) throw new Error(`r2.ropensci.org/${sha256}: HTTP ${res.status}`);
@@ -125,47 +118,6 @@ export async function ingestSource(
     description: ins.description, files: ins.files, ...extra,
   });
   return { package: ins.package, version: ins.version };
-}
-
-// The bytes at a URL whose sha256 nobody publishes, into cas/{sha256}: one fetch hashes them, a
-// second (skipped when the object is already stored) streams them to R2, which verifies them
-// against the first. An md5 the publisher lists is checked on the first pass. A body over max
-// bytes is not read further; R2 cannot take it in one put.
-export async function storeUrl(
-  bucket: R2Bucket, sql: Sql, url: string, f: typeof fetch, opts: { md5?: string | null; max: number },
-): Promise<{ sha256: string; size: number } | { too_large: true }> {
-  const res = await f(url);
-  if (!res.ok || !res.body) {
-    await res.body?.cancel().catch(() => {});
-    throw new Error(`${url}: HTTP ${res.status}`);
-  }
-  if (Number(res.headers.get("content-length")) > opts.max) {
-    await res.body.cancel().catch(() => {});
-    return { too_large: true };
-  }
-  // Pumped by hand, one chunk held at a time (see inspectTarball for why not pipeThrough).
-  const sha = createHash("sha256"), md5 = createHash("md5");
-  let size = 0;
-  const r = res.body.getReader();
-  for (;;) {
-    const { done, value } = await r.read();
-    if (done) break;
-    size += value.length;
-    if (size > opts.max) {
-      await r.cancel().catch(() => {});
-      return { too_large: true };
-    }
-    sha.update(value);
-    md5.update(value);
-  }
-  const sha256 = sha.digest("hex"), got = md5.digest("hex");
-  if (opts.md5 && opts.md5.toLowerCase() !== got) throw new Error(`${url}: md5 is ${got}, the index says ${opts.md5}`);
-  await storeObject(bucket, sql, sha256, async () => {
-    const again = await f(url);
-    if (!again.ok || !again.body) throw new Error(`${url}: HTTP ${again.status} on the second fetch`);
-    return { body: again.body, size };
-  }, url);
-  return { sha256, size };
 }
 
 // Spelled as the store keeps it, so planWave() can compare it with a publication's slots.
