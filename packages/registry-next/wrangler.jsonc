@@ -10,10 +10,12 @@
   "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "0a76d33ae7d34074af18cef28e47f5f8" }],
   "r2_buckets": [
     { "binding": "BUCKET", "bucket_name": "bioc-registry" },
-    // The current registry's bucket. Read-only here: Env types it without put/delete.
+    // The current registry's bucket. Read by nothing since #233; removed after the operator's
+    // one-time copy. Env types it without put/delete.
     { "binding": "LEGACY", "bucket_name": "bioc-prop" }
   ],
-  // Every 15 minutes: refresh config.yaml when a day old, then a bounded batch of each universe.
+  // Every 15 minutes: refresh config.yaml when a day old, poll and observe a bounded batch of each
+  // universe, then capture logs and check output.
   "triggers": { "crons": ["*/15 * * * *"] },
   // One large source tarball can take tens of CPU seconds to inspect.
   "limits": { "cpu_ms": 300000 },
