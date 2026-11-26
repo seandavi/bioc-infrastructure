@@ -100,12 +100,12 @@ test("POST /admin/refresh, /admin/poll, /admin/observe and GET /admin/status dri
 });
 
 test("POST /admin/capture drains the queue by hand, within limits", async () => {
-  for (const q of ["logs=201", "checks=101", "logs=x", "checks="])
+  for (const q of ["logs=201", "checks=101", "logs=x", "checks=", "budget=9501", "budget=-1"])
     assert.equal((await call(`/admin/capture?${q}`)).status, 400, q);
   assert.deepEqual(await body(await call("/admin/capture")), { status: "skipped", reason: "no GITHUB_TOKEN" });
   // A queued log, and GitHub serving it.
   await db.sql`insert into capture_queue (universe, job, kind) values ('bioc', 42, 'log')`;
-  pages["https://api.github.com/repos/r-universe/bioc/actions/jobs/42/logs"] = "the log";
+  pages["https://api.github.com/repos/r-universe/bioc/actions/jobs/42/logs"] = new TextEncoder().encode("the log");
   const res = await app.request("/admin/capture?logs=5&checks=0", { method: "POST", headers: { "x-maint-key": "k" } },
     { ...env, GITHUB_TOKEN: "t" });
   assert.deepEqual(await body(res), { status: "drained", done: 1, gone: 0, present: 0 });

@@ -190,6 +190,7 @@ create table capture_queue (
   expires_at      timestamptz,
   last_error      text,
   done_at         timestamptz,
+  lease           uuid,                     -- the drain holding the row (capture.ts claim())
   primary key (builder, universe, job, kind)
 );
 create index capture_queue_due on capture_queue (next_attempt_at, expires_at) where status = 'pending';

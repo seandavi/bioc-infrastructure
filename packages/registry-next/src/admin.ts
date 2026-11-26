@@ -3,7 +3,7 @@
 import { Hono } from "hono";
 import type { Sql } from "postgres";
 import { z } from "zod";
-import { CHECKS_PER_TICK, LOGS_PER_TICK, drain } from "./capture.ts";
+import { CHECKS_PER_TICK, DRAIN_SUBREQUESTS, LOGS_PER_TICK, SUBREQUESTS, SUBREQUEST_MARGIN, drain, metered } from "./capture.ts";
 import { connect } from "./db.ts";
 import type { Env } from "./db.ts";
 import { materialize, materializeVersions } from "./materialize.ts";
@@ -52,13 +52,15 @@ admin.post("/observe", async (c) => {
   return c.json({ ...r, written: r.written ?? [] });
 });
 
-// What the cron does after observing: due captures copied from GitHub. Capped because a check
-// costs ~8 subrequests (API, HEAD, the directory, an entry each) and a log up to 4, against the
-// Worker's per-invocation limit.
+// What the cron does after observing: due captures copied from GitHub, within `budget`
+// subrequests of the Worker's per-invocation limit (capture.ts).
+const BUDGET_MAX = SUBREQUESTS - SUBREQUEST_MARGIN;
 admin.post("/capture", async (c) => {
   const logs = count(c.req.query("logs"), LOGS_PER_TICK), checks = count(c.req.query("checks"), CHECKS_PER_TICK);
-  if (logs > 200 || checks > 100) return c.json({ error: "logs must be 0..200 and checks 0..100" }, 400);
-  return c.json(await drain(c.env, c.get("sql"), { logs, checks }));
+  const budget = count(c.req.query("budget"), DRAIN_SUBREQUESTS);
+  if (logs > 200 || checks > 100 || budget > BUDGET_MAX)
+    return c.json({ error: `logs must be 0..200, checks 0..100 and budget 0..${BUDGET_MAX}` }, 400);
+  return c.json(await drain(c.env, c.get("sql"), { logs, checks, budget }));
 });
 
 // The operator's backfill of job_runs from the current registry's history (scripts/backfill-jobs.py).
@@ -113,7 +115,8 @@ admin.post("/import-jobs", async (c) => {
       insert into capture_queue (builder, universe, job, kind, artifact, expires_at, status, done_at)
       select builder, universe, job, kind, artifact, expires_at, status,
         case when status = 'pending' then null else now() end from st
-      on conflict (builder, universe, job, kind) do update set status = excluded.status, done_at = excluded.done_at
+      on conflict (builder, universe, job, kind) do update set status = excluded.status, done_at = excluded.done_at,
+        lease = null
         where capture_queue.status <> 'done' and excluded.status not in ('pending', capture_queue.status)
       returning status`;
     const capture = { pending: 0, done: 0, gone: 0 } as Record<string, number>;
@@ -138,25 +141,29 @@ export default admin;
 // ponytail: no Workflows. A 15-minute cron observing a bounded
 // batch per tick covers steady state (0 to 50 changed packages per observation); the first
 // backfill is driven by calling POST /admin/observe in a loop.
-export async function cron(env: Env, limit = 5): Promise<void> {
-  const sql = connect(env);
+export async function cron(base: Env, limit = 5): Promise<void> {
+  const sql = connect(base);
+  // Counted, so the drain is given what poll and observe left of the subrequest limit.
+  const m = metered(base.BUCKET, globalThis.fetch);
+  const env = { ...base, BUCKET: m.bucket }, f = m.fetch;
   try {
     const [v] = await sql`select coalesce(max(updated_at) < now() - interval '1 day', true) as stale
       from bioc_versions`;
     // Neither a failed refresh nor a failed write stops observation; versions.json is written
     // whenever it differs, so one that failed is retried on the next tick.
     if (v.stale)
-      console.log("refresh", JSON.stringify(await refresh(sql).catch((e: Error) => ({ error: e.message }))));
+      console.log("refresh", JSON.stringify(await refresh(sql, { fetch: f }).catch((e: Error) => ({ error: e.message }))));
     console.log("versions", JSON.stringify(await materializeVersions(env.BUCKET, sql).catch((e: Error) => ({ error: e.message }))));
     for (const u of UNIVERSES) {
       // One universe failing must not stop the other, and a failed poll still observes what the
       // last one archived.
-      console.log("poll", u, JSON.stringify(await poll(env, sql, u).catch((e: Error) => ({ error: e.message }))));
-      const r = await observe(env, sql, u, { limit, write: (t) => write(env, sql, t) })
+      console.log("poll", u, JSON.stringify(await poll(env, sql, u, f).catch((e: Error) => ({ error: e.message }))));
+      const r = await observe(env, sql, u, { limit, fetch: f, write: (t) => write(env, sql, t) })
         .catch((e: Error) => ({ error: e.message }));
       console.log("observe", u, JSON.stringify(r));
     }
-    console.log("capture", JSON.stringify(await drain(env, sql).catch((e: Error) => ({ error: e.message }))));
+    const budget = Math.max(0, SUBREQUESTS - SUBREQUEST_MARGIN - m.used());
+    console.log("capture", budget, JSON.stringify(await drain(base, sql, { budget }).catch((e: Error) => ({ error: e.message }))));
   } finally {
     await sql.end({ timeout: 5 });
   }

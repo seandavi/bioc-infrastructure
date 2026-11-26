@@ -34,7 +34,14 @@ export async function captureLog(
   if (gh.status === 404 || gh.status === 410) return false;
   if (!gh.ok) throw new Error(`HTTP ${gh.status}`);
   const key = `logs/${universe}/${job}.txt`;
-  const len = Number(gh.headers.get("content-length"));
+  // A missing length is a retry, not "small": read as text, a lengthless 226MB log would take the
+  // isolate down exactly as the streaming below exists to prevent (as openArtifact does).
+  const raw = gh.headers.get("content-length");
+  const len = raw !== null && /^\d+$/.test(raw) ? Number(raw) : NaN;
+  if (!Number.isSafeInteger(len)) {
+    await gh.body?.cancel().catch(() => {});
+    throw new Error(`job ${job} log: no content-length`);
+  }
   let log: string;
   if (gh.body && len > LOG_TEXT_MAX) {
     // Streamed, so the log is kept whole without being held in memory. A flood of
@@ -92,8 +99,9 @@ const ZIP_HEADER_SLACK = 1024;
 // down the isolate that is also running poll and observe.
 const MAX_LOG_BYTES = 4_000_000;
 
-// Null for anything terminal (expired, missing, malformed). Throws only when the
-// run should stop and retry later, which the caller turns into a break.
+// Null for anything terminal: the API's 404/410 (expired, or never existed), an artifact with no
+// length, a zip whose directory does not parse. Every other failure, at any hop, throws so the
+// row is retried: a null there marks the job gone, and a skipped entry saves it partial, done.
 export async function fetchCheckLogs(
   universe: string, artifact: string, token: string, f: typeof fetch,
 ): Promise<Record<string, string> | null> {
@@ -114,12 +122,13 @@ export async function fetchCheckLogs(
   if (!url) throw new Error(`artifact ${artifact}: no redirect (HTTP ${res.status})`);
 
   const head = await f(url, { method: "HEAD" });
+  if (!head.ok) throw new Error(`artifact ${artifact}: HEAD HTTP ${head.status}`);
   const total = Number(head.headers.get("content-length") ?? 0);
   if (!total) return null;
 
   const from = Math.max(0, total - ZIP_TAIL);
   const tail = await f(url, { headers: { range: `bytes=${from}-${total - 1}` } });
-  if (!tail.ok) return null;
+  if (!tail.ok) throw new Error(`artifact ${artifact}: directory HTTP ${tail.status}`);
   const entries = parseZipCentral(new Uint8Array(await tail.arrayBuffer()), from);
   if (!entries) return null;
 
@@ -128,7 +137,7 @@ export async function fetchCheckLogs(
     if (!isLogEntry(e.name) || e.size > MAX_LOG_BYTES) continue;
     const end = Math.min(total - 1, e.offset + 30 + ZIP_HEADER_SLACK + e.compressed);
     const part = await f(url, { headers: { range: `bytes=${e.offset}-${end}` } });
-    if (!part.ok) continue;
+    if (!part.ok) throw new Error(`artifact ${artifact}: ${e.name} HTTP ${part.status}`);
     const buf = new Uint8Array(await part.arrayBuffer());
     const start = 30 + (buf[26] | (buf[27] << 8)) + (buf[28] | (buf[29] << 8));
     if (start + e.compressed > buf.length) continue; // slack was not enough
@@ -258,27 +267,72 @@ export function parseZipCentral(tail: Uint8Array, tailStart: number): ZipEntry[]
 export const isLogEntry = (name: string) =>
   !name.endsWith("/") && !/\.(tar\.gz|tgz|zip)$/i.test(name);
 
+// ---------- subrequests ----------
+// Workers Paid allows 10,000 subrequests an invocation (limits.subrequests is not set in
+// wrangler.jsonc; developers.cloudflare.com/workers/platform/limits, read 2026-11-26), and every
+// fetch, every hop of a redirect it follows, and every R2 call counts. Past the limit the Worker
+// throws, so a drain is given a budget and stops short of it.
+export const SUBREQUESTS = 10_000;
+// Left for what the budget cannot see: the database sockets and the drain's own bookkeeping.
+export const SUBREQUEST_MARGIN = 500;
+// A drain's budget when none is given: the default 50 logs (6 each) and 50 checks (~15 each) fit.
+export const DRAIN_SUBREQUESTS = 1_500;
+// The most a log can spend (R2 head, the API and its redirect, the put, the manifest's get and
+// put), claimed before starting it so it never stops between writing the log and its manifest. A
+// check writes only at the end, so one stopped part way leaves nothing behind.
+const LOG_SUBREQUESTS = 6;
+
+export class OutOfSubrequests extends Error {}
+
+// `bucket` and `f`, counted against `cap`: a call that would pass it throws OutOfSubrequests
+// instead of being made.
+// ponytail: a followed redirect is charged as two subrequests; GitHub's and r2.ropensci.org's
+// are one hop. Charge more if a longer chain ever shows up.
+export function metered(bucket: R2Bucket, f: typeof fetch, cap = Infinity) {
+  let used = 0;
+  const take = (n: number) => {
+    if (used + n > cap) throw new OutOfSubrequests(`subrequest budget of ${cap} spent`);
+    used += n;
+  };
+  return {
+    bucket: new Proxy(bucket, {
+      get(t, p) {
+        const v = Reflect.get(t, p);
+        return typeof v === "function" ? async (...a: unknown[]) => { take(1); return v.apply(t, a); } : v;
+      },
+    }),
+    fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+      take(init?.redirect === "manual" ? 1 : 2);
+      return f(input, init);
+    }) as typeof fetch,
+    used: () => used,
+    left: () => cap - used,
+  };
+}
+
 // ---------- the queue ----------
 
 export const captureKey = (kind: "log" | "check", universe: string, job: string) =>
   kind === "log" ? `logs/${universe}/${job}.txt` : `checks/${universe}/${job}.json`;
 
 type Claimed = { builder: string; universe: string; job: string; kind: "log" | "check"; artifact: string | null };
+type Counts = { done: number; gone: number; present: number };
 export type DrainResult =
   | { status: "skipped"; reason: string }
-  | {
-    status: "drained" | "stopped"; done: number; gone: number; present: number;
-    stopped?: { universe: string; job: string; kind: string; error: string };
-  };
+  | (Counts & { status: "drained" })
+  | (Counts & { status: "stopped"; stopped: { universe: string; job: string; kind: string; error: string } })
+  | (Counts & { status: "out_of_subrequests"; released: number });
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-// Due rows of one kind, soonest upstream expiry first, leased for ten minutes so a concurrent
-// drain skips them.
+// Due rows of one kind, soonest upstream expiry first, leased to this drain for ten minutes so a
+// concurrent drain skips them. Every later write to a row requires the drain's lease and a
+// pending status, so a drain that outlived its lease, after another drain or an import settled
+// the row, changes nothing.
 // ponytail: a lease, not a transaction held across the GitHub calls; a drain that dies leaves
 // its rows to whichever drain runs after the lease.
-async function claim(sql: Sql, kind: "log" | "check", n: number): Promise<Claimed[]> {
-  const rows = await sql`update capture_queue q set next_attempt_at = now() + interval '10 minutes'
+async function claim(sql: Sql, lease: string, kind: "log" | "check", n: number): Promise<Claimed[]> {
+  const rows = await sql`update capture_queue q set lease = ${lease}, next_attempt_at = now() + interval '10 minutes'
     from (select builder, universe, job, kind from capture_queue
       where status = 'pending' and builder = 'r-universe' and kind = ${kind} and next_attempt_at <= now()
       order by expires_at nulls last, next_attempt_at limit ${n} for update skip locked) c
@@ -288,44 +342,49 @@ async function claim(sql: Sql, kind: "log" | "check", n: number): Promise<Claime
   return [...rows].sort((a, b) => due(a) - due(b)) as unknown as Claimed[];
 }
 
-// At most `logs` logs and `checks` checks. Saved: done. Already in BUCKET (the operator copied
-// the current registry's captures in): done, without asking GitHub. Gone upstream: gone. Any
-// other failure, a rate limit included, stops the drain: that row backs off (15 minutes doubling
-// per attempt, at most a day) and the rest of the batch is released for the next drain.
+// At most `logs` logs and `checks` checks, within `budget` subrequests. Saved: done. Already in
+// BUCKET (the operator copied the current registry's captures in): done, without asking GitHub.
+// Gone upstream: gone. Any other failure, a rate limit included, stops the drain: that row backs
+// off (15 minutes doubling per attempt, at most a day) and the rest of the batch is released for
+// the next drain. The budget running out releases what is left too, without counting an attempt.
 export async function drain(
   env: Pick<Env, "BUCKET" | "GITHUB_TOKEN">, sql: Sql,
-  opts: { logs?: number; checks?: number; fetch?: typeof fetch } = {},
+  opts: { logs?: number; checks?: number; budget?: number; fetch?: typeof fetch } = {},
 ): Promise<DrainResult> {
   // Trimmed because the obvious way to set this secret — piping `gcloud secrets
   // versions access` into `wrangler secret put` — stores the trailing newline,
   // and a header value containing one throws "Invalid header value" on every fetch.
   const token = env.GITHUB_TOKEN?.trim();
   if (!token) return { status: "skipped", reason: "no GITHUB_TOKEN" };
-  const f = opts.fetch ?? fetch;
+  const m = metered(env.BUCKET, opts.fetch ?? fetch, opts.budget ?? DRAIN_SUBREQUESTS);
+  const lease = crypto.randomUUID();
   const batch = [
-    ...await claim(sql, "log", opts.logs ?? LOGS_PER_TICK),
-    ...await claim(sql, "check", opts.checks ?? CHECKS_PER_TICK),
+    ...await claim(sql, lease, "log", opts.logs ?? LOGS_PER_TICK),
+    ...await claim(sql, lease, "check", opts.checks ?? CHECKS_PER_TICK),
   ];
   const n = { done: 0, gone: 0, present: 0 };
-  for (const [i, c] of batch.entries()) {
-    const pk = sql`builder = ${c.builder} and universe = ${c.universe} and job = ${c.job} and kind = ${c.kind}`;
+  // What this drain still holds, back to due now.
+  const release = async () => (await sql`update capture_queue set lease = null, next_attempt_at = now()
+    where lease = ${lease} and status = 'pending'`).count;
+  for (const c of batch) {
+    const mine = sql`builder = ${c.builder} and universe = ${c.universe} and job = ${c.job} and kind = ${c.kind}
+      and lease = ${lease} and status = 'pending'`;
+    if (c.kind === "log" && m.left() < LOG_SUBREQUESTS)
+      return { status: "out_of_subrequests", ...n, released: await release() };
     try {
-      const saved = await env.BUCKET.head(captureKey(c.kind, c.universe, c.job)) ? "present"
-        : c.kind === "log" ? await captureLog(env.BUCKET, c.universe, c.job, token, f) && "done"
-        : c.artifact !== null && await captureCheck(env.BUCKET, c.universe, c.job, c.artifact, token, f) && "done";
-      await sql`update capture_queue set status = ${saved ? "done" : "gone"}, done_at = now(), last_error = null
-        where ${pk}`;
+      const saved = await m.bucket.head(captureKey(c.kind, c.universe, c.job)) ? "present"
+        : c.kind === "log" ? await captureLog(m.bucket, c.universe, c.job, token, m.fetch) && "done"
+        : c.artifact !== null && await captureCheck(m.bucket, c.universe, c.job, c.artifact, token, m.fetch) && "done";
+      await sql`update capture_queue set status = ${saved ? "done" : "gone"}, done_at = now(), last_error = null,
+        lease = null where ${mine}`;
       n[saved || "gone"]++;
     } catch (e) {
+      if (e instanceof OutOfSubrequests) return { status: "out_of_subrequests", ...n, released: await release() };
       const error = message(e);
-      await sql`update capture_queue set attempts = attempts + 1, last_error = ${error},
+      await sql`update capture_queue set attempts = attempts + 1, last_error = ${error}, lease = null,
         next_attempt_at = now() + least(interval '15 minutes' * power(2, least(attempts, 7)), interval '1 day')
-        where ${pk}`;
-      const rest = batch.slice(i + 1);
-      if (rest.length)
-        await sql`update capture_queue q set next_attempt_at = now()
-          from jsonb_to_recordset(${sql.json(rest as never)}) as r(builder text, universe text, job bigint, kind text)
-          where (q.builder, q.universe, q.job, q.kind) = (r.builder, r.universe, r.job, r.kind) and q.status = 'pending'`;
+        where ${mine}`;
+      await release();
       return { status: "stopped", ...n, stopped: { universe: c.universe, job: c.job, kind: c.kind, error } };
     }
   }

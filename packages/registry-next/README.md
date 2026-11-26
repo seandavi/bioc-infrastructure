@@ -61,7 +61,7 @@ send `access-control-allow-origin: *`. `{bioc_version}` is a number (`3.24`) or 
 | `POST /admin/refresh` | Reads bioconductor.org's `config.yaml` into `bioc_versions`, then the package names CRAN and Bioconductor's other repositories publish into `known_external_deps`, per version r-universe builds. Per version, every source must list packages (or all four Bioconductor ones 404: no names yet); otherwise the previous names are kept. |
 | `POST /admin/poll?universe=bioc\|bioc-release` | Fetches the universe's records from r-universe and, when they differ from the newest observation, archives them to `obs/` and records the observation. Returns `{status: "archived"\|"unchanged", digest, key?}`. |
 | `POST /admin/observe?universe=bioc\|bioc-release&limit=10` | Brings the database and the store up to date with the newest observation `poll` archived, at most `limit` publications and top-ups per call. Returns `{status, digest, published, topped_up, failed, remaining, touched, written}`. The files a call changed are written before the observation is marked processed, and the call that completes it rewrites every repository of its versions. |
-| `POST /admin/capture?logs=50&checks=50` | Copies at most `logs` (0..200) logs and `checks` (0..100) check outputs from GitHub, soonest to expire first. Returns `{status: "drained"\|"stopped", done, gone, present, stopped?}`, or `{status: "skipped"}` without `GITHUB_TOKEN`. See [Build record and capture](#build-record-and-capture). |
+| `POST /admin/capture?logs=50&checks=50&budget=1500` | Copies at most `logs` (0..200) logs and `checks` (0..100) check outputs from GitHub, soonest to expire first, within `budget` (0..9500) subrequests. Returns `{status: "drained"\|"stopped"\|"out_of_subrequests", done, gone, present, stopped?, released?}`, or `{status: "skipped"}` without `GITHUB_TOKEN`. See [Build record and capture](#build-record-and-capture). |
 | `POST /admin/import-jobs` | Body `{rows: [...]}`, at most 5,000: `job_runs` rows (`universe`, `job`, `first_obs_ts`, `last_obs_ts` required) with optional `log_captured` and `check_captured`. A known job only widens its first and last `obs_ts`. Captures are queued `done` when captured, `gone` when not and `expires_at` has passed, else `pending`; a `done` capture is never downgraded. Returns `{rows, inserted, updated, capture: {pending, done, gone}}`. For `scripts/backfill-jobs.py`. |
 | `POST /admin/materialize?bioc_version=3.24&repo=bioc` | Rewrites one repository's files from the database. `observe` and `refresh` already write what they change; this is for a change to how the files are rendered. |
 | `GET /admin/status` | Current publications per version, repository and origin; stored objects and bytes; the latest observation per universe. |
@@ -154,9 +154,20 @@ transaction (`capture_queue`). `drain()` takes due rows, soonest `expires_at` fi
   `checks/{universe}/{job}.json`.
 
 A row whose object is already in the bucket is done without a GitHub call. A job or artifact
-gone upstream (404/410) is `gone`. Any other failure, a rate limit or a bad token included, stops
-the drain: that row waits 15 minutes, doubling per attempt up to a day, and the rest are left for
-the next drain. The cron drains 50 logs and 50 checks a tick, about 400 GitHub API calls an hour,
+gone upstream (404/410 from the API) is `gone`, as is an artifact with no length or a zip that
+does not parse. Any other failure, at any hop, a rate limit or a bad token included, stops the
+drain: that row waits 15 minutes, doubling per attempt up to a day, and the rest are left for
+the next drain. A log GitHub sends without a length is such a failure, not read as text.
+
+A drain leases what it claims for ten minutes, under a token of its own, and writes a row only
+while it still holds that lease and the row is pending; a drain that outlives its lease changes
+nothing that another drain or `/admin/import-jobs` has since settled.
+
+Every fetch (each redirect hop included) and every R2 call is a subrequest, and Workers Paid
+allows 10,000 an invocation (`limits.subrequests` is not set in `wrangler.jsonc`). A drain counts
+its own against a budget and stops short of it, releasing the rest of its batch with no attempt
+counted (`out_of_subrequests`). The cron counts what refresh, poll and observe spent and gives
+the drain the rest, less a margin of 500; by hand the default is 1,500. The cron drains 50 logs and 50 checks a tick, about 400 GitHub API calls an hour,
 next to the current registry's ~2,400 on the same token (GitHub allows 5,000).
 
 Capture needs the read-only GitHub token as the Worker secret `GITHUB_TOKEN`; without it the

@@ -1,6 +1,6 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { buildManifest, captureLog, drain, fetchCheckLogs, isLogEntry, parseZipCentral } from "./capture.ts";
+import { buildManifest, captureLog, drain, fetchCheckLogs, isLogEntry, metered, parseZipCentral } from "./capture.ts";
 import { testDb } from "./testdb.ts";
 import { testBucket } from "./testr2.ts";
 
@@ -101,21 +101,26 @@ test("buildManifest recovers the image and resolved dependency versions", () => 
 
 const API = "https://api.github.com/repos/r-universe";
 const BLOB = "https://blob.example/artifact.zip";
-// Per URL: a status, a log body, or the fixture zip behind a redirect. Every call is recorded.
+// Per URL: a status, a log body (with its length, as GitHub sends it), or the fixture zip behind a
+// redirect. `blobFails` gives the blob host a status for a request, by "HEAD" or by range start.
+// Every call is recorded.
 const gh: Record<string, number | string> = {};
+const blobFails: Record<string, number> = {};
 const calls: string[] = [];
 const github = (async (u: string, init: RequestInit = {}) => {
   const method = init.method ?? "GET";
   const range = new Headers(init.headers).get("range");
   calls.push(`${method} ${u}${range ? ` ${range}` : ""}`);
   if (u === BLOB) {
+    const [, a, b] = /^bytes=(\d+)-(\d+)$/.exec(range ?? "") ?? [];
+    const fail = blobFails[method === "HEAD" ? "HEAD" : a];
+    if (fail) return new Response("", { status: fail });
     if (method === "HEAD") return new Response(null, { headers: { "content-length": String(zip.length) } });
-    const [, a, b] = /^bytes=(\d+)-(\d+)$/.exec(range!)!;
     return new Response(zip.slice(Number(a), Number(b) + 1), { status: 206 });
   }
   const g = gh[u];
   if (g === "zip") return new Response(null, { status: 302, headers: { location: BLOB } });
-  if (typeof g === "string") return new Response(g);
+  if (typeof g === "string") return new Response(g, { headers: { "content-length": String(Buffer.byteLength(g)) } });
   return new Response("", { status: g ?? 404 });
 }) as typeof fetch;
 
@@ -131,6 +136,46 @@ test("fetchCheckLogs: the text entries out of the artifact by range, never the b
   assert.equal(await fetchCheckLogs("bioc", "78", "t", github), null, "404: expired");
   gh[`${API}/bioc/actions/artifacts/79/zip`] = 500;
   await assert.rejects(fetchCheckLogs("bioc", "79", "t", github), /no redirect \(HTTP 500\)/);
+});
+
+test("fetchCheckLogs: a failure at the blob host throws, never null (gone) or an entry short (partial)", async () => {
+  gh[`${API}/bioc/actions/artifacts/77/zip`] = "zip";
+  // The directory's slab starts at 0 (the fixture is smaller than it), and 00check.log is entry 0
+  // too, so the stored entry at 155 stands for "an entry".
+  for (const [at, status, what] of [["HEAD", 503, /HEAD HTTP 503/], ["0", 500, /directory HTTP 500/],
+    ["155", 429, /pkgdata\.txt HTTP 429/]] as const) {
+    blobFails[at] = status;
+    try { await assert.rejects(fetchCheckLogs("bioc", "77", "t", github), what, at); } finally { delete blobFails[at]; }
+  }
+  const down = (async () => { throw new TypeError("fetch failed"); }) as typeof fetch;
+  await assert.rejects(fetchCheckLogs("bioc", "77", "t", down), /fetch failed/, "network");
+  // Terminal: an artifact the blob host reports no length for.
+  const lengthless = (async (u: string, init: RequestInit = {}) =>
+    init.method === "HEAD" ? new Response(null) : github(u, init)) as typeof fetch;
+  assert.equal(await fetchCheckLogs("bioc", "77", "t", lengthless), null);
+});
+
+test("captureLog: a log without a length is retried, not read as text", async () => {
+  const { bucket, objects } = testBucket();
+  const lengthless = (async () => new Response(JOB_LOG)) as unknown as typeof fetch;
+  await assert.rejects(captureLog(bucket, "bioc", "6", "t", lengthless), /no content-length/);
+  const bad = (async () => new Response(JOB_LOG, { headers: { "content-length": "12x" } })) as unknown as typeof fetch;
+  await assert.rejects(captureLog(bucket, "bioc", "6", "t", bad), /no content-length/);
+  assert.equal(objects.size, 0);
+});
+
+test("metered: every fetch, redirect hop and R2 call is counted, and the cap is never passed", async () => {
+  const { bucket } = testBucket();
+  const m = metered(bucket, github, 4);
+  await m.bucket.put("k", "v");
+  await m.fetch(`${API}/bioc/actions/artifacts/77/zip`, { redirect: "manual" });
+  assert.equal(m.used(), 2);
+  await m.fetch(`${API}/bioc/actions/jobs/1/logs`); // followed: the API and its redirect
+  assert.equal(m.left(), 0);
+  calls.length = 0;
+  await assert.rejects(m.bucket.head("k"), /budget of 4 spent/);
+  await assert.rejects(m.fetch(BLOB, { method: "HEAD" }), /budget of 4 spent/);
+  assert.deepEqual(calls, [], "not made");
 });
 
 test("captureLog: a log over the text ceiling is streamed to R2, and its manifest read from the head", async () => {
@@ -232,4 +277,72 @@ test("drain: claimed rows are skipped by a concurrent drain", async () => {
   assert.deepEqual(await drain(env, db.sql, { fetch: github }), { status: "drained", done: 0, gone: 0, present: 0 });
   release();
   assert.deepEqual(await first, { status: "drained", done: 1, gone: 0, present: 0 });
+  await db.sql`delete from capture_queue`;
+});
+
+test("drain: a drain whose lease ran out changes nothing once another drain or an import settled the row", async () => {
+  const { bucket } = testBucket();
+  await enqueue(40, "log");
+  await enqueue(41, "log");
+  gh[`${API}/bioc/actions/jobs/40/logs`] = "log 40";
+  let release!: () => void;
+  const held = new Promise<void>((res) => { release = res; });
+  // Drain A is held at GitHub, which then fails it.
+  const slow = (async () => { await held; return new Response("", { status: 502 }); }) as unknown as typeof fetch;
+  const env = { BUCKET: bucket, GITHUB_TOKEN: "t" };
+  const first = drain(env, db.sql, { fetch: slow, logs: 1 });
+  await new Promise((res) => setTimeout(res, 50));
+  // Its lease on 40 runs out; drain B takes 40 and saves it, and an import marks 41 done.
+  await db.sql`update capture_queue set next_attempt_at = now() - interval '1 hour' where job = 40`;
+  assert.deepEqual(await drain(env, db.sql, { fetch: github, logs: 1 }), { status: "drained", done: 1, gone: 0, present: 0 });
+  await db.sql`update capture_queue set status = 'done', done_at = now(), lease = null where job = 41`;
+  release();
+  assert.equal((await first).status, "stopped");
+  assert.deepEqual((await queue()).map((q) => [q.job, q.status, q.attempts, q.last_error]),
+    [[40, "done", 0, null], [41, "done", 0, null]], "A's failure is not recorded against either");
+  // And a late success is not recorded over a row that is no longer pending or no longer A's.
+  await enqueue(42, "log");
+  gh[`${API}/bioc/actions/jobs/42/logs`] = "log 42";
+  const held2 = new Promise<void>((res) => { release = res; });
+  const slow2 = (async (u: string, init?: RequestInit) => { await held2; return github(u, init); }) as typeof fetch;
+  const second = drain(env, db.sql, { fetch: slow2, logs: 1 });
+  await new Promise((res) => setTimeout(res, 50));
+  await db.sql`update capture_queue set status = 'gone', done_at = now(), lease = null where job = 42`;
+  release();
+  assert.deepEqual(await second, { status: "drained", done: 1, gone: 0, present: 0 });
+  assert.deepEqual((await queue()).filter((q) => q.job === 42).map((q) => q.status), ["gone"]);
+  assert.equal((await db.sql`select count(*)::int as n from capture_queue where lease is not null`)[0].n, 0);
+  await db.sql`delete from capture_queue`;
+});
+
+test("drain: the subrequest budget running out releases what is left, without an attempt", async () => {
+  const { bucket, objects } = testBucket();
+  for (const j of [50, 51, 52]) {
+    await enqueue(j, "log");
+    gh[`${API}/bioc/actions/jobs/${j}/logs`] = `log ${j}`;
+  }
+  await enqueue(50, "check", { artifact: "77" });
+  gh[`${API}/bioc/actions/artifacts/77/zip`] = "zip";
+  const env = { BUCKET: bucket, GITHUB_TOKEN: "t" };
+  // A log with no manifest spends 4 (R2 head, the API and its redirect, the put) but needs 6
+  // left to start, so 10 is two logs and not a third.
+  calls.length = 0;
+  assert.deepEqual(await drain(env, db.sql, { fetch: github, budget: 10 }),
+    { status: "out_of_subrequests", done: 2, gone: 0, present: 0, released: 2 });
+  assert.equal(calls.length, 2, "two logs fetched");
+  assert.ok(!objects.has("logs/bioc/52.txt"));
+  assert.deepEqual((await queue()).map((q) => [q.job, q.kind, q.status, q.attempts, q.status === "pending" ? q.wait_min : null]), [
+    [50, "check", "pending", 0, 0], [50, "log", "done", 0, null], [51, "log", "done", 0, null], [52, "log", "pending", 0, 0],
+  ]);
+  // A check stopped part way writes nothing and is released the same way: R2 head and the API
+  // (1 each), HEAD (2, as a fetch that may follow a redirect), and the directory's range is past 5.
+  calls.length = 0;
+  assert.deepEqual(await drain(env, db.sql, { fetch: github, logs: 0, budget: 5 }),
+    { status: "out_of_subrequests", done: 0, gone: 0, present: 0, released: 1 });
+  assert.deepEqual(calls, [`GET ${API}/bioc/actions/artifacts/77/zip`, `HEAD ${BLOB}`]);
+  assert.ok(!objects.has("checks/bioc/50.json"));
+  assert.deepEqual((await queue()).filter((q) => q.kind === "check").map((q) => [q.status, q.attempts, q.wait_min]),
+    [["pending", 0, 0]]);
+  assert.equal((await db.sql`select count(*)::int as n from capture_queue where lease is not null`)[0].n, 0);
+  await db.sql`delete from capture_queue`;
 });
