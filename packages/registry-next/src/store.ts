@@ -160,13 +160,6 @@ export async function published(sql: Db, bioc_version: string, repo: string): Pr
   return out;
 }
 
-// The packages with a current publication in one repository, whatever its origin.
-export async function currentNames(sql: Db, bioc_version: string, repo: string): Promise<Set<string>> {
-  const rows = await sql`select package from publications
-    where bioc_version = ${bioc_version} and repo = ${repo} and superseded_at is null`;
-  return new Set(rows.map((r) => r.package as string));
-}
-
 // Every current publication of a version, across its repositories, with what the observer
 // needs beyond published(): the row to top up, its families and the binary slots it fills.
 export type CurrentPub = {

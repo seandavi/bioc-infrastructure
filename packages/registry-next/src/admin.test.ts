@@ -38,12 +38,6 @@ const call = (path: string, method = "POST", key = "k") =>
   app.request(path, { method, headers: { "x-maint-key": key } }, env);
 const body = (r: Response) => r.json() as Promise<any>;
 
-// One workflow r-universe never built, on bioconductor.org.
-mkdirSync(join(tmp, "rnaseqGene"));
-writeFileSync(join(tmp, "rnaseqGene", "DESCRIPTION"), "Package: rnaseqGene\nVersion: 1.0\nLicense: Artistic-2.0\n");
-pages["https://bioconductor.org/packages/3.24/workflows/src/contrib/rnaseqGene_1.0.tar.gz"] =
-  execFileSync("tar", ["-czf", "-", "--owner=0", "--group=0", "-C", tmp, "rnaseqGene"]);
-
 // One source tarball, as the current registry archives it, observed in bioc-release.
 mkdirSync(join(tmp, "demo"));
 writeFileSync(join(tmp, "demo", "DESCRIPTION"), "Package: demo\nVersion: 1.0.0\nImports: Matrix\nLicense: MIT\n");
@@ -91,18 +85,6 @@ test("POST /admin/refresh, POST /admin/observe and GET /admin/status drive a bac
   assert.equal(st.observations.length, 1);
   assert.equal(st.observations[0].digest, "d1");
   assert.ok(st.observations[0].processed_at);
-});
-
-test("POST /admin/seed fills a repository's holes from bioconductor.org and rewrites its files", async () => {
-  assert.equal((await call("/admin/seed?bioc_version=3.24&repo=workflows", "POST", "wrong")).status, 403);
-  assert.equal((await call("/admin/seed?bioc_version=9.9&repo=workflows")).status, 400);
-  assert.equal((await call("/admin/seed?bioc_version=3.24&repo=workflows&limit=51")).status, 400);
-  assert.equal((await call("/admin/seed?bioc_version=3.24&repo=workflows&limit=")).status, 400);
-  const { written, ...r } = await body(await call("/admin/seed?bioc_version=3.24&repo=workflows&after="));
-  assert.deepEqual(r, { status: "done", seeded: [{ package: "rnaseqGene", version: "1.0" }], failed: [], too_large: [],
-    remaining: 0, next: "rnaseqGene", touched: [["3.24", "workflows"]] });
-  assert.ok(written.includes("packages/3.24/workflows/src/contrib/PACKAGES"));
-  assert.deepEqual(await body(await call("/admin/seed?bioc_version=3.24&repo=bioc")), { status: "absent", written: [] });
 });
 
 test("cron: a failed refresh stops neither versions.json nor observation", async () => {
