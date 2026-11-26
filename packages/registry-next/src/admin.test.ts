@@ -58,6 +58,7 @@ const d1 = createHash("sha256").update(pages[RU]).digest("hex");
 
 test("the admin routes need the maintenance key", async () => {
   for (const [path, method] of [["/admin/status", "GET"], ["/admin/refresh", "POST"], ["/admin/poll?universe=bioc", "POST"],
+    ["/admin/capture", "POST"],
     ["/admin/observe?universe=bioc", "POST"]])
     assert.equal((await call(path, method, "wrong")).status, 403, path);
 });
@@ -96,6 +97,19 @@ test("POST /admin/refresh, /admin/poll, /admin/observe and GET /admin/status dri
   assert.equal(st.observations.length, 1);
   assert.equal(st.observations[0].digest, d1);
   assert.ok(st.observations[0].processed_at);
+});
+
+test("POST /admin/capture drains the queue by hand, within limits", async () => {
+  for (const q of ["logs=201", "checks=101", "logs=x", "checks="])
+    assert.equal((await call(`/admin/capture?${q}`)).status, 400, q);
+  assert.deepEqual(await body(await call("/admin/capture")), { status: "skipped", reason: "no GITHUB_TOKEN" });
+  // A queued log, and GitHub serving it.
+  await db.sql`insert into capture_queue (universe, job, kind) values ('bioc', 42, 'log')`;
+  pages["https://api.github.com/repos/r-universe/bioc/actions/jobs/42/logs"] = "the log";
+  const res = await app.request("/admin/capture?logs=5&checks=0", { method: "POST", headers: { "x-maint-key": "k" } },
+    { ...env, GITHUB_TOKEN: "t" });
+  assert.deepEqual(await body(res), { status: "drained", done: 1, gone: 0, present: 0 });
+  assert.ok(store.objects.has("logs/bioc/42.txt"));
 });
 
 test("cron: a failed refresh stops neither versions.json nor observation", async () => {

@@ -2,6 +2,7 @@
 // drives the same work.
 import { Hono } from "hono";
 import type { Sql } from "postgres";
+import { CHECKS_PER_TICK, LOGS_PER_TICK, drain } from "./capture.ts";
 import { connect } from "./db.ts";
 import type { Env } from "./db.ts";
 import { materialize, materializeVersions } from "./materialize.ts";
@@ -50,6 +51,15 @@ admin.post("/observe", async (c) => {
   return c.json({ ...r, written: r.written ?? [] });
 });
 
+// What the cron does after observing: due captures copied from GitHub. Capped because a check
+// costs ~8 subrequests (API, HEAD, the directory, an entry each) and a log up to 4, against the
+// Worker's per-invocation limit.
+admin.post("/capture", async (c) => {
+  const logs = count(c.req.query("logs"), LOGS_PER_TICK), checks = count(c.req.query("checks"), CHECKS_PER_TICK);
+  if (logs > 200 || checks > 100) return c.json({ error: "logs must be 0..200 and checks 0..100" }, 400);
+  return c.json(await drain(c.env, c.get("sql"), { logs, checks }));
+});
+
 // Rewrite one repository's files from the database, e.g. after a change to how they are rendered.
 admin.post("/materialize", async (c) => {
   const v = await biocVersion(c.get("sql"), c.req.query("bioc_version") ?? "");
@@ -63,9 +73,9 @@ admin.get("/status", async (c) => c.json(await status(c.get("sql"))));
 
 export default admin;
 
-// ponytail: no Workflows and no queue. A 15-minute cron polling and draining a bounded batch per tick covers
-// steady state (0 to 50 changed packages per observation); the first backfill is driven by
-// calling POST /admin/observe in a loop.
+// ponytail: no Workflows. A 15-minute cron observing a bounded
+// batch per tick covers steady state (0 to 50 changed packages per observation); the first
+// backfill is driven by calling POST /admin/observe in a loop.
 export async function cron(env: Env, limit = 5): Promise<void> {
   const sql = connect(env);
   try {
@@ -84,6 +94,7 @@ export async function cron(env: Env, limit = 5): Promise<void> {
         .catch((e: Error) => ({ error: e.message }));
       console.log("observe", u, JSON.stringify(r));
     }
+    console.log("capture", JSON.stringify(await drain(env, sql).catch((e: Error) => ({ error: e.message }))));
   } finally {
     await sql.end({ timeout: 5 });
   }

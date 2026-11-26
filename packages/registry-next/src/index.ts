@@ -8,6 +8,7 @@ import type { Env } from "./db.ts";
 import { gate } from "./gate.ts";
 import type { GateConfig } from "./gate.ts";
 import admin, { cron } from "./admin.ts";
+import { UNIVERSES } from "./observe.ts";
 import repo from "./repo.ts";
 import { REPOS, biocVersion, casDoc, knownExternal, packageDoc, published } from "./store.ts";
 
@@ -47,7 +48,7 @@ app.use("/admin/*", async (c, next) => {
 });
 
 // The public routes are readable from any page.
-for (const path of ["/", "/openapi.json", "/gate", "/api/*"]) app.use(path, cors());
+for (const path of ["/", "/openapi.json", "/gate", "/api/*", "/logs/*", "/checks/*", "/builds/*"]) app.use(path, cors());
 
 // Every error is {error}, as a schema failure is (a malformed JSON body never reaches the
 // schema). A 500's message can name internals, so it goes to the log, not the caller.
@@ -187,7 +188,33 @@ app.openapi(createRoute({
   return c.json(doc, 200);
 });
 
-// The Worker's handlers: the app serves fetch, and the cron drives refresh and observe.
+// ---------- captured build output ----------
+
+// What capture.ts copied from GitHub, from BUCKET only, at the current registry's paths. A
+// capture is written once and never changes.
+const CAPTURES = [
+  { path: "logs", ext: "txt", type: "text/plain; charset=utf-8", what: "The GitHub Actions log of one build job" },
+  { path: "checks", ext: "json", type: "application/json", what: "One job's check output, keyed by file name" },
+  { path: "builds", ext: "json", type: "application/json", what: "One job's build environment: {image, repos, deps}" },
+] as const;
+for (const k of CAPTURES)
+  app.openapi(createRoute({
+    method: "get", path: `/${k.path}/{universe}/{job}`, summary: k.what,
+    request: { params: z.object({ universe: z.enum(UNIVERSES), job: z.string().regex(/^\d+$/) }) },
+    responses: {
+      200: { content: { [k.type]: { schema: k.ext === "txt" ? z.string() : Doc } }, description: k.what },
+      404: json(Err, "Not captured"),
+    },
+  }), async (c) => {
+    const { universe, job } = c.req.valid("param");
+    const obj = await c.env.BUCKET.get(`${k.path}/${universe}/${job}.${k.ext}`);
+    if (!obj) return c.json({ error: "not found" }, 404);
+    return c.body(obj.body, 200, {
+      "content-type": k.type, etag: obj.httpEtag, "cache-control": "public, max-age=31536000, immutable",
+    });
+  });
+
+// The Worker's handlers: the app serves fetch, and the cron drives refresh, poll, observe and capture.
 export default Object.assign(app, {
   scheduled: (_e: ScheduledController, env: Env, ctx: ExecutionContext) => ctx.waitUntil(cron(env)),
 });

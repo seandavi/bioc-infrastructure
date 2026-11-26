@@ -4,6 +4,7 @@ import app from "./index.ts";
 import { MIGRATIONS } from "./migrations.ts";
 import { publish, putCasObject, putPackageVersion, setBiocVersions } from "./store.ts";
 import { testDb } from "./testdb.ts";
+import { testBucket } from "./testr2.ts";
 
 const db = await testDb();
 const fresh = await testDb({ migrate: false });
@@ -139,6 +140,37 @@ test("GET /openapi.json is generated from the routes", async () => {
     "/api/v1/packages/{bioc_version}/data/annotation/{package}",
     "/api/v1/packages/{bioc_version}/data/experiment/{package}",
     "/api/v1/packages/{bioc_version}/workflows/{package}",
+    "/builds/{universe}/{job}",
+    "/checks/{universe}/{job}",
     "/gate",
+    "/logs/{universe}/{job}",
   ]);
+});
+
+test("GET /logs, /checks and /builds serve captures from the bucket only", async () => {
+  const { bucket } = testBucket();
+  await bucket.put("logs/bioc/123.txt", "a job log");
+  await bucket.put("checks/bioc-release/123.json", JSON.stringify({ "00check.log": "Status: OK" }));
+  await bucket.put("builds/bioc/123.json", JSON.stringify({ repos: [], deps: { abind: "1.4-8" } }));
+  const get = (path: string) => app.request(path, {}, { ...env, BUCKET: bucket });
+  const log = await get("/logs/bioc/123");
+  assert.equal(log.status, 200);
+  assert.equal(log.headers.get("content-type"), "text/plain; charset=utf-8");
+  assert.equal(log.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assert.equal(log.headers.get("access-control-allow-origin"), "*");
+  assert.equal(await log.text(), "a job log");
+  const check = await get("/checks/bioc-release/123");
+  assert.equal(check.headers.get("content-type"), "application/json");
+  assert.deepEqual(await check.json(), { "00check.log": "Status: OK" });
+  assert.deepEqual(await body(await get("/builds/bioc/123")), { repos: [], deps: { abind: "1.4-8" } });
+  for (const path of ["/logs/bioc-release/123", "/checks/bioc/123", "/builds/bioc/124"]) {
+    const res = await get(path);
+    assert.equal(res.status, 404, path);
+    assert.deepEqual(await res.json(), { error: "not found" });
+  }
+  for (const path of ["/logs/cran/123", "/logs/bioc/12a", "/checks/bioc/-1"]) {
+    const res = await get(path);
+    assert.equal(res.status, 400, path);
+    assert.ok((await body(res)).error, path);
+  }
 });
