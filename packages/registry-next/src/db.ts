@@ -1,13 +1,10 @@
 import postgres from "postgres";
 import type { Sql } from "postgres";
 
-// Bindings. LEGACY is the current registry's bucket, read by nothing here any more: the
-// operator's one-time copy replaced it, and the binding is removed next. Typed without
-// put/delete so nothing here can write to it.
+// Bindings.
 export type Env = {
   HYPERDRIVE: { connectionString: string };
   BUCKET: R2Bucket;
-  LEGACY?: Pick<R2Bucket, "get" | "head" | "list">;
   MAINT_KEY?: string;
   // Read-only GitHub token for job logs and check artifacts (capture.ts). Optional: without it
   // nothing is captured.

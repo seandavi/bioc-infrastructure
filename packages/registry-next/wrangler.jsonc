@@ -9,10 +9,7 @@
   // PlanetScale Postgres. Query caching is disabled on this config: the gate must read its own writes.
   "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "0a76d33ae7d34074af18cef28e47f5f8" }],
   "r2_buckets": [
-    { "binding": "BUCKET", "bucket_name": "bioc-registry" },
-    // The current registry's bucket. Read by nothing since #233; removed after the operator's
-    // one-time copy. Env types it without put/delete.
-    { "binding": "LEGACY", "bucket_name": "bioc-prop" }
+    { "binding": "BUCKET", "bucket_name": "bioc-registry" }
   ],
   // Every 15 minutes: refresh config.yaml when a day old, poll and observe a bounded batch of each
   // universe, then capture logs and check output.

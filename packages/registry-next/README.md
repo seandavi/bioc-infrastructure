@@ -6,9 +6,10 @@ running as a shadow until it replaces it. Design and plan:
 
 **Status: shadow**, deployed at <https://bioc-registry-next.seandavi.workers.dev> since 2026-11-25.
 Nothing reads from it yet. The current registry keeps serving
-`bioc-registry.seandavi.workers.dev` and is not changed by anything here. Nothing here reads the
-current registry at run time ([#233](https://github.com/seandavi/bioc-infrastructure/issues/233)):
-this one polls r-universe, keeps its own record of every build job and copies their logs itself.
+`bioc-registry.seandavi.workers.dev` and is not changed by anything here. Nothing here depends on
+the current registry, and the Worker has no binding to its bucket
+([#233](https://github.com/seandavi/bioc-infrastructure/issues/233)): this one polls r-universe,
+keeps its own record of every build job and copies their logs itself.
 
 What differs from the current registry:
 
@@ -175,8 +176,9 @@ drain does nothing and says so.
 
 ### Backfill from the current registry
 
-One time, before the current registry is turned off; every step is safe to repeat, so re-run
-the copy and the import just before it stops. `r2:` below is an rclone remote for the Cloudflare
+Done on 2026-11-26, from an operator's machine (the Worker has no binding to the current
+registry's bucket). Kept because every step is safe to repeat: re-run the copy and the import once
+more just before the current registry stops, to pick up what it captured in between. `r2:` below is an rclone remote for the Cloudflare
 account's R2.
 
 1. Deploy, then `POST /admin/migrate` (0006 adds `job_runs` and `capture_queue`).
