@@ -7,6 +7,7 @@ import type { Env } from "./db.ts";
 import { materialize, materializeVersions } from "./materialize.ts";
 import { migrate } from "./migrations.ts";
 import { UNIVERSES, observe, refresh } from "./observe.ts";
+import { poll } from "./poll.ts";
 import { REPOS, biocVersion, status } from "./store.ts";
 
 const admin = new Hono<{ Bindings: Env; Variables: { sql: Sql } }>();
@@ -30,10 +31,19 @@ admin.post("/refresh", async (c) => {
   return c.json({ ...r, written: await materializeVersions(c.env.BUCKET, c.get("sql")) });
 });
 
+const isUniverse = (u: string) => (UNIVERSES as readonly string[]).includes(u);
+const UNIVERSE_ERROR = { error: `universe must be one of ${UNIVERSES.join(", ")}` };
+
+// What the cron does each tick: r-universe's records, archived and recorded when they changed.
+admin.post("/poll", async (c) => {
+  const universe = c.req.query("universe") ?? "";
+  if (!isUniverse(universe)) return c.json(UNIVERSE_ERROR, 400);
+  return c.json(await poll(c.env, c.get("sql"), universe));
+});
+
 admin.post("/observe", async (c) => {
   const universe = c.req.query("universe") ?? "";
-  if (!(UNIVERSES as readonly string[]).includes(universe))
-    return c.json({ error: `universe must be one of ${UNIVERSES.join(", ")}` }, 400);
+  if (!isUniverse(universe)) return c.json(UNIVERSE_ERROR, 400);
   const limit = count(c.req.query("limit"), 10);
   if (limit > 500) return c.json({ error: "limit must be 0..500" }, 400);
   const r = await observe(c.env, c.get("sql"), universe, { limit, write: (t) => write(c.env, c.get("sql"), t) });
@@ -53,7 +63,7 @@ admin.get("/status", async (c) => c.json(await status(c.get("sql"))));
 
 export default admin;
 
-// ponytail: no Workflows and no queue. A 15-minute cron draining a bounded batch per tick covers
+// ponytail: no Workflows and no queue. A 15-minute cron polling and draining a bounded batch per tick covers
 // steady state (0 to 50 changed packages per observation); the first backfill is driven by
 // calling POST /admin/observe in a loop.
 export async function cron(env: Env, limit = 5): Promise<void> {
@@ -67,7 +77,9 @@ export async function cron(env: Env, limit = 5): Promise<void> {
       console.log("refresh", JSON.stringify(await refresh(sql).catch((e: Error) => ({ error: e.message }))));
     console.log("versions", JSON.stringify(await materializeVersions(env.BUCKET, sql).catch((e: Error) => ({ error: e.message }))));
     for (const u of UNIVERSES) {
-      // One universe failing must not stop the other.
+      // One universe failing must not stop the other, and a failed poll still observes what the
+      // last one archived.
+      console.log("poll", u, JSON.stringify(await poll(env, sql, u).catch((e: Error) => ({ error: e.message }))));
       const r = await observe(env, sql, u, { limit, write: (t) => write(env, sql, t) })
         .catch((e: Error) => ({ error: e.message }));
       console.log("observe", u, JSON.stringify(r));

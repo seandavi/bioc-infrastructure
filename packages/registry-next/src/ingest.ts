@@ -1,6 +1,5 @@
 // Bytes into the store, and the facts a source tarball holds out of it.
 import type { Sql } from "postgres";
-import type { Env } from "./db.ts";
 import { normArch, rMinor } from "./dcf.ts";
 import type { Artifact } from "./gate.ts";
 import { putCasObject, putPackageVersion } from "./store.ts";
@@ -14,7 +13,7 @@ const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16)
 
 // R2 needs a stream of known length. FixedLengthStream is a Workers global; Node has none and
 // the test bucket does not care.
-function fixedLength(body: ReadableStream<Uint8Array>, size: number): ReadableStream<Uint8Array> {
+export function fixedLength(body: ReadableStream<Uint8Array>, size: number): ReadableStream<Uint8Array> {
   if (typeof FixedLengthStream === "undefined") return body;
   const { readable, writable } = new FixedLengthStream(size);
   body.pipeTo(writable).catch(() => {}); // a short body fails the put, which reports it
@@ -63,13 +62,8 @@ export async function storeObject(
   return true;
 }
 
-// The bytes of an r-universe artifact: the current registry's mirror first, then r-universe's
-// own store. null when neither has them.
-export async function openArtifact(
-  env: Pick<Env, "LEGACY">, universe: string, sha256: string, f: typeof fetch, size?: number | null,
-): Promise<Opened | null> {
-  const mirrored = await env.LEGACY.get(`prop/${universe}/cas/${sha256}`);
-  if (mirrored) return { body: mirrored.body, size: mirrored.size };
+// The bytes of an r-universe artifact, from r-universe's own store. null when it has none.
+export async function openArtifact(sha256: string, f: typeof fetch, size?: number | null): Promise<Opened | null> {
   const res = await f(`https://r2.ropensci.org/${sha256}`);
   if (res.status === 404) return null;
   if (!res.ok || !res.body) throw new Error(`r2.ropensci.org/${sha256}: HTTP ${res.status}`);

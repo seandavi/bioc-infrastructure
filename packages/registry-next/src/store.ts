@@ -394,21 +394,35 @@ export type JobRow = {
   r: string | null; check: string | null; time_s: number | null; job: number | null; artifact: string | null;
 };
 
-export async function observation(sql: Db, universe: string, digest: string) {
-  const [row] = await sql`select processed_at from observations
-    where universe = ${universe} and digest = ${digest}`;
-  return row as { processed_at: string | null } | undefined;
+// One build job as job_runs keeps it (without builder, universe and the obs_ts bounds).
+export type JobRun = {
+  job: number; package: string | null; version: string | null; src_sha256: string | null; config: string | null;
+  r: string | null; check: string | null; time_s: number | null; artifact: string | null; bioc_version: string | null;
+  commit: string | null; failure: boolean; built_at: string | null; expires_at: string | null;
+};
+
+export type Observation = {
+  digest: string; r2_key: string; obs_ts: Date; processed_at: Date | null; recorded_at: Date | null;
+};
+
+// The universe's newest observation, as poll() archived it.
+export async function latestObservation(sql: Db, universe: string): Promise<Observation | undefined> {
+  const [row] = await sql`select digest, r2_key, obs_ts, processed_at, recorded_at from observations
+    where universe = ${universe} order by obs_ts desc, seen_at desc limit 1`;
+  return row as Observation | undefined;
 }
 
-// First sight of an observation: its row, and that universe's jobs replaced by its verdicts, in
-// one transaction. Rows of packages the observation no longer holds are deleted.
+// An observation's jobs, once (recorded_at is the marker), in one transaction: that universe's
+// jobs replaced by its verdicts, with rows of packages it no longer holds deleted; every job
+// new to job_runs inserted, the rest only moving last_obs_ts; and a log capture queued for each
+// new job, a check capture for each new job with an artifact. false: already recorded.
 export async function recordObservation(sql: Sql, o: {
-  universe: string; digest: string; obs_ts: string; r2_key: string;
-}, jobs: JobRow[]): Promise<void> {
-  await sql.begin(async (tx) => {
-    const [added] = await tx`insert into observations (universe, digest, obs_ts, r2_key)
-      values (${o.universe}, ${o.digest}, ${o.obs_ts}, ${o.r2_key}) on conflict do nothing returning 1`;
-    if (!added) return;
+  universe: string; digest: string; obs_ts: Date | string;
+}, jobs: JobRow[], runs: JobRun[]): Promise<boolean> {
+  return sql.begin(async (tx) => {
+    const [mine] = await tx`update observations set recorded_at = now()
+      where universe = ${o.universe} and digest = ${o.digest} and recorded_at is null returning 1`;
+    if (!mine) return false;
     await tx`with x as (
         select * from jsonb_to_recordset(${tx.json(jobs as never)}) as x(package text, config text,
           bioc_version text, version text, r text, "check" text, time_s integer, job bigint, artifact text)),
@@ -420,7 +434,24 @@ export async function recordObservation(sql: Sql, o: {
       on conflict (universe, package, config) do update set bioc_version = excluded.bioc_version,
         version = excluded.version, r = excluded.r, "check" = excluded."check", time_s = excluded.time_s,
         job = excluded.job, artifact = excluded.artifact, obs_ts = excluded.obs_ts`;
-  });
+    // xmax = 0 only on a row this statement inserted, not on one the conflict updated.
+    await tx`with x as (
+        select * from jsonb_to_recordset(${tx.json(runs as never)}) as x(job bigint, package text, version text,
+          src_sha256 text, config text, r text, "check" text, time_s integer, artifact text, bioc_version text,
+          commit text, failure boolean, built_at timestamptz, expires_at timestamptz)),
+      runs as (insert into job_runs (universe, job, package, version, src_sha256, config, r, "check", time_s,
+          artifact, bioc_version, commit, failure, built_at, expires_at, first_obs_ts, last_obs_ts)
+        select ${o.universe}, job, package, version, src_sha256, config, r, "check", time_s, artifact, bioc_version,
+          commit, coalesce(failure, false), built_at, expires_at, ${o.obs_ts}, ${o.obs_ts} from x
+        on conflict (builder, universe, job) do update set last_obs_ts = greatest(job_runs.last_obs_ts, excluded.last_obs_ts)
+        returning builder, universe, job, artifact, expires_at, xmax = 0 as fresh)
+      insert into capture_queue (builder, universe, job, kind, artifact, expires_at)
+      select builder, universe, job, 'log', null, expires_at from runs where fresh
+      union all
+      select builder, universe, job, 'check', artifact, expires_at from runs where fresh and artifact is not null
+      on conflict do nothing`;
+    return true;
+  }) as Promise<boolean>;
 }
 
 export async function markProcessed(sql: Db, universe: string, digest: string): Promise<void> {

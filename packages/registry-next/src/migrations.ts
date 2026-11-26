@@ -143,6 +143,58 @@ alter table publications add constraint publications_repo_check
 create index gate_decisions_version on gate_decisions (bioc_version, repo, package, version, decided_at desc, id desc);
 `,
   },
+  {
+    id: "0006_job_runs",
+    sql: `
+-- poll() inserts an observation unparsed; observe() parses it and records its jobs once, setting
+-- this. Every observation before this migration had its jobs recorded on insert.
+alter table observations add column recorded_at timestamptz;
+update observations set recorded_at = seen_at;
+
+-- Every build job ever seen, append only: a row is inserted on first sight and afterwards only
+-- last_obs_ts moves. jobs stays the newest observation's verdicts.
+create table job_runs (
+  builder      text not null default 'r-universe',
+  universe     text not null,
+  job          bigint not null,             -- the GitHub Actions job id
+  package      text,
+  version      text,
+  src_sha256   text,
+  config       text,
+  r            text,
+  "check"      text,
+  time_s       integer,
+  artifact     text,                        -- the GitHub Actions artifact id
+  bioc_version text,
+  commit       text,                        -- RemoteSha, or the failed commit
+  failure      boolean not null default false,  -- from _failure: a newer commit's failed build
+  built_at     timestamptz,                 -- _created
+  expires_at   timestamptz,                 -- _expires: when the artifact goes upstream
+  first_obs_ts timestamptz not null,
+  last_obs_ts  timestamptz not null,
+  primary key (builder, universe, job)
+);
+create index job_runs_package on job_runs (universe, package, first_obs_ts);
+
+-- What is still to be copied from GitHub before it expires there: a job's log (and the build
+-- environment read from it) and its check artifact's text.
+create table capture_queue (
+  builder         text not null default 'r-universe',
+  universe        text not null,
+  job             bigint not null,
+  kind            text not null check (kind in ('log', 'check')),
+  artifact        text,
+  status          text not null default 'pending' check (status in ('pending', 'done', 'gone')),
+  attempts        integer not null default 0,
+  next_attempt_at timestamptz not null default now(),
+  expires_at      timestamptz,
+  last_error      text,
+  done_at         timestamptz,
+  primary key (builder, universe, job, kind)
+);
+create index capture_queue_due on capture_queue (next_attempt_at, expires_at) where status = 'pending';
+`,
+  },
 ];
 
 // Applies pending migrations in one transaction, under an advisory lock so two callers
